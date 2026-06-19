@@ -1,99 +1,159 @@
+import os
 import subprocess
-from pathlib import Path
-
+import requests
 import frappe
+from frappe.utils import get_bench_path
 
 
-def run_git_command(repo_path, args):
+class GitCommandError(Exception):
+    pass
+
+
+def run_git_command(repo_path, args, timeout=30):
+    """Execute git commands safely."""
     try:
         result = subprocess.run(
             ["git"] + args,
             cwd=repo_path,
-            text=True,
             capture_output=True,
-            timeout=20,
+            text=True,
+            check=True,
+            timeout=timeout,
         )
-        return {
-            "success": result.returncode == 0,
-            "output": result.stdout.strip(),
-            "error": result.stderr.strip(),
-        }
-    except Exception as e:
-        return {"success": False, "output": "", "error": str(e)}
+        return result.stdout.strip()
+
+    except subprocess.CalledProcessError as e:
+        raise GitCommandError(
+            e.stderr.strip() or e.stdout.strip() or str(e)
+        )
+
+    except subprocess.TimeoutExpired:
+        raise GitCommandError(
+            f"Git command timed out: git {' '.join(args)}"
+        )
+
+
+def get_repo_path(app_name):
+    """Return repo root path."""
+    repo_path = os.path.join(
+        get_bench_path(),
+        "apps",
+        app_name,
+    )
+
+    if not os.path.exists(repo_path):
+        raise Exception(f"App '{app_name}' not found.")
+
+    if not os.path.exists(os.path.join(repo_path, ".git")):
+        raise Exception(f"'{app_name}' is not a git repository.")
+
+    return repo_path
+
+
+def get_current_branch(repo_path):
+    return run_git_command(
+        repo_path,
+        ["branch", "--show-current"],
+        timeout=10,
+    )
+
+
+def get_upstream_branch(repo_path):
+    try:
+        return run_git_command(
+            repo_path,
+            [
+                "rev-parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{u}",
+            ],
+            timeout=10,
+        )
+    except Exception:
+        return None
+
+
+def get_working_tree_status(repo_path):
+    return run_git_command(
+        repo_path,
+        ["status", "--porcelain"],
+        timeout=10,
+    )
+
+
+def get_ahead_behind(repo_path, upstream):
+    behind = int(
+        run_git_command(
+            repo_path,
+            ["rev-list", f"HEAD..{upstream}", "--count"],
+            timeout=10,
+        )
+    )
+
+    ahead = int(
+        run_git_command(
+            repo_path,
+            ["rev-list", f"{upstream}..HEAD", "--count"],
+            timeout=10,
+        )
+    )
+
+    return ahead, behind
 
 
 @frappe.whitelist()
-def check_app_git_status(app_name):
+def analyse_repository(app_name):
     """
-    Check whether a Frappe app's local git branch is safe.
-    Blocks risky states like:
-    - local branch behind remote
-    - local branch diverged
-    - uncommitted changes
+    Main API callable from Desk, DocTypes, Pages.
     """
 
-    if app_name not in frappe.get_installed_apps():
-        frappe.throw(f"{app_name} is not installed on this site")
+    repo_path = get_repo_path(app_name)
 
-    app_package_path = Path(frappe.get_app_path(app_name))
-    repo_path = app_package_path.parent
-
-    if not (repo_path / ".git").exists():
-        frappe.throw(f"{app_name} is not a git repository")
-
-    run_git_command(repo_path, ["fetch", "--all", "--prune"])
-
-    branch = run_git_command(repo_path, ["rev-parse", "--abbrev-ref", "HEAD"])["output"]
-
-    upstream_result = run_git_command(
-        repo_path, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]
+    run_git_command(
+        repo_path,
+        ["fetch", "--all", "--prune"],
+        timeout=45,
     )
 
-    if not upstream_result["success"]:
+    current_branch = get_current_branch(repo_path)
+    upstream = get_upstream_branch(repo_path)
+
+    if not upstream:
         return {
-            "app_name": app_name,
-            "branch": branch,
-            "status": "NO_UPSTREAM",
-            "safe_to_deploy": False,
-            "message": "This branch has no upstream remote branch configured.",
+            "status": "ERROR",
+            "message": (
+                f"Branch '{current_branch}' "
+                "has no upstream tracking branch."
+            ),
         }
 
-    upstream = upstream_result["output"]
+    ahead, behind = get_ahead_behind(
+        repo_path,
+        upstream,
+    )
 
-    counts = run_git_command(
-        repo_path, ["rev-list", "--left-right", "--count", f"HEAD...{upstream}"]
-    )["output"]
+    dirty = bool(
+        get_working_tree_status(repo_path)
+    )
 
-    ahead, behind = [int(x) for x in counts.split()]
+    if behind > 0:
+        status = "STALE"
 
-    dirty = bool(run_git_command(repo_path, ["status", "--porcelain"])["output"])
+    elif ahead > 0:
+        status = "AHEAD"
 
-    if dirty:
-        status = "BLOCKED_UNCOMMITTED_CHANGES"
-        safe = False
-        message = "Local repository has uncommitted changes. Commit or stash them first."
-    elif behind > 0 and ahead > 0:
-        status = "BLOCKED_DIVERGED"
-        safe = False
-        message = f"Local branch has diverged from {upstream}. Pull/rebase and resolve conflicts first."
-    elif behind > 0:
-        status = "BLOCKED_BEHIND_REMOTE"
-        safe = False
-        message = f"Local branch is behind {upstream} by {behind} commit(s). Pull latest changes first."
+    elif dirty:
+        status = "DIRTY"
+
     else:
-        status = "SAFE"
-        safe = True
-        message = "Local branch is up to date or ahead of remote. Safe to continue."
+        status = "CLEAN"
 
     return {
-        "app_name": app_name,
-        "repo_path": str(repo_path),
-        "branch": branch,
+        "status": status,
+        "branch": current_branch,
         "upstream": upstream,
         "ahead": ahead,
         "behind": behind,
-        "has_uncommitted_changes": dirty,
-        "status": status,
-        "safe_to_deploy": safe,
-        "message": message,
+        "dirty": dirty,
     }
