@@ -9,15 +9,29 @@ from frappe.utils import now_datetime, get_bench_path
 DOCTYPE = "Module Version Check"
 
 
-class ModuleVersionCheck(Document):
-    pass
-
-
 class GitCommandError(Exception):
     pass
 
 
-def run_git_command(repo_path, args, timeout=30):
+class ModuleVersionCheck(Document):
+    @frappe.whitelist()
+    def run_version_check(self) -> dict:
+        result = analyse_local_repo(get_doc_app_folder(self), fetch=False)
+        update_check_doc(self, result)
+        self.save(ignore_permissions=True)
+        frappe.db.commit()
+        return self.as_dict()
+
+    @frappe.whitelist()
+    def run_version_check_with_fetch(self) -> dict:
+        result = analyse_local_repo(get_doc_app_folder(self), fetch=True)
+        update_check_doc(self, result)
+        self.save(ignore_permissions=True)
+        frappe.db.commit()
+        return self.as_dict()
+
+
+def run_git_command(repo_path: str, args: list[str], timeout: int = 30) -> str:
     try:
         result = subprocess.run(
             ["git"] + args,
@@ -28,15 +42,13 @@ def run_git_command(repo_path, args, timeout=30):
             timeout=timeout,
         )
         return result.stdout.strip()
-
     except subprocess.CalledProcessError as e:
         raise GitCommandError(e.stderr.strip() or e.stdout.strip() or str(e))
-
     except subprocess.TimeoutExpired:
         raise GitCommandError(f"Git command timed out: git {' '.join(args)}")
 
 
-def get_repo_path(app_folder):
+def get_repo_path(app_folder: str) -> str:
     if not app_folder:
         raise Exception("Missing app_folder.")
 
@@ -51,7 +63,7 @@ def get_repo_path(app_folder):
     return repo_path
 
 
-def normalize_remote_url(remote_url):
+def normalize_remote_url(remote_url: str) -> str:
     if not remote_url:
         return ""
 
@@ -71,7 +83,7 @@ def normalize_remote_url(remote_url):
     return remote_url.replace(".git", "")
 
 
-def get_current_branch(repo_path):
+def get_current_branch(repo_path: str) -> str:
     branch = run_git_command(repo_path, ["branch", "--show-current"], timeout=10)
 
     if not branch:
@@ -81,12 +93,7 @@ def get_current_branch(repo_path):
     return branch
 
 
-def get_primary_remote(repo_path):
-    """
-    Automatically detect the remote used by the current branch.
-    Works with origin, upstream, or any custom remote name.
-    """
-
+def get_primary_remote(repo_path: str) -> str:
     try:
         current_branch = get_current_branch(repo_path)
 
@@ -96,7 +103,6 @@ def get_primary_remote(repo_path):
                 ["config", f"branch.{current_branch}.remote"],
                 timeout=10,
             )
-
             if remote:
                 return remote
     except Exception:
@@ -109,27 +115,22 @@ def get_primary_remote(repo_path):
         return ""
 
 
-def get_repository_url(app_folder):
+def get_repository_url(app_folder: str) -> str:
     repo_path = get_repo_path(app_folder)
     remote = get_primary_remote(repo_path)
 
     if not remote:
         return ""
 
-    remote_url = run_git_command(
-        repo_path,
-        ["remote", "get-url", remote],
-        timeout=10,
-    )
-
+    remote_url = run_git_command(repo_path, ["remote", "get-url", remote], timeout=10)
     return normalize_remote_url(remote_url)
 
 
-def get_current_commit(repo_path):
+def get_current_commit(repo_path: str) -> str:
     return run_git_command(repo_path, ["rev-parse", "--short", "HEAD"], timeout=10)
 
 
-def get_upstream_branch(repo_path):
+def get_upstream_branch(repo_path: str) -> str:
     try:
         return run_git_command(
             repo_path,
@@ -140,7 +141,7 @@ def get_upstream_branch(repo_path):
         return ""
 
 
-def get_default_remote_branch(repo_path):
+def get_default_remote_branch(repo_path: str) -> str:
     remote = get_primary_remote(repo_path)
 
     if not remote:
@@ -156,11 +157,7 @@ def get_default_remote_branch(repo_path):
     except GitCommandError:
         pass
 
-    for branch in [
-        f"{remote}/main",
-        f"{remote}/master",
-        f"{remote}/develop",
-    ]:
+    for branch in [f"{remote}/main", f"{remote}/master", f"{remote}/develop"]:
         try:
             run_git_command(repo_path, ["rev-parse", "--verify", branch], timeout=10)
             return branch
@@ -170,42 +167,27 @@ def get_default_remote_branch(repo_path):
     return ""
 
 
-def get_working_tree_status(repo_path):
+def get_working_tree_status(repo_path: str) -> str:
     return run_git_command(repo_path, ["status", "--porcelain"], timeout=10)
 
 
-def fetch_remote_safely(repo_path, remote):
-    """
-    Optional remote fetch.
-    It should not break the whole version check if GitHub is slow or asks for credentials.
-    """
-
+def fetch_remote_safely(repo_path: str, remote: str) -> bool:
     if not remote:
         return False
 
     try:
-        run_git_command(
-            repo_path,
-            ["fetch", remote, "--prune"],
-            timeout=15,
-        )
+        run_git_command(repo_path, ["fetch", remote, "--prune"], timeout=15)
         return True
-
     except Exception:
         return False
 
 
-def analyse_local_repo(app_folder, fetch=False):
-    """
-    Default fetch=False prevents GitHub username/password prompts and timeout issues.
-    """
-
+def analyse_local_repo(app_folder: str, fetch: bool = False) -> dict:
     repo_path = get_repo_path(app_folder)
     remote = get_primary_remote(repo_path)
     repository_url = get_repository_url(app_folder)
 
     fetch_success = False
-
     if fetch and remote:
         fetch_success = fetch_remote_safely(repo_path, remote)
 
@@ -247,19 +229,20 @@ def analyse_local_repo(app_folder, fetch=False):
             ),
         }
 
-    behind = int(
-        run_git_command(repo_path, ["rev-list", f"HEAD..{upstream}", "--count"], timeout=10)
-    )
-
-    ahead = int(
-        run_git_command(repo_path, ["rev-list", f"{upstream}..HEAD", "--count"], timeout=10)
-    )
+    behind = int(run_git_command(repo_path, ["rev-list", f"HEAD..{upstream}", "--count"], timeout=10))
+    ahead = int(run_git_command(repo_path, ["rev-list", f"{upstream}..HEAD", "--count"], timeout=10))
 
     if behind > 0 and ahead > 0:
         status = "Diverged"
         message = (
             f"⚠️ Diverged. Local branch '{current_branch}' is {ahead} commit(s) ahead "
             f"and {behind} commit(s) behind {upstream}."
+        )
+    elif has_uncommitted_changes:
+        status = "Dirty"
+        message = (
+            f"⚠️ Branch '{current_branch}' is synced with {upstream}, but has "
+            "uncommitted or untracked local changes."
         )
     elif behind > 0:
         status = "Stale"
@@ -273,21 +256,12 @@ def analyse_local_repo(app_folder, fetch=False):
             f"⚠️ Local branch '{current_branch}' is {ahead} commit(s) ahead of {upstream}. "
             "Push your commits or confirm this is intentional."
         )
-    elif has_uncommitted_changes:
-        status = "Dirty"
-        message = (
-            f"⚠️ Branch '{current_branch}' is synced with {upstream}, but has "
-            "uncommitted or untracked local changes."
-        )
     else:
         status = "Clean"
         message = f"✅ Clean. Branch '{current_branch}' is fully synced with {upstream}."
 
     if fetch:
-        if fetch_success:
-            message += " Remote fetch completed."
-        else:
-            message += " Remote fetch skipped or failed, but local check completed."
+        message += " Remote fetch completed." if fetch_success else " Remote fetch skipped or failed, but local check completed."
 
     return {
         "environment": "Local Machine",
@@ -304,47 +278,37 @@ def analyse_local_repo(app_folder, fetch=False):
     }
 
 
-def get_risk_level(status, behind=0, ahead=0):
+def get_risk_level(status: str, behind: int = 0, ahead: int = 0) -> str:
     if status == "Clean":
         return "Low"
-
     if status in ["Dirty", "Ahead"]:
         return "Medium"
-
     if status == "Stale":
         return "Critical" if behind >= 10 else "High"
-
     if status in ["Diverged", "Error"]:
         return "Critical"
-
     return "Medium"
 
 
-def set_field_if_exists(doc, fieldname, value):
+def set_field_if_exists(doc, fieldname: str, value) -> None:
     fieldnames = [df.fieldname for df in doc.meta.fields]
-
     if fieldname in fieldnames:
         setattr(doc, fieldname, value)
 
 
-def update_check_doc(doc, result):
+def update_check_doc(doc, result: dict) -> None:
     set_field_if_exists(doc, "environment", result.get("environment"))
     set_field_if_exists(doc, "repository_url", result.get("repository_url"))
     set_field_if_exists(doc, "repository_name", result.get("repository_name"))
-
     set_field_if_exists(doc, "current_branch", result.get("current_branch"))
     set_field_if_exists(doc, "upstream_branch", result.get("upstream_branch"))
-
     set_field_if_exists(doc, "current_commit", result.get("current_commit"))
     set_field_if_exists(doc, "currrent_commit", result.get("current_commit"))
-
     set_field_if_exists(doc, "commits_behind", result.get("commits_behind", 0))
     set_field_if_exists(doc, "commits_ahead", result.get("commits_ahead", 0))
     set_field_if_exists(doc, "has_uncommitted_changes", result.get("has_uncommitted_changes", 0))
-
     set_field_if_exists(doc, "status", result.get("status"))
     set_field_if_exists(doc, "status_message", result.get("status_message"))
-
     set_field_if_exists(doc, "safe_to_deploy", result.get("status") == "Clean")
 
     set_field_if_exists(
@@ -361,22 +325,17 @@ def update_check_doc(doc, result):
     set_field_if_exists(doc, "last_checked_by", frappe.session.user)
 
 
-def get_doc_app_folder(doc):
+def get_doc_app_folder(doc) -> str:
     return getattr(doc, "app_folder", None) or doc.module_name
 
 
 @frappe.whitelist()
-def run_freshness_check(docname):
+def run_freshness_check(docname: str) -> dict:
     doc = frappe.get_doc(DOCTYPE, docname)
 
     try:
-        app_folder = get_doc_app_folder(doc)
-
-        # Normal button check: local only, no GitHub login prompt
-        result = analyse_local_repo(app_folder, fetch=False)
-
+        result = analyse_local_repo(get_doc_app_folder(doc), fetch=False)
         update_check_doc(doc, result)
-
     except Exception as e:
         set_field_if_exists(doc, "status", "Error")
         set_field_if_exists(doc, "status_message", str(e))
@@ -387,22 +346,16 @@ def run_freshness_check(docname):
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
-
     return doc.as_dict()
 
 
 @frappe.whitelist()
-def run_freshness_check_with_fetch(docname):
+def run_freshness_check_with_fetch(docname: str) -> dict:
     doc = frappe.get_doc(DOCTYPE, docname)
 
     try:
-        app_folder = get_doc_app_folder(doc)
-
-        # Optional remote check: contacts GitHub, may need authentication
-        result = analyse_local_repo(app_folder, fetch=True)
-
+        result = analyse_local_repo(get_doc_app_folder(doc), fetch=True)
         update_check_doc(doc, result)
-
     except Exception as e:
         set_field_if_exists(doc, "status", "Error")
         set_field_if_exists(doc, "status_message", str(e))
@@ -413,12 +366,11 @@ def run_freshness_check_with_fetch(docname):
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()
-
     return doc.as_dict()
 
 
 @frappe.whitelist()
-def scan_installed_apps():
+def scan_installed_apps() -> dict:
     apps = frappe.get_installed_apps()
 
     created = 0
@@ -457,18 +409,11 @@ def scan_installed_apps():
             errors.append(f"{app}: {e}")
 
     frappe.db.commit()
-
-    return {
-        "created": created,
-        "updated": updated,
-        "skipped": skipped,
-        "total": len(apps),
-        "errors": errors,
-    }
+    return {"created": created, "updated": updated, "skipped": skipped, "total": len(apps), "errors": errors}
 
 
 @frappe.whitelist()
-def run_all_version_checks():
+def run_all_version_checks() -> dict:
     docs = frappe.get_all(DOCTYPE, pluck="name")
 
     checked = 0
@@ -483,15 +428,11 @@ def run_all_version_checks():
             failed += 1
             errors.append(f"{docname}: {e}")
 
-    return {
-        "checked": checked,
-        "failed": failed,
-        "errors": errors,
-    }
+    return {"checked": checked, "failed": failed, "errors": errors}
 
 
 @frappe.whitelist()
-def run_all_version_checks_with_fetch():
+def run_all_version_checks_with_fetch() -> dict:
     docs = frappe.get_all(DOCTYPE, pluck="name")
 
     checked = 0
@@ -506,8 +447,4 @@ def run_all_version_checks_with_fetch():
             failed += 1
             errors.append(f"{docname}: {e}")
 
-    return {
-        "checked": checked,
-        "failed": failed,
-        "errors": errors,
-    }
+    return {"checked": checked, "failed": failed, "errors": errors}
