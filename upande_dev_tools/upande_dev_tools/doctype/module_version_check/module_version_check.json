@@ -1,166 +1,181 @@
 {
- "actions": [],
- "allow_bulk_edit": 1,
- "allow_rename": 1,
- "autoname": "field:module_name",
- "creation": "2026-06-17 20:20:33.705921",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "default_section",
-  "module_name",
-  "repository_name",
-  "environment",
-  "currrent_commit",
-  "current_branch",
-  "upstream_branch",
-  "version_status_section",
-  "status",
-  "commits_ahead",
-  "commits_behind",
-  "has_uncommitted_changes",
-  "safe_to_deploy",
-  "last_checked_at",
-  "last_checked_by",
-  "risk_level",
-  "status_message"
- ],
- "fields": [
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "\nClean\nDirty\nAhead\nStale\nError",
-   "read_only": 1
-  },
-  {
-   "fieldname": "last_checked_at",
-   "fieldtype": "Datetime",
-   "label": "Last Checked At",
-   "read_only": 1
-  },
-  {
-   "fieldname": "status_message",
-   "fieldtype": "Small Text",
-   "label": "Status Message",
-   "read_only": 1
-  },
-  {
-   "fieldname": "default_section",
-   "fieldtype": "Section Break",
-   "label": "Repository Information"
-  },
-  {
-   "fieldname": "module_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Module/App Name",
-   "reqd": 1,
-   "unique": 1
-  },
-  {
-   "fieldname": "repository_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "GitHub Repository"
-  },
-  {
-   "fieldname": "environment",
-   "fieldtype": "Select",
-   "label": "Environment",
-   "options": "\nLocal Machine\nLive Server",
-   "read_only": 1
-  },
-  {
-   "fieldname": "current_branch",
-   "fieldtype": "Data",
-   "label": "Active Branch",
-   "read_only": 1
-  },
-  {
-   "fieldname": "commits_behind",
-   "fieldtype": "Int",
-   "label": "Commits Behind",
-   "read_only": 1
-  },
-  {
-   "fieldname": "currrent_commit",
-   "fieldtype": "Data",
-   "label": "Currrent Commit",
-   "read_only": 1
-  },
-  {
-   "fieldname": "upstream_branch",
-   "fieldtype": "Data",
-   "label": "Upstream Branch",
-   "read_only": 1
-  },
-  {
-   "fieldname": "commits_ahead",
-   "fieldtype": "Int",
-   "label": "Commits Ahead",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "has_uncommitted_changes",
-   "fieldtype": "Check",
-   "label": "Has Uncommitted changes",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "safe_to_deploy",
-   "fieldtype": "Check",
-   "label": "Safe To Deploy",
-   "read_only": 1
-  },
-  {
-   "fieldname": "risk_level",
-   "fieldtype": "Select",
-   "label": "Risk Level",
-   "options": "Low\nMedium\nHigh\nCritical",
-   "read_only": 1
-  },
-  {
-   "fieldname": "version_status_section",
-   "fieldtype": "Section Break",
-   "label": "Version Status"
-  },
-  {
-   "fieldname": "last_checked_by",
-   "fieldtype": "Link",
-   "label": "Last Checked By",
-   "options": "User",
-   "read_only": 1
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-06-18 20:53:19.359179",
- "modified_by": "Administrator",
- "module": "Upande Dev Tools",
- "name": "Module Version Check",
- "naming_rule": "By fieldname",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "creation",
- "sort_order": "DESC",
- "states": []
+  "actions": [],
+  "allow_bulk_edit": 1,
+  "allow_rename": 1,
+  "autoname": "field:module_name",
+  "creation": "2026-06-17 20:20:33.705921",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "default_section",
+    "module_name",
+    "app_folder",
+    "repository_name",
+    "repository_url",
+    "environment",
+    "current_commit",
+    "current_branch",
+    "upstream_branch",
+    "version_status_section",
+    "status",
+    "commits_ahead",
+    "commits_behind",
+    "has_uncommitted_changes",
+    "safe_to_deploy",
+    "last_checked_at",
+    "last_checked_by",
+    "risk_level",
+    "status_message"
+  ],
+  "fields": [
+    {
+      "fieldname": "default_section",
+      "fieldtype": "Section Break",
+      "label": "Repository Information"
+    },
+    {
+      "fieldname": "module_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Module/App Name",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "app_folder",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "App Folder",
+      "read_only": 1
+    },
+    {
+      "fieldname": "repository_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "GitHub Repository"
+    },
+    {
+      "fieldname": "repository_url",
+      "fieldtype": "Data",
+      "label": "Repository URL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "environment",
+      "fieldtype": "Select",
+      "label": "Environment",
+      "options": "\nLocal Machine\nLive Server",
+      "read_only": 1
+    },
+    {
+      "fieldname": "current_commit",
+      "fieldtype": "Data",
+      "label": "Current Commit",
+      "read_only": 1
+    },
+    {
+      "fieldname": "current_branch",
+      "fieldtype": "Data",
+      "label": "Active Branch",
+      "read_only": 1
+    },
+    {
+      "fieldname": "upstream_branch",
+      "fieldtype": "Data",
+      "label": "Upstream Branch",
+      "read_only": 1
+    },
+    {
+      "fieldname": "version_status_section",
+      "fieldtype": "Section Break",
+      "label": "Version Status"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "\nClean\nDirty\nAhead\nStale\nDiverged\nNo Upstream\nNo Git Repo\nError",
+      "read_only": 1
+    },
+    {
+      "fieldname": "commits_ahead",
+      "fieldtype": "Int",
+      "label": "Commits Ahead",
+      "read_only": 1
+    },
+    {
+      "fieldname": "commits_behind",
+      "fieldtype": "Int",
+      "label": "Commits Behind",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "has_uncommitted_changes",
+      "fieldtype": "Check",
+      "label": "Has Uncommitted Changes",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "safe_to_deploy",
+      "fieldtype": "Check",
+      "label": "Safe To Deploy",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_checked_at",
+      "fieldtype": "Datetime",
+      "label": "Last Checked At",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_checked_by",
+      "fieldtype": "Link",
+      "label": "Last Checked By",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "risk_level",
+      "fieldtype": "Select",
+      "label": "Risk Level",
+      "options": "Low\nMedium\nHigh\nCritical",
+      "read_only": 1
+    },
+    {
+      "fieldname": "status_message",
+      "fieldtype": "Small Text",
+      "label": "Status Message",
+      "read_only": 1
+    }
+  ],
+  "grid_page_length": 50,
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2026-06-19 20:53:19.359179",
+  "modified_by": "Administrator",
+  "module": "Upande Dev Tools",
+  "name": "Module Version Check",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "row_format": "Dynamic",
+  "rows_threshold_for_grid_search": 20,
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": []
 }

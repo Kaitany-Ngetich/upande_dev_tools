@@ -1,6 +1,5 @@
 import os
 import subprocess
-import requests
 
 import frappe
 from frappe.model.document import Document
@@ -16,17 +15,6 @@ class ModuleVersionCheck(Document):
 
 class GitCommandError(Exception):
     pass
-
-
-def is_local_environment():
-    if frappe.conf.get("developer_mode") == 1:
-        return True
-
-    request_host = ""
-    if getattr(frappe.local, "request", None):
-        request_host = frappe.local.request.host or ""
-
-    return any(host in request_host for host in ["localhost", "127.0.0.1", "0.0.0.0"])
 
 
 def run_git_command(repo_path, args, timeout=30):
@@ -48,16 +36,39 @@ def run_git_command(repo_path, args, timeout=30):
         raise GitCommandError(f"Git command timed out: git {' '.join(args)}")
 
 
-def get_repo_path(app_name):
-    repo_path = os.path.join(get_bench_path(), "apps", app_name)
+def get_repo_path(app_folder):
+    if not app_folder:
+        raise Exception("Missing app_folder.")
+
+    repo_path = os.path.join(get_bench_path(), "apps", app_folder)
 
     if not os.path.exists(repo_path):
-        raise Exception(f"App path not found: {repo_path}")
+        raise Exception(f"App folder not found: {repo_path}")
 
     if not os.path.exists(os.path.join(repo_path, ".git")):
-        raise Exception(f"Not a Git repository: {repo_path}")
+        raise Exception(f"No Git repository found for app folder: {app_folder}")
 
     return repo_path
+
+
+def normalize_remote_url(remote_url):
+    if not remote_url:
+        return ""
+
+    remote_url = remote_url.strip()
+
+    if remote_url.startswith("https://github.com/"):
+        return remote_url.replace(".git", "")
+
+    if remote_url.startswith("git@github.com:"):
+        repo = remote_url.replace("git@github.com:", "")
+        return f"https://github.com/{repo}".replace(".git", "")
+
+    if remote_url.startswith("git@") and ":" in remote_url:
+        repo = remote_url.split(":", 1)[1]
+        return f"https://github.com/{repo}".replace(".git", "")
+
+    return remote_url.replace(".git", "")
 
 
 def get_current_branch(repo_path):
@@ -70,6 +81,54 @@ def get_current_branch(repo_path):
     return branch
 
 
+def get_primary_remote(repo_path):
+    """
+    Automatically detect the remote used by the current branch.
+    Works with origin, upstream, or any custom remote name.
+    """
+
+    try:
+        current_branch = get_current_branch(repo_path)
+
+        if not current_branch.startswith("DETACHED-"):
+            remote = run_git_command(
+                repo_path,
+                ["config", f"branch.{current_branch}.remote"],
+                timeout=10,
+            )
+
+            if remote:
+                return remote
+    except Exception:
+        pass
+
+    try:
+        remotes = run_git_command(repo_path, ["remote"], timeout=10).splitlines()
+        return remotes[0] if remotes else ""
+    except Exception:
+        return ""
+
+
+def get_repository_url(app_folder):
+    repo_path = get_repo_path(app_folder)
+    remote = get_primary_remote(repo_path)
+
+    if not remote:
+        return ""
+
+    remote_url = run_git_command(
+        repo_path,
+        ["remote", "get-url", remote],
+        timeout=10,
+    )
+
+    return normalize_remote_url(remote_url)
+
+
+def get_current_commit(repo_path):
+    return run_git_command(repo_path, ["rev-parse", "--short", "HEAD"], timeout=10)
+
+
 def get_upstream_branch(repo_path):
     try:
         return run_git_command(
@@ -78,88 +137,113 @@ def get_upstream_branch(repo_path):
             timeout=10,
         )
     except GitCommandError:
-        return None
+        return ""
 
 
 def get_default_remote_branch(repo_path):
+    remote = get_primary_remote(repo_path)
+
+    if not remote:
+        return ""
+
     try:
-        origin_head = run_git_command(
+        remote_head = run_git_command(
             repo_path,
-            ["symbolic-ref", "refs/remotes/origin/HEAD"],
+            ["symbolic-ref", f"refs/remotes/{remote}/HEAD"],
             timeout=10,
         )
-        return origin_head.replace("refs/remotes/", "")
+        return remote_head.replace("refs/remotes/", "")
     except GitCommandError:
         pass
 
-    for branch in ["origin/main", "origin/master", "origin/develop"]:
+    for branch in [
+        f"{remote}/main",
+        f"{remote}/master",
+        f"{remote}/develop",
+    ]:
         try:
             run_git_command(repo_path, ["rev-parse", "--verify", branch], timeout=10)
             return branch
         except GitCommandError:
             continue
 
-    return None
+    return ""
 
 
 def get_working_tree_status(repo_path):
     return run_git_command(repo_path, ["status", "--porcelain"], timeout=10)
 
 
-def get_repository_url(app_name):
+def fetch_remote_safely(repo_path, remote):
+    """
+    Optional remote fetch.
+    It should not break the whole version check if GitHub is slow or asks for credentials.
+    """
+
+    if not remote:
+        return False
+
     try:
-        repo_path = get_repo_path(app_name)
-        remote_url = run_git_command(
+        run_git_command(
             repo_path,
-            ["remote", "get-url", "origin"],
-            timeout=10,
+            ["fetch", remote, "--prune"],
+            timeout=15,
         )
-
-        if remote_url.startswith("https://github.com/"):
-            return remote_url.replace(".git", "")
-
-        if remote_url.startswith("git@github.com:"):
-            repo = remote_url.replace("git@github.com:", "")
-            return f"https://github.com/{repo}".replace(".git", "")
-
-        if remote_url.startswith("git@") and ":" in remote_url:
-            repo = remote_url.split(":", 1)[1]
-            return f"https://github.com/{repo}".replace(".git", "")
-
-        return remote_url.replace(".git", "")
+        return True
 
     except Exception:
-        return ""
+        return False
 
 
-def analyse_local_repo(app_name, fetch=True):
-    repo_path = get_repo_path(app_name)
+def analyse_local_repo(app_folder, fetch=False):
+    """
+    Default fetch=False prevents GitHub username/password prompts and timeout issues.
+    """
 
-    if fetch:
-        run_git_command(repo_path, ["fetch", "--all", "--prune"], timeout=45)
+    repo_path = get_repo_path(app_folder)
+    remote = get_primary_remote(repo_path)
+    repository_url = get_repository_url(app_folder)
+
+    fetch_success = False
+
+    if fetch and remote:
+        fetch_success = fetch_remote_safely(repo_path, remote)
 
     current_branch = get_current_branch(repo_path)
-    current_commit = run_git_command(repo_path, ["rev-parse", "--short", "HEAD"], timeout=10)
+    current_commit = get_current_commit(repo_path)
+    upstream = get_upstream_branch(repo_path) or get_default_remote_branch(repo_path)
+    has_uncommitted_changes = bool(get_working_tree_status(repo_path))
 
-    upstream = get_upstream_branch(repo_path)
-
-    if not upstream:
-        upstream = get_default_remote_branch(repo_path)
-
-    if not upstream:
+    if not remote:
         return {
             "environment": "Local Machine",
+            "repository_url": "",
+            "repository_name": "",
             "current_branch": current_branch,
             "current_commit": current_commit,
             "upstream_branch": "",
             "commits_behind": 0,
             "commits_ahead": 0,
-            "has_uncommitted_changes": bool(get_working_tree_status(repo_path)),
+            "has_uncommitted_changes": has_uncommitted_changes,
+            "status": "Error",
+            "status_message": "Repository has no configured Git remote.",
+        }
+
+    if not upstream:
+        return {
+            "environment": "Local Machine",
+            "repository_url": repository_url,
+            "repository_name": repository_url,
+            "current_branch": current_branch,
+            "current_commit": current_commit,
+            "upstream_branch": "",
+            "commits_behind": 0,
+            "commits_ahead": 0,
+            "has_uncommitted_changes": has_uncommitted_changes,
             "status": "Error",
             "status_message": (
-                f"Branch '{current_branch}' has no upstream branch and no default remote "
-                f"branch could be detected. Set upstream using: "
-                f"git branch --set-upstream-to=origin/main {current_branch}"
+                f"Branch '{current_branch}' has no upstream branch. "
+                f"Remote detected: '{remote}'."
             ),
         }
 
@@ -171,13 +255,17 @@ def analyse_local_repo(app_name, fetch=True):
         run_git_command(repo_path, ["rev-list", f"{upstream}..HEAD", "--count"], timeout=10)
     )
 
-    has_uncommitted_changes = bool(get_working_tree_status(repo_path))
-
-    if behind > 0:
+    if behind > 0 and ahead > 0:
+        status = "Diverged"
+        message = (
+            f"⚠️ Diverged. Local branch '{current_branch}' is {ahead} commit(s) ahead "
+            f"and {behind} commit(s) behind {upstream}."
+        )
+    elif behind > 0:
         status = "Stale"
         message = (
             f"❌ Stale code. Branch '{current_branch}' is {behind} commit(s) behind "
-            f"{upstream}. Pull latest changes before deployment."
+            f"{upstream}. Pull latest changes."
         )
     elif ahead > 0:
         status = "Ahead"
@@ -188,120 +276,28 @@ def analyse_local_repo(app_name, fetch=True):
     elif has_uncommitted_changes:
         status = "Dirty"
         message = (
-            f"⚠️ Branch '{current_branch}' is synced with {upstream}, but has uncommitted "
-            "or untracked local changes."
+            f"⚠️ Branch '{current_branch}' is synced with {upstream}, but has "
+            "uncommitted or untracked local changes."
         )
     else:
         status = "Clean"
         message = f"✅ Clean. Branch '{current_branch}' is fully synced with {upstream}."
 
+    if fetch:
+        if fetch_success:
+            message += " Remote fetch completed."
+        else:
+            message += " Remote fetch skipped or failed, but local check completed."
+
     return {
         "environment": "Local Machine",
+        "repository_url": repository_url,
+        "repository_name": repository_url,
         "current_branch": current_branch,
         "current_commit": current_commit,
         "upstream_branch": upstream,
         "commits_behind": behind,
         "commits_ahead": ahead,
-        "has_uncommitted_changes": has_uncommitted_changes,
-        "status": status,
-        "status_message": message,
-    }
-
-
-def get_github_repo_info(repository_name, token):
-    clean_repo = (
-        repository_name
-        .strip()
-        .replace("https://github.com/", "")
-        .replace(".git", "")
-        .strip("/")
-    )
-
-    url = f"https://api.github.com/repos/{clean_repo}"
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
-
-    response = requests.get(url, headers=headers, timeout=30)
-
-    if response.status_code != 200:
-        raise Exception(
-            f"GitHub API error {response.status_code}: repository '{clean_repo}' not found "
-            "or token has no access."
-        )
-
-    return response.json(), clean_repo, headers
-
-
-def analyse_live_repo(app_name, repository_name):
-    github_token = frappe.conf.get("github_token")
-
-    if not github_token:
-        raise Exception("Missing 'github_token' in site_config.json.")
-
-    if not repository_name:
-        raise Exception("GitHub Repository is required for live server checks.")
-
-    repo_info, clean_repo, headers = get_github_repo_info(repository_name, github_token)
-    default_branch = repo_info.get("default_branch") or "main"
-
-    repo_path = get_repo_path(app_name)
-
-    deployed_commit = run_git_command(repo_path, ["rev-parse", "HEAD"], timeout=10)
-    deployed_short_commit = deployed_commit[:7]
-    current_branch = get_current_branch(repo_path)
-
-    branch_url = f"https://api.github.com/repos/{clean_repo}/branches/{default_branch}"
-    branch_response = requests.get(branch_url, headers=headers, timeout=30)
-
-    if branch_response.status_code != 200:
-        raise Exception(f"Could not read default branch '{default_branch}' from GitHub.")
-
-    latest_remote_commit = branch_response.json()["commit"]["sha"]
-    latest_short_commit = latest_remote_commit[:7]
-
-    compare_url = (
-        f"https://api.github.com/repos/{clean_repo}/compare/"
-        f"{deployed_commit}...{latest_remote_commit}"
-    )
-    compare_response = requests.get(compare_url, headers=headers, timeout=30)
-
-    if compare_response.status_code != 200:
-        raise Exception("Could not compare deployed commit with GitHub default branch.")
-
-    compare_data = compare_response.json()
-    behind = compare_data.get("ahead_by", 0)
-
-    has_uncommitted_changes = bool(get_working_tree_status(repo_path))
-
-    if deployed_commit == latest_remote_commit and not has_uncommitted_changes:
-        status = "Clean"
-        message = (
-            f"✅ Live server is clean. Deployed commit {deployed_short_commit} matches "
-            f"GitHub {default_branch}."
-        )
-    elif deployed_commit == latest_remote_commit and has_uncommitted_changes:
-        status = "Dirty"
-        message = (
-            f"⚠️ Live server is on latest commit {deployed_short_commit}, but has "
-            "uncommitted local changes."
-        )
-    else:
-        status = "Stale"
-        message = (
-            f"❌ Live server is stale. Deployed commit {deployed_short_commit} is behind "
-            f"GitHub {default_branch} latest commit {latest_short_commit}."
-        )
-
-    return {
-        "environment": "Live Server",
-        "current_branch": current_branch,
-        "current_commit": deployed_short_commit,
-        "upstream_branch": f"origin/{default_branch}",
-        "commits_behind": behind,
-        "commits_ahead": 0,
         "has_uncommitted_changes": has_uncommitted_changes,
         "status": status,
         "status_message": message,
@@ -318,36 +314,55 @@ def get_risk_level(status, behind=0, ahead=0):
     if status == "Stale":
         return "Critical" if behind >= 10 else "High"
 
-    if status == "Error":
+    if status in ["Diverged", "Error"]:
         return "Critical"
 
     return "Medium"
 
 
+def set_field_if_exists(doc, fieldname, value):
+    fieldnames = [df.fieldname for df in doc.meta.fields]
+
+    if fieldname in fieldnames:
+        setattr(doc, fieldname, value)
+
+
 def update_check_doc(doc, result):
-    doc.environment = result.get("environment")
-    doc.current_branch = result.get("current_branch")
-    doc.current_commit = result.get("current_commit")
-    doc.upstream_branch = result.get("upstream_branch")
+    set_field_if_exists(doc, "environment", result.get("environment"))
+    set_field_if_exists(doc, "repository_url", result.get("repository_url"))
+    set_field_if_exists(doc, "repository_name", result.get("repository_name"))
 
-    doc.commits_behind = result.get("commits_behind", 0)
-    doc.commits_ahead = result.get("commits_ahead", 0)
-    doc.has_uncommitted_changes = result.get("has_uncommitted_changes", False)
+    set_field_if_exists(doc, "current_branch", result.get("current_branch"))
+    set_field_if_exists(doc, "upstream_branch", result.get("upstream_branch"))
 
-    doc.status = result.get("status")
-    doc.status_message = result.get("status_message")
+    set_field_if_exists(doc, "current_commit", result.get("current_commit"))
+    set_field_if_exists(doc, "currrent_commit", result.get("current_commit"))
 
-    doc.safe_to_deploy = doc.status == "Clean"
-    doc.risk_level = get_risk_level(
-        doc.status,
-        doc.commits_behind,
-        doc.commits_ahead,
+    set_field_if_exists(doc, "commits_behind", result.get("commits_behind", 0))
+    set_field_if_exists(doc, "commits_ahead", result.get("commits_ahead", 0))
+    set_field_if_exists(doc, "has_uncommitted_changes", result.get("has_uncommitted_changes", 0))
+
+    set_field_if_exists(doc, "status", result.get("status"))
+    set_field_if_exists(doc, "status_message", result.get("status_message"))
+
+    set_field_if_exists(doc, "safe_to_deploy", result.get("status") == "Clean")
+
+    set_field_if_exists(
+        doc,
+        "risk_level",
+        get_risk_level(
+            result.get("status"),
+            result.get("commits_behind", 0),
+            result.get("commits_ahead", 0),
+        ),
     )
 
-    doc.last_checked_at = now_datetime()
+    set_field_if_exists(doc, "last_checked_at", now_datetime())
+    set_field_if_exists(doc, "last_checked_by", frappe.session.user)
 
-    if hasattr(doc, "last_checked_by"):
-        doc.last_checked_by = frappe.session.user
+
+def get_doc_app_folder(doc):
+    return getattr(doc, "app_folder", None) or doc.module_name
 
 
 @frappe.whitelist()
@@ -355,27 +370,50 @@ def run_freshness_check(docname):
     doc = frappe.get_doc(DOCTYPE, docname)
 
     try:
-        if is_local_environment():
-            result = analyse_local_repo(doc.module_name)
-        else:
-            result = analyse_live_repo(doc.module_name, doc.repository_name)
+        app_folder = get_doc_app_folder(doc)
 
-        if not doc.repository_name:
-            doc.repository_name = get_repository_url(doc.module_name)
+        # Normal button check: local only, no GitHub login prompt
+        result = analyse_local_repo(app_folder, fetch=False)
 
         update_check_doc(doc, result)
 
     except Exception as e:
-        doc.status = "Error"
-        doc.status_message = str(e)
-        doc.safe_to_deploy = 0
-        doc.risk_level = "Critical"
-        doc.last_checked_at = now_datetime()
-
-        if hasattr(doc, "last_checked_by"):
-            doc.last_checked_by = frappe.session.user
+        set_field_if_exists(doc, "status", "Error")
+        set_field_if_exists(doc, "status_message", str(e))
+        set_field_if_exists(doc, "safe_to_deploy", 0)
+        set_field_if_exists(doc, "risk_level", "Critical")
+        set_field_if_exists(doc, "last_checked_at", now_datetime())
+        set_field_if_exists(doc, "last_checked_by", frappe.session.user)
 
     doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def run_freshness_check_with_fetch(docname):
+    doc = frappe.get_doc(DOCTYPE, docname)
+
+    try:
+        app_folder = get_doc_app_folder(doc)
+
+        # Optional remote check: contacts GitHub, may need authentication
+        result = analyse_local_repo(app_folder, fetch=True)
+
+        update_check_doc(doc, result)
+
+    except Exception as e:
+        set_field_if_exists(doc, "status", "Error")
+        set_field_if_exists(doc, "status_message", str(e))
+        set_field_if_exists(doc, "safe_to_deploy", 0)
+        set_field_if_exists(doc, "risk_level", "Critical")
+        set_field_if_exists(doc, "last_checked_at", now_datetime())
+        set_field_if_exists(doc, "last_checked_by", frappe.session.user)
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
     return doc.as_dict()
 
 
@@ -386,13 +424,11 @@ def scan_installed_apps():
     created = 0
     updated = 0
     skipped = 0
+    errors = []
 
     for app in apps:
         try:
-            existing = frappe.db.exists(
-                DOCTYPE,
-                {"module_name": app},
-            )
+            existing = frappe.db.exists(DOCTYPE, {"module_name": app})
 
             if existing:
                 doc = frappe.get_doc(DOCTYPE, existing)
@@ -400,17 +436,25 @@ def scan_installed_apps():
             else:
                 doc = frappe.new_doc(DOCTYPE)
                 doc.module_name = app
-                doc.status = ""
-                doc.environment = ""
                 created += 1
 
-            if not doc.repository_name:
-                doc.repository_name = get_repository_url(app)
+            set_field_if_exists(doc, "app_folder", app)
+
+            try:
+                repository_url = get_repository_url(app)
+                set_field_if_exists(doc, "repository_url", repository_url)
+                set_field_if_exists(doc, "repository_name", repository_url)
+            except Exception as repo_error:
+                set_field_if_exists(doc, "status", "Error")
+                set_field_if_exists(doc, "status_message", str(repo_error))
+                set_field_if_exists(doc, "risk_level", "Critical")
+                errors.append(f"{app}: {repo_error}")
 
             doc.save(ignore_permissions=True)
 
-        except Exception:
+        except Exception as e:
             skipped += 1
+            errors.append(f"{app}: {e}")
 
     frappe.db.commit()
 
@@ -419,4 +463,51 @@ def scan_installed_apps():
         "updated": updated,
         "skipped": skipped,
         "total": len(apps),
+        "errors": errors,
+    }
+
+
+@frappe.whitelist()
+def run_all_version_checks():
+    docs = frappe.get_all(DOCTYPE, pluck="name")
+
+    checked = 0
+    failed = 0
+    errors = []
+
+    for docname in docs:
+        try:
+            run_freshness_check(docname)
+            checked += 1
+        except Exception as e:
+            failed += 1
+            errors.append(f"{docname}: {e}")
+
+    return {
+        "checked": checked,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
+@frappe.whitelist()
+def run_all_version_checks_with_fetch():
+    docs = frappe.get_all(DOCTYPE, pluck="name")
+
+    checked = 0
+    failed = 0
+    errors = []
+
+    for docname in docs:
+        try:
+            run_freshness_check_with_fetch(docname)
+            checked += 1
+        except Exception as e:
+            failed += 1
+            errors.append(f"{docname}: {e}")
+
+    return {
+        "checked": checked,
+        "failed": failed,
+        "errors": errors,
     }

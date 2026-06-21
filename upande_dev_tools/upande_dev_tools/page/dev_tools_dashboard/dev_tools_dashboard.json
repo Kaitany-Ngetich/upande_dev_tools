@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "creation": "2026-06-19 14:36:52.595258",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-06-19 14:36:52.595258",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "dev_tools_dashboard",
+ "owner": "Administrator",
+ "page_name": "dev_tools_dashboard",
+ "roles": [],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Tools Dashboard"
+}
