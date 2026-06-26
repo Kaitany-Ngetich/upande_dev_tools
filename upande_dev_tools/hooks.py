@@ -166,7 +166,13 @@ app_license = "mit"
 # 		"upande_dev_tools.tasks.monthly"
 # 	],
 # }
-
+scheduler_events = {
+    "cron": {
+        "0 */4 * * *": [
+            "upande_dev_tools.backup.scheduler.run_code_backup"
+        ]
+    }
+}
 # Testing
 # -------
 

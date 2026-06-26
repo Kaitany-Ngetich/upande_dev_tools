@@ -1,0 +1,95 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-06-25 11:01:52.094444",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "backup_intervals_hours",
+  "retention_days",
+  "include_doctypes",
+  "include_server_scripts",
+  "include_client_scripts",
+  "last_back_up_time",
+  "back_up_storage_mode"
+ ],
+ "fields": [
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "default": "4",
+   "fieldname": "backup_intervals_hours",
+   "fieldtype": "Int",
+   "label": "Backup Intervals Hours"
+  },
+  {
+   "default": "30",
+   "fieldname": "retention_days",
+   "fieldtype": "Int",
+   "label": "Retention Days"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_doctypes",
+   "fieldtype": "Check",
+   "label": "Include Doctypes"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_server_scripts",
+   "fieldtype": "Check",
+   "label": "Include Server Scripts"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_client_scripts",
+   "fieldtype": "Check",
+   "label": "Include Client Scripts"
+  },
+  {
+   "fieldname": "last_back_up_time",
+   "fieldtype": "Datetime",
+   "label": "Last Back Up Time"
+  },
+  {
+   "default": "Database",
+   "fieldname": "back_up_storage_mode",
+   "fieldtype": "Select",
+   "label": "Back Up Storage Mode",
+   "options": "Database\nFile\nBoth"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-25 11:06:57.774276",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "Code Backup Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
