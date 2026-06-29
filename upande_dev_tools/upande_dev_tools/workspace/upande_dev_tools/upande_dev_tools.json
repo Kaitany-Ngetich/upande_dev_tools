@@ -1,7 +1,7 @@
 {
  "app": "upande_dev_tools",
  "charts": [],
- "content": "[]",
+ "content": "[{\"id\":\"1KzzpMLKXj\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Dashboard</b></span>\",\"col\":12}},{\"id\":\"TrTCzaOnW4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tools Dashboard\",\"col\":3}},{\"id\":\"35bltqrEUL\",\"type\":\"paragraph\",\"data\":{\"text\":\"Developer Tools\",\"col\":12}},{\"id\":\"C-rb4vY5re\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Backup Snapshots\",\"col\":3}},{\"id\":\"0b_zJLbNPB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Version Check\",\"col\":3}},{\"id\":\"udp5D3mb60\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Hooks Explorer\",\"col\":3}},{\"id\":\"DBAoTswlzI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Code Backup Settings\",\"col\":3}}]",
  "creation": "2026-06-25 16:40:25.944780",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "label": "Upande Dev Tools",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-06-25 16:40:25.944780",
+ "modified": "2026-06-29 14:18:36.533624",
  "modified_by": "Administrator",
  "module": "Upande Dev Tools",
  "name": "Upande Dev Tools",
@@ -23,7 +23,46 @@
  "quick_lists": [],
  "roles": [],
  "sequence_id": 0.0,
- "shortcuts": [],
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Backup Snapshots",
+   "link_to": "Code Backup Snapshot",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Hooks Explorer",
+   "link_to": "hooks-explorer",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Code Backup Settings",
+   "link_to": "Code Backup Settings",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Tools Dashboard",
+   "link_to": "upande-dev-dashboard",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Version Check",
+   "link_to": "Module Version Check",
+   "stats_filter": "[]",
+   "type": "DocType"
+  }
+ ],
  "title": "Upande Dev Tools",
  "type": "Workspace"
 }

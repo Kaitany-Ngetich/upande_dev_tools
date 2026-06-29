@@ -166,18 +166,25 @@ app_license = "mit"
 # 		"upande_dev_tools.tasks.monthly"
 # 	],
 # }
-scheduler_events = {
-    "cron": {
-        "0 */4 * * *": [
-            "upande_dev_tools.backup.scheduler.run_code_backup"
-        ]
-    }
-}
+#scheduler_events = {
+#    "cron": {
+#        "0 */4 * * *": [
+#           "upande_dev_tools.backup.scheduler.run_code_backup"
+#        ]
+#    }
+#}
 # Testing
 # -------
 
 # before_tests = "upande_dev_tools.install.before_tests"
 
+scheduler_events = {
+    "cron": {
+        "*/5 * * * *": [
+            "upande_dev_tools.backup.scheduler.run_code_backup"
+        ]
+    }
+}
 # Extend DocType Class
 # ------------------------------
 #
