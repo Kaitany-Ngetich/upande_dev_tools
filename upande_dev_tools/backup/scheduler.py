@@ -2,6 +2,8 @@ import json
 import hashlib
 import frappe
 from frappe.utils import now_datetime
+from frappe.utils import now_datetime, get_datetime
+from datetime import timedelta
 
 
 def make_hash(content):
@@ -65,6 +67,15 @@ def run_code_backup():
         log_activity("Backup", "Code backup skipped", "Backup is disabled", "Warning")
         return {"status": "skipped"}
 
+    if not is_backup_due(settings):
+        log_activity(
+            "Backup",
+            "Code backup not due",
+            "Backup interval has not elapsed",
+            "Success"
+        )
+        return {"status": "not_due"}
+
     saved = 0
 
     if settings.get("include_doctypes"):
@@ -78,12 +89,20 @@ def run_code_backup():
 
     frappe.db.set_single_value("Code Backup Settings", "last_backup_time", now_datetime())
 
-    log_activity(
-        "Backup",
-        "Code backup completed",
-        f"{saved} changed snapshots saved",
-        "Success"
-    )
+    if saved == 0:
+        log_activity(
+            "Backup",
+            "Code backup checked",
+            "No changes detected, no new snapshots saved",
+            "Success"
+        )
+    else:
+        log_activity(
+            "Backup",
+            "Code backup completed",
+            f"{saved} changed snapshots saved",
+            "Success"
+        )
 
     frappe.db.commit()
 
@@ -91,7 +110,6 @@ def run_code_backup():
         "status": "success",
         "snapshots_saved": saved
     }
-
 
 def get_settings():
     defaults = {
@@ -111,11 +129,38 @@ def get_settings():
             "enabled": doc.enabled if doc.enabled is not None else 1,
             "include_doctypes": doc.include_doctypes if doc.include_doctypes is not None else 1,
             "include_server_scripts": doc.include_server_scripts if doc.include_server_scripts is not None else 1,
-            "include_client_scripts": doc.include_client_scripts if doc.include_client_scripts is not None else 1
+            "include_client_scripts": doc.include_client_scripts if doc.include_client_scripts is not None else 1,
+	    "backup_interval_hours": doc.backup_interval_hours or 4,
+            "retention_days": doc.retention_days or 30,
+            "last_backup_time": doc.last_backup_time,
+            "backup_storage_mode": doc.backup_storage_mode or "Database"
         }
 
     except Exception:
         return defaults
+
+def is_backup_due(settings):
+    interval_hours = settings.get("backup_interval_hours") or 4
+
+    if not settings.get("last_backup_time"):
+        return True
+
+    last_backup_time = get_datetime(settings.get("last_backup_time"))
+    next_backup_time = last_backup_time + timedelta(hours=interval_hours)
+
+    return now_datetime() >= next_backup_time
+
+
+def get_app_from_module(module_name):
+    """Return the app that owns a Frappe module."""
+    if not module_name:
+        return None
+
+    return frappe.db.get_value(
+        "Module Def",
+        {"name": module_name},
+        "app_name"
+    )
 
 def backup_doctypes():
     count = 0
@@ -131,14 +176,15 @@ def backup_doctypes():
             doc = frappe.get_doc("DocType", row.name)
             content = json.dumps(doc.as_dict(), default=str, indent=2, sort_keys=True)
 
-            if save_snapshot("DocType", row.name, content, row.app, row.module):
+            app = row.app or get_app_from_module(row.module)
+
+            if save_snapshot("DocType", row.name, content, app, row.module):
                 count += 1
 
         except Exception as e:
             log_activity("Error", f"DocType backup failed: {row.name}", str(e), "Error")
 
     return count
-
 
 def backup_server_scripts():
     count = 0
@@ -148,22 +194,41 @@ def backup_server_scripts():
 
     rows = frappe.get_all(
         "Server Script",
-        fields=["name", "script_type", "reference_doctype", "script"],
+        fields=["name"],
         limit_page_length=1000
     )
 
     for row in rows:
         try:
-            content = json.dumps(row, default=str, indent=2, sort_keys=True)
+            doc = frappe.get_doc("Server Script", row.name)
 
-            if save_snapshot("Server Script", row.name, content, None, row.reference_doctype):
+            content = json.dumps(
+                doc.as_dict(),
+                default=str,
+                indent=2,
+                sort_keys=True
+            )
+
+            app = get_app_from_module(doc.module)
+
+            if save_snapshot(
+                "Server Script",
+                doc.name,
+                content,
+                app,
+                doc.reference_doctype
+            ):
                 count += 1
 
         except Exception as e:
-            log_activity("Error", f"Server Script backup failed: {row.name}", str(e), "Error")
+            log_activity(
+                "Error",
+                f"Server Script backup failed: {row.name}",
+                str(e),
+                "Error"
+            )
 
     return count
-
 
 def backup_client_scripts():
     count = 0
@@ -179,9 +244,12 @@ def backup_client_scripts():
 
     for row in rows:
         try:
-            content = json.dumps(row, default=str, indent=2, sort_keys=True)
+            doc = frappe.get_doc("Client Script", row.name)
+            content = json.dumps(doc.as_dict(), default=str, indent=2, sort_keys=True)
 
-            if save_snapshot("Client Script", row.name, content, None, row.dt):
+            app = get_app_from_module(doc.module)
+
+            if save_snapshot("Client Script", row.name, content, app, row.dt):
                 count += 1
 
         except Exception as e:
