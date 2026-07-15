@@ -1,0 +1,19 @@
+{
+  "name": "upande_dev_tools",
+  "version": "1.0.0",
+  "description": "Internal developer tools for Upande workflows",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "monaco-editor": "^0.55.1"
+  },
+  "devDependencies": {
+    "material-icon-theme": "^5.36.1"
+  }
+}
