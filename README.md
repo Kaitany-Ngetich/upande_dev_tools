@@ -2,6 +2,17 @@
 
 Internal developer tools for Upande workflows
 
+### Selective Customization Export
+
+In developer mode, **Customize Form → Actions → Export Customizations** opens a
+dialog to bulk-select custom fields / field-level property setters (parent and
+child tables) and write them to a chosen app's `custom/*.json`. Optional
+checkboxes add DocType Links, DocType-level property settings, and custom
+permissions. Existing customizations in the target files are preserved (merge,
+not overwrite), so you can split a DocType's fields across multiple apps without
+duplication. Output is byte-for-byte compatible with Frappe's native
+`export_customizations`, so `bench migrate` syncs it identically.
+
 ### Installation
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:
