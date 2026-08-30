@@ -3,7 +3,7 @@
 
 frappe.ui.form.on("Customize Form", {
 	refresh(frm) {
-		if (!frappe.boot.developer_mode || !frm.doc.doc_type) {
+		if (!frm.doc.doc_type) {
 			return;
 		}
 
@@ -13,6 +13,18 @@ frappe.ui.form.on("Customize Form", {
 		 * handler has finished.
 		 */
 		setTimeout(() => {
+			// Read-only: works without developer mode, so it stays visible
+			// on sites (e.g. Frappe Cloud) where the bench isn't in dev mode.
+			frm.add_custom_button(
+				__("View All Customizations"),
+				() => show_all_customizations_dialog(frm),
+				__("Actions")
+			);
+
+			if (!frappe.boot.developer_mode) {
+				return;
+			}
+
 			frm.remove_custom_button(
 				__("Export Customizations"),
 				__("Actions")
@@ -657,6 +669,33 @@ function preserved_summary(file) {
 }
 
 
+async function show_all_customizations_dialog(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("All Customizations — {0}", [frm.doc.doc_type]),
+		size: "extra-large",
+
+		fields: [
+			{
+				fieldtype: "HTML",
+				fieldname: "matrix",
+				options: `<p class="text-muted">${__("Loading…")}</p>`,
+			},
+		],
+	});
+
+	dialog.show();
+
+	const wrapper = dialog.fields_dict.matrix.$wrapper;
+
+	const data = await frappe.xcall(
+		"upande_dev_tools.api.customization_exporter.get_field_app_matrix",
+		{ doctype: frm.doc.doc_type }
+	);
+
+	render_field_app_matrix(wrapper, data, { readonly: true });
+}
+
+
 async function show_reconcile_dialog(frm) {
 	const dialog = new frappe.ui.Dialog({
 		title: __("Reconcile Field Apps — {0}", [frm.doc.doc_type]),
@@ -761,7 +800,8 @@ async function load_field_matrix(dialog, frm) {
 }
 
 
-function render_field_app_matrix(wrapper, data) {
+function render_field_app_matrix(wrapper, data, opts = {}) {
+	const { readonly = false } = opts;
 	const apps = data.apps || [];
 	const fields = data.fields || [];
 
@@ -805,6 +845,11 @@ function render_field_app_matrix(wrapper, data) {
 			const cells = apps
 				.map((a) => {
 					const present = f.apps.includes(a);
+					if (readonly) {
+						return `<td class="text-center">${
+							present ? "✓" : "–"
+						}</td>`;
+					}
 					return `<td class="text-center">
 						<input type="checkbox" class="udt-cell"
 							data-app="${frappe.utils.escape_html(a)}"
@@ -826,11 +871,17 @@ function render_field_app_matrix(wrapper, data) {
 		})
 		.join("");
 
+	const note = readonly
+		? __(
+				"Rows in red have this field customized in more than one app — that's usually a duplicate or wrong-app mistake."
+		  )
+		: __(
+				"Each field should belong to one app. Picking an app clears the others in that row; clear all to remove the field everywhere. Rows in red are still duplicated."
+		  );
+
 	wrapper.html(`
 		<div class="text-muted small" style="margin-bottom:8px;">
-			${__(
-				"Each field should belong to one app. Picking an app clears the others in that row; clear all to remove the field everywhere. Rows in red are still duplicated."
-			)}
+			${note}
 		</div>
 		<div style="max-height:60vh; overflow:auto;">
 			<table class="table table-bordered" style="margin:0;">
@@ -844,6 +895,13 @@ function render_field_app_matrix(wrapper, data) {
 			</table>
 		</div>
 	`);
+
+	if (readonly) {
+		wrapper
+			.find("tr.udt-field-row.udt-dupe")
+			.css("background", "var(--red-50, #fdeaea)");
+		return;
+	}
 
 	const paint = (row) => {
 		const dupe = row.find("input.udt-cell:checked").length > 1;
