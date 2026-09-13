@@ -275,3 +275,45 @@ require_type_annotated_api_methods = True
 doctype_js = {
 	"Customize Form": "public/js/customize_form_export.js",
 }
+
+fixtures = [
+	{"doctype": "Role", "filters": [["name", "in", ["Dev Team"]]]},
+	{
+		"doctype": "Workflow State",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Under Review",
+					"Approved",
+					"Rejected",
+					"Deferred",
+					"Scheduled",
+					"In Progress",
+					"Completed",
+				],
+			]
+		],
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Approve",
+					"Reject",
+					"Defer",
+					"Reopen",
+					"Schedule",
+					"Promote Note",
+					"Start Work",
+					"Complete",
+				],
+			]
+		],
+	},
+	{"doctype": "Workflow", "filters": [["name", "in", ["Request Review"]]]},
+]

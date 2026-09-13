@@ -1,0 +1,34 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Workflow",
+  "document_type": "Request",
+  "enable_action_confirmation": 0,
+  "is_active": 1,
+  "modified": "2026-09-13 00:00:00.000000",
+  "name": "Request Review",
+  "override_status": 0,
+  "send_email_alert": 0,
+  "workflow_name": "Request Review",
+  "workflow_state_field": "workflow_state",
+  "states": [
+   {"state": "Under Review", "doc_status": "0", "allow_edit": "Projects Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Approved", "doc_status": "0", "allow_edit": "Projects Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Rejected", "doc_status": "0", "allow_edit": "System Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Deferred", "doc_status": "0", "allow_edit": "Projects Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Scheduled", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "In Progress", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Completed", "doc_status": "0", "allow_edit": "System Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null}
+  ],
+  "transitions": [
+   {"state": "Under Review", "action": "Approve", "next_state": "Approved", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Under Review", "action": "Reject", "next_state": "Rejected", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Under Review", "action": "Defer", "next_state": "Deferred", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Under Review", "action": "Promote Note", "next_state": "Scheduled", "allowed": "Dev Team", "allow_self_approval": 1, "condition": "doc.request_type == \"Note\"", "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Deferred", "action": "Reopen", "next_state": "Under Review", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Approved", "action": "Schedule", "next_state": "Scheduled", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Scheduled", "action": "Start Work", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "In Progress", "action": "Complete", "next_state": "Completed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null}
+  ]
+ }
+]
