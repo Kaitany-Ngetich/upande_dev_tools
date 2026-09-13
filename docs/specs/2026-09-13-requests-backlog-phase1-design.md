@@ -44,42 +44,49 @@ Each phase gets its own spec and plan. This document covers Phase 1 only.
 
 ## Module layout
 
-`upande_dev_tools` currently has one module (`Upande Dev Tools`, holding the
-code/version/backup-tooling doctypes and pages) plus app-root packages (`api/`,
-`backup/`, `comparison/`, `config/`) — this already matches how Frappe apps split a
-flat app-root layer from a module folder (e.g. `erpnext/api.py` next to
-`erpnext/projects/`). Phase 1 adds a **second module**, `Requests`, following the same
-folder shape ERPNext's own `projects` module uses:
+Everything this feature adds stays inside the app's one existing Frappe module,
+`Upande Dev Tools` — no new entry in `modules.txt`, no new module folder. New
+doctypes join the existing `doctype/` folder alongside `Code Backup Snapshot`,
+`Module Version Check`, etc.; new whitelisted API files join the existing app-root
+`api/` package alongside `dashboard.py`, `hooks_explorer.py`, and the rest; the
+existing `Upande Dev Tools` workspace gains shortcuts rather than a second workspace
+being created:
 
 ```
 upande_dev_tools/
-  requests/
-    __init__.py
-    utils.py                          # whitelisted API + cross-doctype helpers
+  api/
+    requests.py                       # whitelisted API + cross-doctype helpers
+    deployments.py                    # whitelisted API + cross-doctype helpers
+  setup.py                            # create_custom_fields() calls, run on after_migrate
+  upande_dev_tools/
     doctype/
       request/
         request.json
         request.py
-        request.js
-        request_list.js
-    dashboard_chart/
-      requests_by_status/
-    number_card/
-      open_requests/
+      deployment_instance/
+        deployment_instance.json
+        deployment_instance.py
+      deployment_app/
+        deployment_app.json
+        deployment_app.py
+      deployment_request/
+        deployment_request.json
+        deployment_request.py
     workspace/
-      requests/
-        requests.json
+      upande_dev_tools/
+        upande_dev_tools.json           # existing workspace, gains new shortcuts
   fixtures/
     role.json                         # Dev Team
-    workflow.json                     # Request Review
+    workflow.json                     # Request Review, Deployment Review
     workflow_state.json
     workflow_action_master.json
-    custom_field.json                 # Task.custom_request, Task.custom_planned_for
-    custom_docperm.json               # Dev Team grants on Request + settings doctype
 ```
 
-`modules.txt` gains `Requests`. The existing `Upande Dev Tools` module is untouched in
-Phase 1 (its own light cleanup, if any, is tracked separately from this feature work).
+This is a deliberate correction from an earlier draft of this spec, which proposed
+a second (`Requests`) and later a third (`Deployments`) Frappe module. One app,
+one module, one place to look — matches how this app already works, and there is
+no domain boundary here strong enough to justify a second module the way ERPNext's
+`projects`/`accounts`/`stock` split genuinely different products apart.
 
 ## The `Request` doctype
 
@@ -188,7 +195,7 @@ fields are needed. `Event` already carries everything required for this:
   answered, using the mechanism Frappe already ships rather than inventing a
   `Request`/`Event` link field.
 
-Two whitelisted helpers in `requests/utils.py` sit on top of this, and are what Phase 2
+Two whitelisted helpers in `api/requests.py` sit on top of this, and are what Phase 2
 and Phase 3 both call — neither phase re-implements the query:
 
 - `get_upcoming_meetings(project=None)` — `Event`s linked (via `links`) to the given
@@ -208,7 +215,7 @@ only ever sees their own assignments and events.
 
 ## API surface (shared by desk, portal, and mobile)
 
-All whitelisted methods live in `upande_dev_tools/requests/utils.py` and are called the
+All whitelisted methods live in `upande_dev_tools/api/requests.py` and are called the
 same way from every client — the desk, the future `www` portal, and the mobile app —
 over `/api/method/...`, matching how `upande-packhouse`/`upande-production` already
 authenticate (session cookie from `/api/method/login`, no separate mobile-only API):
@@ -230,13 +237,12 @@ authenticate (session cookie from `/api/method/login`, no separate mobile-only A
 Internally, developers raise far more deployment requests on each other's apps than
 the official backlog captures — currently tracked in a spreadsheet
 (`Date, Instance, App, Branch, Commit Hash, Status, Errors, Fix`). This becomes a
-second, sibling flow to `Request`, in its own module so each domain stays
-single-responsibility, sharing the same "no hardcoding" rule the rest of this spec
-follows: anything that recurs and has identity (which server/site, which repo) is a
-`Link` to a real doctype, never a `Select` or free-text field — the two columns the
-spreadsheet reuses constantly, `Instance` and `App`, are exactly that.
-
-**Module `Deployments`** (sibling to `Requests`, same `upande_dev_tools` app):
+second, sibling flow to `Request` — its own doctypes, sharing the same "no
+hardcoding" rule the rest of this spec follows: anything that recurs and has
+identity (which server/site, which repo) is a `Link` to a real doctype, never a
+`Select` or free-text field — the two columns the spreadsheet reuses constantly,
+`Instance` and `App`, are exactly that. Like `Request`, these doctypes live in the
+app's one `Upande Dev Tools` module — no new module (see "Module layout" above).
 
 - **`Deployment Instance`** (master) — `instance_name` (unique, autoname), `environment_type`
   (Select: `Production`/`Staging`/`Local Development` — a genuinely fixed, small
@@ -266,8 +272,8 @@ customer-facing approval gate, so there is no Projects Manager review step. `Pro
 Manager` gets read-only `DocPerm` on `Deployment Request` (visibility, matching "same
 visibility on dashboards," without deploy authority nobody asked them to have).
 
-**API** (`upande_dev_tools/deployments/utils.py`, same shared-by-desk/portal/mobile
-pattern as `requests/utils.py`):
+**API** (`upande_dev_tools/api/deployments.py`, same shared-by-desk/portal/mobile
+pattern as `api/requests.py`):
 
 - `create_deployment_request(app, instance, branch=None, description=None, linked_request=None)`
 - `get_my_deployment_requests(status=None)`
