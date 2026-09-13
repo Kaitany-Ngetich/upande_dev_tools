@@ -63,6 +63,14 @@ def register_dev_portal_pages() -> None:
 		roles=["Dev Team", "System Manager"],
 		require_all_roles=True,
 	)
+	register_dev_portal_page(
+		route="hooks-explorer",
+		title="Hooks Explorer",
+		icon="search",
+		nav_group="Developer",
+		sort_order=20,
+		roles=["Dev Team"],
+	)
 
 
 def run_setup() -> None:

@@ -42,13 +42,6 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Hooks Explorer",
-   "link_to": "hooks-explorer",
-   "type": "Page"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
    "label": "Code Backup Settings",
    "link_to": "Code Backup Settings",
    "stats_filter": "[]",

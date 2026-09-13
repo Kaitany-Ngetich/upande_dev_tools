@@ -1,13 +1,9 @@
-frappe.pages["hooks-explorer"].on_page_load = function (wrapper) {
-	const page = frappe.ui.make_app_page({
-		parent: wrapper,
-		title: "Hooks Explorer",
-		single_column: true,
-	});
+window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
+upande_dev_tools_portal.mount_hooks_explorer = function (root) {
 	let current_data = null;
 
-	$(page.body).html(`
+	$(root).html(`
 		<div class="frappe-card" style="padding: 20px;">
 			<div style="display:flex; gap:15px; margin-bottom:15px; flex-wrap:wrap;">
 				<div>
