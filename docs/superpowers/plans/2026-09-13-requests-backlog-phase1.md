@@ -31,6 +31,7 @@
 - New doctypes join the existing `Upande Dev Tools` module — no new entry in `modules.txt`, ever, in this plan. New whitelisted API files join the existing app-root `api/` package (most files there have no header comment at all; follow that majority convention for new API files rather than the one file that has one).
 - All paths below are relative to the app repo root (`apps/upande_dev_tools/`), i.e. `upande_dev_tools/hooks.py` means `apps/upande_dev_tools/upande_dev_tools/hooks.py`.
 - After any task that adds a fixture, custom field, or new doctype, run `bench --site <site> migrate` before running that task's tests — fixtures and `after_migrate` hooks only take effect after a migrate.
+- **Every doctype-folder test file must declare `IGNORE_TEST_RECORD_DEPENDENCIES`** listing every doctype its own doctype has a `Link` field to (`IntegrationTestCase` recursively auto-generates a "missing test record" for each one, and on this bench that walk eventually reaches `Company` — via `User`→`Email Account`→`Company` or similar — and hits the same pre-existing, unrelated regional-setup bug noted above, just via a different path). None of this plan's tests rely on that auto-generated fixture; every test builds its own Project/User/Employee explicitly, so excluding them is always safe. `Request` needs `["Project", "Task", "User", "Employee", "Contact"]`; `Deployment Request` needs `["User", "Employee"]` (its other links — `Deployment App`, `Deployment Instance`, `Request` — either have no Link fields of their own or already exclude the dangerous ones via their own test file). `Deployment Instance`/`Deployment App` have no Link fields and need no such list. This attribute only works in a doctype-folder test file — do not add it to the top-level `tests/` API-test files, which don't need it (they have no `cls.doctype`, so this auto-walk never runs for them) and Frappe raises `NotImplementedError` if `IGNORE_TEST_RECORD_DEPENDENCIES` is set there anyway.
 
 ## Deviations from the spec's illustrative file tree (decided during planning)
 
@@ -295,7 +296,15 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 EXTRA_TEST_RECORD_DEPENDENCIES = []
-IGNORE_TEST_RECORD_DEPENDENCIES = []
+# IntegrationTestCase auto-generates a "missing test record" for every doctype
+# any Link field on Request points to, recursively. On this bench that walk
+# eventually reaches Company (e.g. via User -> Email Account -> Company) and
+# hits a pre-existing, unrelated bug in ERPNext's regional company setup —
+# same root cause as the whole-app `bench run-tests` failure noted in Global
+# Constraints, just reached via a different path. None of this plan's own
+# tests rely on that auto-generated fixture (every test builds its own
+# Project/User/Employee explicitly), so it's safe to skip entirely.
+IGNORE_TEST_RECORD_DEPENDENCIES = ["Project", "Task", "User", "Employee", "Contact"]
 
 
 class IntegrationTestRequest(IntegrationTestCase):
@@ -1891,6 +1900,15 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 import frappe
 from frappe.tests import IntegrationTestCase
+
+# See the identical note in test_request.py — Deployment Request links
+# directly to User (requested_by_user, deployed_by_user) and Employee
+# (requested_by_employee), and both eventually reach the same broken
+# Company regional setup during IntegrationTestCase's automatic missing-record
+# walk. `app`/`instance`/`linked_request` don't need listing here: the first
+# two have no Link fields of their own, and `linked_request` recurses into
+# Request, which already excludes the doctypes that would reach Company.
+IGNORE_TEST_RECORD_DEPENDENCIES = ["User", "Employee"]
 
 
 class IntegrationTestDeploymentRequest(IntegrationTestCase):

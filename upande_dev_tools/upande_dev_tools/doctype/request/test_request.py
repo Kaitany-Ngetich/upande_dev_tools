@@ -5,7 +5,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 EXTRA_TEST_RECORD_DEPENDENCIES = []
-IGNORE_TEST_RECORD_DEPENDENCIES = []
+IGNORE_TEST_RECORD_DEPENDENCIES = ["Project", "Task", "User", "Employee", "Contact"]
 
 
 class IntegrationTestRequest(IntegrationTestCase):
