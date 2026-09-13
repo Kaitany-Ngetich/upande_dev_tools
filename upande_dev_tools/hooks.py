@@ -88,8 +88,8 @@ required_apps = ["erpnext"]
 # before_install = "upande_dev_tools.install.before_install"
 # after_install = "upande_dev_tools.install.after_install"
 
-after_install = "upande_dev_tools.setup.create_task_custom_fields"
-after_migrate = "upande_dev_tools.setup.create_task_custom_fields"
+after_install = "upande_dev_tools.setup.run_setup"
+after_migrate = "upande_dev_tools.setup.run_setup"
 
 # Uninstallation
 # ------------

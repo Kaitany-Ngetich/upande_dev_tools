@@ -4,6 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
+from upande_dev_tools.setup import register_dev_portal_page
 
 
 class IntegrationTestPortal(IntegrationTestCase):
@@ -125,3 +126,51 @@ class IntegrationTestPortal(IntegrationTestCase):
 
 	def test_get_nav_items_empty_for_guest(self) -> None:
 		self.assertEqual(get_nav_items("Guest"), [])
+
+	def test_enforce_page_access_denies_when_allowed_roles_empty(self) -> None:
+		self._make_page("portal-test-no-roles", [])
+		dev = self._make_user("portal-no-roles@example.test", ["Dev Team", "System Manager"])
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				enforce_page_access("portal-test-no-roles")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_register_dev_portal_page_is_create_only(self) -> None:
+		if frappe.db.exists("Dev Portal Page", "portal-register-test"):
+			frappe.delete_doc("Dev Portal Page", "portal-register-test", ignore_permissions=True, force=True)
+
+		register_dev_portal_page(
+			route="portal-register-test",
+			title="Register Test",
+			icon="test",
+			nav_group="Test",
+			sort_order=1,
+			roles=["Dev Team"],
+		)
+		doc = frappe.get_doc("Dev Portal Page", "portal-register-test")
+		self.assertEqual([row.role for row in doc.allowed_roles], ["Dev Team"])
+
+		# An admin's later edit (e.g. via the settings screen) must survive re-registration.
+		doc.allowed_roles = []
+		doc.append("allowed_roles", {"role": "System Manager"})
+		doc.save(ignore_permissions=True)
+
+		register_dev_portal_page(
+			route="portal-register-test",
+			title="Register Test",
+			icon="test",
+			nav_group="Test",
+			sort_order=1,
+			roles=["Dev Team"],
+		)
+		doc.reload()
+		self.assertEqual([row.role for row in doc.allowed_roles], ["System Manager"])
+
+	def test_dev_portal_settings_page_is_self_registered(self) -> None:
+		self.assertTrue(frappe.db.exists("Dev Portal Page", "dev-portal-settings"))
+		doc = frappe.get_doc("Dev Portal Page", "dev-portal-settings")
+		self.assertTrue(doc.require_all_roles)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "System Manager"})

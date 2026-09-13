@@ -1,3 +1,4 @@
+import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 TASK_CUSTOM_FIELDS = {
@@ -24,3 +25,46 @@ TASK_CUSTOM_FIELDS = {
 
 def create_task_custom_fields() -> None:
 	create_custom_fields(TASK_CUSTOM_FIELDS, update=True)
+
+
+def register_dev_portal_page(
+	route: str,
+	title: str,
+	icon: str,
+	nav_group: str,
+	sort_order: int,
+	roles: list[str],
+	require_all_roles: bool = False,
+) -> None:
+	if frappe.db.exists("Dev Portal Page", route):
+		return
+
+	frappe.get_doc(
+		{
+			"doctype": "Dev Portal Page",
+			"route": route,
+			"title": title,
+			"icon": icon,
+			"nav_group": nav_group,
+			"sort_order": sort_order,
+			"require_all_roles": 1 if require_all_roles else 0,
+			"allowed_roles": [{"role": role} for role in roles],
+		}
+	).insert(ignore_permissions=True)
+
+
+def register_dev_portal_pages() -> None:
+	register_dev_portal_page(
+		route="dev-portal-settings",
+		title="Settings",
+		icon="settings",
+		nav_group="Admin",
+		sort_order=100,
+		roles=["Dev Team", "System Manager"],
+		require_all_roles=True,
+	)
+
+
+def run_setup() -> None:
+	create_task_custom_fields()
+	register_dev_portal_pages()
