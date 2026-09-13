@@ -1,0 +1,45 @@
+{% extends "templates/web.html" %}
+{% block page_content %}
+{% include "templates/includes/dev_portal_shell.html" %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Admin</div>
+	<div class="ttl">Portal Pages</div>
+	<div class="sub">Choose which roles can see each page. Dev Team + System Manager only.</div>
+</div>
+<div class="dpx-card">
+	<div class="dpx-card-hd"><div class="ttl">Registered Pages</div></div>
+	<div class="dpx-card-body">
+		<table id="dps-table">
+			<thead>
+				<tr><th>Page</th><th>Nav Group</th><th>Allowed Roles</th><th>Require All</th><th></th></tr>
+			</thead>
+			<tbody></tbody>
+		</table>
+	</div>
+</div>
+<script>
+frappe.ready(function() {
+	frappe.call({method: "upande_dev_tools.api.dev_portal_settings.get_registered_pages"}).then(function(r) {
+		var tbody = document.querySelector("#dps-table tbody");
+		(r.message || []).forEach(function(page) {
+			var tr = document.createElement("tr");
+			tr.innerHTML =
+				"<td>" + page.title + " <span class=\"pill\">/" + page.route + "</span></td>" +
+				"<td>" + page.nav_group + "</td>" +
+				"<td><input type=\"text\" class=\"dps-roles\" value=\"" + page.allowed_roles.join(", ") + "\"></td>" +
+				"<td><input type=\"checkbox\" class=\"dps-require-all\"" + (page.require_all_roles ? " checked" : "") + "></td>" +
+				"<td><button class=\"dps-save\">Save</button></td>";
+			tr.querySelector(".dps-save").addEventListener("click", function() {
+				var roles = tr.querySelector(".dps-roles").value.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+				var requireAll = tr.querySelector(".dps-require-all").checked;
+				frappe.call({
+					method: "upande_dev_tools.api.dev_portal_settings.update_page_roles",
+					args: {route: page.route, roles: roles, require_all_roles: requireAll ? 1 : 0}
+				});
+			});
+			tbody.appendChild(tr);
+		});
+	});
+});
+</script>
+{% endblock %}
