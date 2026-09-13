@@ -72,9 +72,11 @@ class IntegrationTestRequest(IntegrationTestCase):
 		company = frappe.db.get_value("Company", {}, "name")
 		if not company:
 			self.skipTest("No Company exists on this site to attach a test Project to.")
-		return frappe.get_doc(
-			{"doctype": "Project", "project_name": name, "company": company}
-		).insert(ignore_permissions=True).name
+		return (
+			frappe.get_doc({"doctype": "Project", "project_name": name, "company": company})
+			.insert(ignore_permissions=True)
+			.name
+		)
 
 	def test_raised_by_user_defaults_to_session_user(self) -> None:
 		if not frappe.db.exists("User", "dev-note@example.test"):
@@ -111,16 +113,16 @@ class IntegrationTestRequest(IntegrationTestCase):
 		frappe.set_user("no-dev-role@example.test")
 		try:
 			with self.assertRaises(frappe.ValidationError):
-				frappe.get_doc(
-					{"doctype": "Request", "title": "Not allowed", "request_type": "Note"}
-				).insert(ignore_permissions=True)
+				frappe.get_doc({"doctype": "Request", "title": "Not allowed", "request_type": "Note"}).insert(
+					ignore_permissions=True
+				)
 		finally:
 			frappe.set_user("Administrator")
 
 	def test_approve_requires_project_and_priority(self) -> None:
-		doc = frappe.get_doc(
-			{"doctype": "Request", "title": "Needs triage", "request_type": "Bug"}
-		).insert(ignore_permissions=True)
+		doc = frappe.get_doc({"doctype": "Request", "title": "Needs triage", "request_type": "Bug"}).insert(
+			ignore_permissions=True
+		)
 		doc.workflow_state = "Approved"
 		with self.assertRaises(frappe.ValidationError):
 			doc.save(ignore_permissions=True)
