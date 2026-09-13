@@ -358,20 +358,24 @@ upande_dev_tools_portal.mount_dev_dashboard = function (root) {
 	udt_load_dashboard();
 };
 
+function udt_slug(doctype) {
+	return doctype.toLowerCase().replace(/ /g, "-");
+}
+
 window.udt_open_list = function (doctype) {
-	frappe.set_route("List", doctype);
+	window.location.href = "/app/" + udt_slug(doctype);
 };
 
 window.udt_open_doc = function (doctype, name) {
 	if (!name) {
-		frappe.set_route("List", doctype);
+		window.location.href = "/app/" + udt_slug(doctype);
 		return;
 	}
-	frappe.set_route("Form", doctype, name);
+	window.location.href = "/app/" + udt_slug(doctype) + "/" + encodeURIComponent(name);
 };
 
 window.udt_open_hooks_explorer = function () {
-	frappe.set_route("hooks-explorer");
+	window.location.href = "/hooks-explorer";
 };
 
 function udt_load_dashboard() {
@@ -379,8 +383,6 @@ function udt_load_dashboard() {
 		method: "upande_dev_tools.api.dashboard.get_dashboard_data",
 		callback: function (r) {
 			const data = r.message || {};
-
-			console.log("Upande Dev Dashboard Data:", data);
 
 			const version_rows = data.apps || [];
 			const backups = data.backup_snapshots || [];

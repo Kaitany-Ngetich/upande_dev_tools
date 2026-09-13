@@ -3,6 +3,9 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
+from upande_dev_tools.api.code_editor import get_installed_apps as code_editor_get_installed_apps
+from upande_dev_tools.api.dashboard import get_dashboard_data
+from upande_dev_tools.api.hooks_explorer import get_installed_apps as hooks_explorer_get_installed_apps
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
 from upande_dev_tools.www.code_editor import get_context as code_editor_get_context
@@ -297,6 +300,7 @@ class IntegrationTestPortal(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.Redirect):
 				hooks_explorer_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
@@ -315,6 +319,7 @@ class IntegrationTestPortal(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.Redirect):
 				dev_dashboard_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
@@ -333,6 +338,7 @@ class IntegrationTestPortal(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.Redirect):
 				code_editor_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
@@ -349,3 +355,36 @@ class IntegrationTestPortal(IntegrationTestCase):
 			enforce_page_access("dev-dashboard")  # must not raise
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_dev_tools_apis_deny_users_without_dev_team_role(self) -> None:
+		other = self._make_user("dev-tools-api-noperm@example.test", [])
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_dashboard_data()
+			with self.assertRaises(frappe.PermissionError):
+				hooks_explorer_get_installed_apps()
+			with self.assertRaises(frappe.PermissionError):
+				code_editor_get_installed_apps()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_developer_nav_group_lists_all_three_tools_in_order(self) -> None:
+		dev = self._make_user("developer-nav-order@example.test", ["Dev Team"])
+		items = get_nav_items(dev)
+		developer_routes = [item["route"] for item in items if item["nav_group"] == "Developer"]
+		self.assertEqual(developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor"])
+
+	def test_ported_pages_are_registered_with_correct_attributes(self) -> None:
+		expected = {
+			"dev-dashboard": ("Dashboard", "home", 10),
+			"hooks-explorer": ("Hooks Explorer", "search", 20),
+			"code-editor": ("Code Editor", "code", 30),
+		}
+		for route, (title, icon, sort_order) in expected.items():
+			doc = frappe.get_doc("Dev Portal Page", route)
+			self.assertEqual(doc.title, title)
+			self.assertEqual(doc.icon, icon)
+			self.assertEqual(doc.nav_group, "Developer")
+			self.assertEqual(doc.sort_order, sort_order)
+			self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})

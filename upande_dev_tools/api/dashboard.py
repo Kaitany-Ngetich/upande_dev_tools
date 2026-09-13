@@ -2,8 +2,17 @@ import frappe
 from frappe.utils import format_datetime, today, get_datetime
 from upande_dev_tools.api.hooks_summary import get_hooks_summary
 
+DEV_TOOLS_ROLES = {"Dev Team"}
+
+
+def _require_dev_team():
+    if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+
 @frappe.whitelist()
 def get_dashboard_data():
+    _require_dev_team()
     version_rows = get_version_rows()
     backup_rows = get_backup_rows()
     activity_rows = get_activity_rows()

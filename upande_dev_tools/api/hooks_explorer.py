@@ -2,6 +2,14 @@ import importlib
 import frappe
 
 
+DEV_TOOLS_ROLES = {"Dev Team"}
+
+
+def _require_dev_team():
+    if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+
 HOOK_KEYS = [
     "doc_events",
     "scheduler_events",
@@ -20,11 +28,13 @@ HOOK_KEYS = [
 
 @frappe.whitelist()
 def get_installed_apps():
+    _require_dev_team()
     return frappe.get_installed_apps()
 
 
 @frappe.whitelist()
 def get_app_hooks(app_name: str):
+    _require_dev_team()
     try:
         hooks_module = importlib.import_module(f"{app_name}.hooks")
 

@@ -21,6 +21,13 @@ BLOCKED_PARTS = {
 
 MAX_TREE_DEPTH = 8
 
+DEV_TOOLS_ROLES = {"Dev Team"}
+
+
+def _require_dev_team():
+    if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
 
 # =====================================
 # Helper Functions
@@ -189,12 +196,14 @@ def validate_file(app: str, path: str) -> tuple[Path, Path]:
 
 @frappe.whitelist()
 def get_installed_apps() -> list[dict]:
+    _require_dev_team()
     apps = frappe.get_installed_apps()
     return [{"label": app, "value": app} for app in apps]
 
 
 @frappe.whitelist()
 def get_workspace_tree() -> dict:
+    _require_dev_team()
     bench_path = get_bench_path()
     apps_path = get_apps_path()
     apps = frappe.get_installed_apps()
@@ -237,6 +246,7 @@ def get_workspace_tree() -> dict:
 
 @frappe.whitelist()
 def get_app_tree(app: str) -> dict:
+    _require_dev_team()
     if not app:
         frappe.throw(_("App is required"))
 
@@ -254,6 +264,7 @@ def get_app_tree(app: str) -> dict:
 
 @frappe.whitelist()
 def get_file_tree(app: str) -> list[dict]:
+    _require_dev_team()
     if not app:
         frappe.throw(_("App is required"))
 
@@ -304,6 +315,7 @@ def get_file_tree(app: str) -> list[dict]:
 
 @frappe.whitelist()
 def read_file(app: str, path: str) -> dict:
+    _require_dev_team()
     app_path, file_path = validate_file(app, path)
 
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
@@ -325,6 +337,7 @@ def read_file(app: str, path: str) -> dict:
 
 @frappe.whitelist()
 def write_file(app: str, path: str, content: str) -> dict:
+    _require_dev_team()
     app_path, file_path = validate_file(app, path)
 
     with open(file_path, "w", encoding="utf-8", newline="") as f:
@@ -347,6 +360,7 @@ def write_file(app: str, path: str, content: str) -> dict:
 
 @frappe.whitelist()
 def preview_file(app: str, path: str, max_chars: int = 4000) -> dict:
+    _require_dev_team()
     app_path, file_path = validate_file(app, path)
 
     max_chars = int(max_chars or 4000)
@@ -372,6 +386,7 @@ def preview_file(app: str, path: str, max_chars: int = 4000) -> dict:
 
 @frappe.whitelist()
 def search_files(app: str, query: str) -> list[dict]:
+    _require_dev_team()
     if not query:
         return get_file_tree(app)
 
