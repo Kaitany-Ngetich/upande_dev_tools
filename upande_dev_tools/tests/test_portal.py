@@ -374,9 +374,7 @@ class IntegrationTestPortal(IntegrationTestCase):
 		dev = self._make_user("developer-nav-order@example.test", ["Dev Team"])
 		items = get_nav_items(dev)
 		developer_routes = [item["route"] for item in items if item["nav_group"] == "Developer"]
-		self.assertEqual(
-			developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor", "my-day"]
-		)
+		self.assertEqual(developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor", "my-day"])
 
 	def test_ported_pages_are_registered_with_correct_attributes(self) -> None:
 		expected = {
