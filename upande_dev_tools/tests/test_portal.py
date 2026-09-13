@@ -5,6 +5,7 @@ from frappe.tests import IntegrationTestCase
 
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
+from upande_dev_tools.www.dev_tools import get_context
 
 
 class IntegrationTestPortal(IntegrationTestCase):
@@ -174,3 +175,14 @@ class IntegrationTestPortal(IntegrationTestCase):
 		doc = frappe.get_doc("Dev Portal Page", "dev-portal-settings")
 		self.assertTrue(doc.require_all_roles)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "System Manager"})
+
+	def test_dev_tools_entry_redirects_to_resolved_home(self) -> None:
+		dev = self._make_user("dev-tools-entry@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/dev-dashboard")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
