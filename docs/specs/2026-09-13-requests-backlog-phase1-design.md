@@ -225,6 +225,60 @@ authenticate (session cookie from `/api/method/login`, no separate mobile-only A
 - `get_upcoming_meetings(project=None)` / `get_my_day(user=None)` — see Calendar
   integration above.
 
+## Deployment Requests
+
+Internally, developers raise far more deployment requests on each other's apps than
+the official backlog captures — currently tracked in a spreadsheet
+(`Date, Instance, App, Branch, Commit Hash, Status, Errors, Fix`). This becomes a
+second, sibling flow to `Request`, in its own module so each domain stays
+single-responsibility, sharing the same "no hardcoding" rule the rest of this spec
+follows: anything that recurs and has identity (which server/site, which repo) is a
+`Link` to a real doctype, never a `Select` or free-text field — the two columns the
+spreadsheet reuses constantly, `Instance` and `App`, are exactly that.
+
+**Module `Deployments`** (sibling to `Requests`, same `upande_dev_tools` app):
+
+- **`Deployment Instance`** (master) — `instance_name` (unique, autoname), `environment_type`
+  (Select: `Production`/`Staging`/`Local Development` — a genuinely fixed, small
+  vocabulary, unlike the instance itself), `site_url`, `notes`. New environments are
+  added as records, never as code.
+- **`Deployment App`** (master) — `app_name` (unique, autoname), `repository_url`,
+  `default_branch`.
+- **`Deployment Request`** (transactional, workflow-driven like `Request`) —
+  `app` (Link → Deployment App), `instance` (Link → Deployment Instance), `branch`
+  (Data, defaulted from `Deployment App.default_branch` via `fetch_from` so it's
+  rarely retyped), `commit_hash`, `requested_by_user`/`requested_by_employee`
+  (auto-resolved exactly like `Request.raised_by_*`), `deployed_by_user`, `errors`,
+  `fix_notes`, and `linked_request` (Link → Request, optional) so a deployment can
+  trace back to the feature/fix it shipped — the tight integration this spec asks for,
+  applied across the two doctypes as well as into Project/Task.
+
+**Workflow** (`Deployment Review`, same fixture-shipped mechanism as `Request Review`):
+
+```
+Requested --(Start Deployment)--> In Progress --(Mark Deployed)--> Deployed
+                                        |
+                                        +--(Mark Failed)--> Failed --(Retry)--> In Progress
+```
+
+All transitions are gated to `Dev Team` — this is a dev-to-dev operational flow, not a
+customer-facing approval gate, so there is no Projects Manager review step. `Projects
+Manager` gets read-only `DocPerm` on `Deployment Request` (visibility, matching "same
+visibility on dashboards," without deploy authority nobody asked them to have).
+
+**API** (`upande_dev_tools/deployments/utils.py`, same shared-by-desk/portal/mobile
+pattern as `requests/utils.py`):
+
+- `create_deployment_request(app, instance, branch=None, description=None, linked_request=None)`
+- `get_my_deployment_requests(status=None)`
+- `get_deployment_queue()` — open (`Requested`/`In Progress`/`Failed`) requests, for
+  Dev Team.
+- `update_deployment_status(name, action, commit_hash=None, errors=None, fix_notes=None)`
+  — wraps the workflow action (`Start Deployment`/`Mark Deployed`/`Mark Failed`/`Retry`).
+- Analytics (deployment success rate per instance/app, frequency, common errors) is a
+  Phase 2 dashboard concern, same split as everywhere else in this spec — Phase 1 ships
+  the queryable data model and API only.
+
 ## Testing
 
 Standard Frappe doctype tests (`test_request.py`) covering: workflow transition guards
@@ -234,12 +288,14 @@ linked Employee, and `promote_to_task` producing a Task with `custom_request` se
 correctly. `test_utils.py` covers `get_my_day` (returns only the calling user's assigned,
 `custom_planned_for`-today tasks and their own events) and `get_upcoming_meetings`
 (scoped to a project's linked events, or the caller's participation when no project is
-given).
+given). `test_deployment_request.py`/`test_deployments_api.py` cover the equivalent
+guards and lifecycle for `Deployment Request`.
 
 ## Out of scope (deferred to later phases)
 
 - The `www` portal pages and role-scoped dashboards, including any calendar/"my day"
-  UI widget (Phase 2). Phase 1 ships only the `get_upcoming_meetings`/`get_my_day` API.
+  UI widget, and any deployment-analytics chart or dashboard (Phase 2). Phase 1 ships
+  only the `get_upcoming_meetings`/`get_my_day`/deployment-queue API.
 - The mobile app (Phase 3).
 - Migrating the existing desk pages (`upande_dev_dashboard`, `hooks_explorer`,
   `code_editor`) into the portal (Phase 2).
