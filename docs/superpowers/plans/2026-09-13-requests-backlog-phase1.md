@@ -1523,9 +1523,1166 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
+### Task 10: `Deployments` module scaffold — `Deployment Instance` and `Deployment App`
+
+**Files:**
+- Modify: `upande_dev_tools/modules.txt`
+- Create: `upande_dev_tools/deployments/__init__.py`
+- Create: `upande_dev_tools/deployments/doctype/__init__.py`
+- Create: `upande_dev_tools/deployments/doctype/deployment_instance/__init__.py`
+- Create: `upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.json`
+- Create: `upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.py`
+- Test: `upande_dev_tools/deployments/doctype/deployment_instance/test_deployment_instance.py`
+- Create: `upande_dev_tools/deployments/doctype/deployment_app/__init__.py`
+- Create: `upande_dev_tools/deployments/doctype/deployment_app/deployment_app.json`
+- Create: `upande_dev_tools/deployments/doctype/deployment_app/deployment_app.py`
+- Test: `upande_dev_tools/deployments/doctype/deployment_app/test_deployment_app.py`
+
+**Interfaces:**
+- Produces: `Deployment Instance` (fields `instance_name` (unique, is the doc name), `environment_type`, `site_url`, `notes`) and `Deployment App` (fields `app_name` (unique, is the doc name), `repository_url`, `default_branch`). Task 11's `Deployment Request` links to both by name.
+
+- [ ] **Step 1: Add the module**
+
+Append to `upande_dev_tools/modules.txt` so it reads:
+
+```
+Upande Dev Tools
+Requests
+Deployments
+```
+
+- [ ] **Step 2: Create the module package**
+
+`upande_dev_tools/deployments/__init__.py` — empty file.
+`upande_dev_tools/deployments/doctype/__init__.py` — empty file.
+`upande_dev_tools/deployments/doctype/deployment_instance/__init__.py` — empty file.
+`upande_dev_tools/deployments/doctype/deployment_app/__init__.py` — empty file.
+
+- [ ] **Step 3: Write the failing tests**
+
+`upande_dev_tools/deployments/doctype/deployment_instance/test_deployment_instance.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and Contributors
+# See license.txt
+
+import frappe
+from frappe.tests import IntegrationTestCase
+
+
+class IntegrationTestDeploymentInstance(IntegrationTestCase):
+	def test_named_by_instance_name(self) -> None:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Deployment Instance",
+				"instance_name": "Kaitet v16 Production",
+				"environment_type": "Production",
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(doc.name, "Kaitet v16 Production")
+```
+
+`upande_dev_tools/deployments/doctype/deployment_app/test_deployment_app.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and Contributors
+# See license.txt
+
+import frappe
+from frappe.tests import IntegrationTestCase
+
+
+class IntegrationTestDeploymentApp(IntegrationTestCase):
+	def test_named_by_app_name(self) -> None:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Deployment App",
+				"app_name": "upande-crm",
+				"repository_url": "https://github.com/ghost-mann/upande-crm.git",
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(doc.name, "upande-crm")
+		self.assertEqual(doc.default_branch, "main")
+```
+
+- [ ] **Step 4: Run tests to verify they fail**
+
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_instance.test_deployment_instance`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_app.test_deployment_app`
+Expected: both FAIL — neither DocType exists yet.
+
+- [ ] **Step 5: Write the schemas**
+
+`upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.json`:
+
+```json
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:instance_name",
+ "creation": "2026-09-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "instance_name",
+  "environment_type",
+  "site_url",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "instance_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Instance Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "environment_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Environment",
+   "options": "\nProduction\nStaging\nLocal Development"
+  },
+  {
+   "fieldname": "site_url",
+   "fieldtype": "Data",
+   "label": "Site URL"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Deployments",
+ "name": "Deployment Instance",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Dev Team",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Projects Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
+```
+
+`upande_dev_tools/deployments/doctype/deployment_app/deployment_app.json`:
+
+```json
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:app_name",
+ "creation": "2026-09-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "app_name",
+  "repository_url",
+  "default_branch"
+ ],
+ "fields": [
+  {
+   "fieldname": "app_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "App Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "repository_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Repository URL",
+   "reqd": 1
+  },
+  {
+   "default": "main",
+   "fieldname": "default_branch",
+   "fieldtype": "Data",
+   "label": "Default Branch"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Deployments",
+ "name": "Deployment App",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Dev Team",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Projects Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
+```
+
+- [ ] **Step 6: Write the minimal controllers**
+
+`upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and contributors
+# For license information, please see license.txt
+
+from frappe.model.document import Document
+
+
+class DeploymentInstance(Document):
+	pass
+```
+
+`upande_dev_tools/deployments/doctype/deployment_app/deployment_app.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and contributors
+# For license information, please see license.txt
+
+from frappe.model.document import Document
+
+
+class DeploymentApp(Document):
+	pass
+```
+
+- [ ] **Step 7: Migrate and run tests**
+
+Run: `bench --site <site> migrate`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_instance.test_deployment_instance`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_app.test_deployment_app`
+Expected: PASS
+
+- [ ] **Step 8: Commit**
+
+```bash
+ruff format upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.py upande_dev_tools/deployments/doctype/deployment_app/deployment_app.py
+git add upande_dev_tools/modules.txt upande_dev_tools/deployments
+git commit -m "feat: scaffold Deployments module with Instance/App master data
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: `Deployment Request` doctype
+
+**Files:**
+- Create: `upande_dev_tools/deployments/doctype/deployment_request/__init__.py`
+- Create: `upande_dev_tools/deployments/doctype/deployment_request/deployment_request.json`
+- Create: `upande_dev_tools/deployments/doctype/deployment_request/deployment_request.py`
+- Test: `upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py`
+
+**Interfaces:**
+- Consumes: `Deployment Instance`/`Deployment App` (Task 10); `Request` (Task 1, for the optional `linked_request` tie-back).
+- Produces: `Deployment Request` with `app` (Link), `instance` (Link), `branch` (fetched from `app.default_branch`), `commit_hash`, `workflow_state`, `requested_by_user`/`requested_by_employee` (auto-resolved), `deployed_by_user`, `errors`, `fix_notes`, `linked_request`. Task 13's API relies on all of these field names verbatim.
+
+- [ ] **Step 1: Create the package file**
+
+`upande_dev_tools/deployments/doctype/deployment_request/__init__.py` — empty file.
+
+- [ ] **Step 2: Write the failing tests**
+
+`upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and Contributors
+# See license.txt
+
+import frappe
+from frappe.tests import IntegrationTestCase
+
+
+class IntegrationTestDeploymentRequest(IntegrationTestCase):
+	def _make_app(self) -> str:
+		if frappe.db.exists("Deployment App", "Requests Phase 1 Test App"):
+			return "Requests Phase 1 Test App"
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Deployment App",
+					"app_name": "Requests Phase 1 Test App",
+					"repository_url": "https://github.com/example/test-app.git",
+					"default_branch": "main",
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+
+	def _make_instance(self) -> str:
+		if frappe.db.exists("Deployment Instance", "Requests Phase 1 Test Instance"):
+			return "Requests Phase 1 Test Instance"
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Deployment Instance",
+					"instance_name": "Requests Phase 1 Test Instance",
+					"environment_type": "Staging",
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+
+	def test_branch_defaults_from_app(self) -> None:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Deployment Request",
+				"app": self._make_app(),
+				"instance": self._make_instance(),
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(doc.branch, "main")
+
+	def test_requested_by_user_defaults_to_session_user(self) -> None:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Deployment Request",
+				"app": self._make_app(),
+				"instance": self._make_instance(),
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(doc.requested_by_user, "Administrator")
+
+	def test_defaults_to_requested_state(self) -> None:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Deployment Request",
+				"app": self._make_app(),
+				"instance": self._make_instance(),
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(doc.workflow_state, "Requested")
+```
+
+Note: `test_defaults_to_requested_state` will fail until Task 12 ships the workflow — that's expected and correct; it will start passing once Task 12 lands, same as Task 1's workflow-default test did for `Request`.
+
+- [ ] **Step 3: Run tests to verify they fail**
+
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Expected: FAIL — `Deployment Request` doesn't exist yet.
+
+- [ ] **Step 4: Write the schema**
+
+`upande_dev_tools/deployments/doctype/deployment_request/deployment_request.json`:
+
+```json
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "DEP-.YYYY.-.#####",
+ "creation": "2026-09-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "app",
+  "instance",
+  "column_break_app",
+  "branch",
+  "commit_hash",
+  "workflow_state",
+  "section_break_details",
+  "description",
+  "linked_request",
+  "column_break_submitter",
+  "requested_by_user",
+  "requested_by_employee",
+  "deployed_by_user",
+  "section_break_outcome",
+  "errors",
+  "fix_notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "app",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "App",
+   "options": "Deployment App",
+   "reqd": 1
+  },
+  {
+   "fieldname": "instance",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Instance",
+   "options": "Deployment Instance",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_app",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "app.default_branch",
+   "fetch_if_empty": 1,
+   "fieldname": "branch",
+   "fieldtype": "Data",
+   "label": "Branch",
+   "reqd": 1
+  },
+  {
+   "fieldname": "commit_hash",
+   "fieldtype": "Data",
+   "label": "Commit Hash"
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nRequested\nIn Progress\nDeployed\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "linked_request",
+   "fieldtype": "Link",
+   "label": "Request",
+   "options": "Request"
+  },
+  {
+   "fieldname": "column_break_submitter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "requested_by_user",
+   "fieldtype": "Link",
+   "label": "Requested By (User)",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_by_employee",
+   "fieldtype": "Link",
+   "label": "Requested By (Employee)",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "deployed_by_user",
+   "fieldtype": "Link",
+   "label": "Deployed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_outcome",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "errors",
+   "fieldtype": "Text",
+   "label": "Errors"
+  },
+  {
+   "fieldname": "fix_notes",
+   "fieldtype": "Text",
+   "label": "Fix Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Deployments",
+ "name": "Deployment Request",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Dev Team",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Projects Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
+```
+
+- [ ] **Step 5: Write the controller**
+
+`upande_dev_tools/deployments/doctype/deployment_request/deployment_request.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and contributors
+# For license information, please see license.txt
+
+import frappe
+from frappe.model.document import Document
+
+
+class DeploymentRequest(Document):
+	def before_insert(self) -> None:
+		self.requested_by_user = self.requested_by_user or frappe.session.user
+		if not self.requested_by_employee:
+			self.requested_by_employee = frappe.db.get_value(
+				"Employee", {"user_id": self.requested_by_user}, "name"
+			)
+```
+
+- [ ] **Step 6: Migrate and run tests**
+
+Run: `bench --site <site> migrate`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Expected: `test_branch_defaults_from_app` and `test_requested_by_user_defaults_to_session_user` PASS; `test_defaults_to_requested_state` still FAILS (no workflow yet — expected, resolved in Task 12).
+
+- [ ] **Step 7: Commit**
+
+```bash
+ruff format upande_dev_tools/deployments/doctype/deployment_request/deployment_request.py
+git add upande_dev_tools/deployments/doctype/deployment_request
+git commit -m "feat: add Deployment Request doctype
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 12: Deployment approval workflow (extends the existing fixtures)
+
+**Files:**
+- Modify: `upande_dev_tools/fixtures/workflow_state.json`
+- Modify: `upande_dev_tools/fixtures/workflow_action_master.json`
+- Modify: `upande_dev_tools/fixtures/workflow.json`
+- Modify: `upande_dev_tools/hooks.py`
+- Test: `upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py` (the `test_defaults_to_requested_state` test from Task 11 starts passing)
+
+**Interfaces:**
+- Produces: an active `Deployment Review` Workflow on `Deployment Request`, states `Requested` (default) / `In Progress` (reused from `Request Review`) / `Deployed` / `Failed`, actions `Start Deployment`/`Mark Deployed`/`Mark Failed`/`Retry`, all restricted to `Dev Team`. Task 13's `update_deployment_status` relies on these exact names.
+
+- [ ] **Step 1: Run the still-failing test to confirm the starting point**
+
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Expected: `test_defaults_to_requested_state` FAILS (`workflow_state` is blank, no active Workflow yet).
+
+- [ ] **Step 2: Add the 3 new Workflow States**
+
+`Workflow State` is a shared, name-unique master — `In Progress` already exists from `Request Review` (Task 2) and is reused as-is. Replace the contents of `upande_dev_tools/fixtures/workflow_state.json` with the existing 7 entries **plus** these 3 new ones appended to the array (`Requested`, `Deployed`, `Failed`):
+
+```json
+[
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "eye-open", "modified": "2026-09-13 00:00:00.000000", "name": "Under Review", "style": "Warning", "workflow_state_name": "Under Review"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "ok", "modified": "2026-09-13 00:00:00.000000", "name": "Approved", "style": "Success", "workflow_state_name": "Approved"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "remove", "modified": "2026-09-13 00:00:00.000000", "name": "Rejected", "style": "Danger", "workflow_state_name": "Rejected"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "time", "modified": "2026-09-13 00:00:00.000000", "name": "Deferred", "style": "Inverse", "workflow_state_name": "Deferred"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "calendar", "modified": "2026-09-13 00:00:00.000000", "name": "Scheduled", "style": "Info", "workflow_state_name": "Scheduled"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "cog", "modified": "2026-09-13 00:00:00.000000", "name": "In Progress", "style": "Primary", "workflow_state_name": "In Progress"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "ok-circle", "modified": "2026-09-13 00:00:00.000000", "name": "Completed", "style": "Success", "workflow_state_name": "Completed"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "inbox", "modified": "2026-09-13 00:00:00.000000", "name": "Requested", "style": "Warning", "workflow_state_name": "Requested"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "upload", "modified": "2026-09-13 00:00:00.000000", "name": "Deployed", "style": "Success", "workflow_state_name": "Deployed"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "remove-circle", "modified": "2026-09-13 00:00:00.000000", "name": "Failed", "style": "Danger", "workflow_state_name": "Failed"}
+]
+```
+
+- [ ] **Step 3: Add the 4 new Workflow Actions**
+
+Replace the contents of `upande_dev_tools/fixtures/workflow_action_master.json` with the existing 8 entries **plus** 4 new ones:
+
+```json
+[
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Approve", "workflow_action_name": "Approve"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Reject", "workflow_action_name": "Reject"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Defer", "workflow_action_name": "Defer"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Reopen", "workflow_action_name": "Reopen"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Schedule", "workflow_action_name": "Schedule"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Promote Note", "workflow_action_name": "Promote Note"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Start Work", "workflow_action_name": "Start Work"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Complete", "workflow_action_name": "Complete"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Start Deployment", "workflow_action_name": "Start Deployment"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Mark Deployed", "workflow_action_name": "Mark Deployed"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Mark Failed", "workflow_action_name": "Mark Failed"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Retry", "workflow_action_name": "Retry"}
+]
+```
+
+- [ ] **Step 4: Add the `Deployment Review` Workflow**
+
+Replace the contents of `upande_dev_tools/fixtures/workflow.json` with the existing `Request Review` object **plus** this new `Deployment Review` object appended to the array:
+
+```json
+[
+ {
+  "docstatus": 0,
+  "doctype": "Workflow",
+  "document_type": "Request",
+  "enable_action_confirmation": 0,
+  "is_active": 1,
+  "modified": "2026-09-13 00:00:00.000000",
+  "name": "Request Review",
+  "override_status": 0,
+  "send_email_alert": 0,
+  "workflow_name": "Request Review",
+  "workflow_state_field": "workflow_state",
+  "states": [
+   {"state": "Under Review", "doc_status": "0", "allow_edit": "Projects Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Approved", "doc_status": "0", "allow_edit": "Projects Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Rejected", "doc_status": "0", "allow_edit": "System Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Deferred", "doc_status": "0", "allow_edit": "Projects Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Scheduled", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "In Progress", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Completed", "doc_status": "0", "allow_edit": "System Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null}
+  ],
+  "transitions": [
+   {"state": "Under Review", "action": "Approve", "next_state": "Approved", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Under Review", "action": "Reject", "next_state": "Rejected", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Under Review", "action": "Defer", "next_state": "Deferred", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Under Review", "action": "Promote Note", "next_state": "Scheduled", "allowed": "Dev Team", "allow_self_approval": 1, "condition": "doc.request_type == \"Note\"", "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Deferred", "action": "Reopen", "next_state": "Under Review", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Approved", "action": "Schedule", "next_state": "Scheduled", "allowed": "Projects Manager", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Scheduled", "action": "Start Work", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "In Progress", "action": "Complete", "next_state": "Completed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null}
+  ]
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow",
+  "document_type": "Deployment Request",
+  "enable_action_confirmation": 0,
+  "is_active": 1,
+  "modified": "2026-09-13 00:00:00.000000",
+  "name": "Deployment Review",
+  "override_status": 0,
+  "send_email_alert": 0,
+  "workflow_name": "Deployment Review",
+  "workflow_state_field": "workflow_state",
+  "states": [
+   {"state": "Requested", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "In Progress", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Deployed", "doc_status": "0", "allow_edit": "System Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Failed", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null}
+  ],
+  "transitions": [
+   {"state": "Requested", "action": "Start Deployment", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "In Progress", "action": "Mark Deployed", "next_state": "Deployed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "In Progress", "action": "Mark Failed", "next_state": "Failed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Failed", "action": "Retry", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null}
+  ]
+ }
+]
+```
+
+- [ ] **Step 5: Update the fixtures filters in `hooks.py`**
+
+In `upande_dev_tools/hooks.py`, widen the `"Workflow State"`, `"Workflow Action Master"`, and `"Workflow"` filter lists (added in Task 2) to include the new names:
+
+```python
+fixtures = [
+	{"doctype": "Role", "filters": [["name", "in", ["Dev Team"]]]},
+	{
+		"doctype": "Workflow State",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Under Review",
+					"Approved",
+					"Rejected",
+					"Deferred",
+					"Scheduled",
+					"In Progress",
+					"Completed",
+					"Requested",
+					"Deployed",
+					"Failed",
+				],
+			]
+		],
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Approve",
+					"Reject",
+					"Defer",
+					"Reopen",
+					"Schedule",
+					"Promote Note",
+					"Start Work",
+					"Complete",
+					"Start Deployment",
+					"Mark Deployed",
+					"Mark Failed",
+					"Retry",
+				],
+			]
+		],
+	},
+	{"doctype": "Workflow", "filters": [["name", "in", ["Request Review", "Deployment Review"]]]},
+]
+```
+
+- [ ] **Step 6: Migrate and run tests**
+
+Run: `bench --site <site> migrate`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Expected: PASS — `test_defaults_to_requested_state` now passes too.
+
+Also re-run Task 2's test to confirm the widened fixtures didn't disturb `Request Review`:
+
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Expected: PASS (unchanged).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add upande_dev_tools/fixtures upande_dev_tools/hooks.py upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py
+git commit -m "feat: ship Deployment Request approval workflow
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 13: Deployment API — `create_deployment_request`, `get_my_deployment_requests`, `get_deployment_queue`, `update_deployment_status`
+
+**Files:**
+- Create: `upande_dev_tools/deployments/utils.py`
+- Test: `upande_dev_tools/tests/test_deployments_api.py`
+
+**Interfaces:**
+- Consumes: `Deployment Request`/`Deployment Instance`/`Deployment App` (Tasks 10-11); Workflow transitions `Start Deployment`/`Mark Deployed`/`Mark Failed`/`Retry` (Task 12).
+- Produces: `create_deployment_request(app, instance, branch=None, description=None, linked_request=None) -> dict`, `get_my_deployment_requests(status=None) -> list[dict]`, `get_deployment_queue() -> list[dict]`, `update_deployment_status(name, action, commit_hash=None, errors=None, fix_notes=None) -> dict`. Phase 2/3 call these the same way they call `requests/utils.py`'s functions.
+
+- [ ] **Step 1: Write the failing tests**
+
+`upande_dev_tools/tests/test_deployments_api.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and Contributors
+# See license.txt
+
+import frappe
+from frappe.tests import IntegrationTestCase
+
+from upande_dev_tools.deployments.utils import (
+	create_deployment_request,
+	get_deployment_queue,
+	get_my_deployment_requests,
+	update_deployment_status,
+)
+
+
+class IntegrationTestDeploymentsApi(IntegrationTestCase):
+	def _make_user(self, email: str, roles: list[str]) -> str:
+		if not frappe.db.exists("User", email):
+			frappe.get_doc(
+				{"doctype": "User", "email": email, "first_name": "Test", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+		user = frappe.get_doc("User", email)
+		if roles:
+			user.add_roles(*roles)
+		return email
+
+	def _make_app(self) -> str:
+		if frappe.db.exists("Deployment App", "Deployments Api Test App"):
+			return "Deployments Api Test App"
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Deployment App",
+					"app_name": "Deployments Api Test App",
+					"repository_url": "https://github.com/example/api-test-app.git",
+					"default_branch": "main",
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+
+	def _make_instance(self) -> str:
+		if frappe.db.exists("Deployment Instance", "Deployments Api Test Instance"):
+			return "Deployments Api Test Instance"
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Deployment Instance",
+					"instance_name": "Deployments Api Test Instance",
+					"environment_type": "Staging",
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+
+	def test_create_and_progress_deployment_lifecycle(self) -> None:
+		dev = self._make_user("dev-deploy@example.test", ["Dev Team"])
+		app = self._make_app()
+		instance = self._make_instance()
+
+		frappe.set_user(dev)
+		try:
+			created = create_deployment_request(app=app, instance=instance)
+			update_deployment_status(created["name"], "Start Deployment")
+			update_deployment_status(created["name"], "Mark Deployed", commit_hash="abc1234")
+		finally:
+			frappe.set_user("Administrator")
+
+		doc = frappe.get_doc("Deployment Request", created["name"])
+		self.assertEqual(doc.workflow_state, "Deployed")
+		self.assertEqual(doc.commit_hash, "abc1234")
+		self.assertEqual(doc.deployed_by_user, dev)
+
+	def test_failed_deployment_can_be_retried(self) -> None:
+		dev = self._make_user("dev-retry@example.test", ["Dev Team"])
+		app = self._make_app()
+		instance = self._make_instance()
+
+		frappe.set_user(dev)
+		try:
+			created = create_deployment_request(app=app, instance=instance)
+			update_deployment_status(created["name"], "Start Deployment")
+			update_deployment_status(created["name"], "Mark Failed", errors="migrate failed")
+			update_deployment_status(created["name"], "Retry")
+		finally:
+			frappe.set_user("Administrator")
+
+		doc = frappe.get_doc("Deployment Request", created["name"])
+		self.assertEqual(doc.workflow_state, "In Progress")
+		self.assertEqual(doc.errors, "migrate failed")
+
+	def test_get_deployment_queue_requires_dev_team_or_system_manager(self) -> None:
+		outsider = self._make_user("outsider-deploy@example.test", [])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_deployment_queue()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_my_deployment_requests_scopes_to_caller(self) -> None:
+		dev = self._make_user("dev-mydeploy@example.test", ["Dev Team"])
+		other = self._make_user("other-mydeploy@example.test", ["Dev Team"])
+		app = self._make_app()
+		instance = self._make_instance()
+
+		frappe.set_user(dev)
+		created = create_deployment_request(app=app, instance=instance)
+		frappe.set_user(other)
+		create_deployment_request(app=app, instance=instance)
+
+		frappe.set_user(dev)
+		try:
+			mine = get_my_deployment_requests()
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual([r["name"] for r in mine], [created["name"]])
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_deployments_api`
+Expected: FAIL — `upande_dev_tools.deployments.utils` doesn't exist yet.
+
+- [ ] **Step 3: Implement**
+
+`upande_dev_tools/deployments/utils.py`:
+
+```python
+# Copyright (c) 2026, shadrack@upande.com and contributors
+# For license information, please see license.txt
+
+import frappe
+from frappe import _
+
+DEPLOYER_ROLES = {"Dev Team", "System Manager"}
+
+
+@frappe.whitelist()
+def create_deployment_request(
+	app: str,
+	instance: str,
+	branch: str | None = None,
+	description: str | None = None,
+	linked_request: str | None = None,
+) -> dict:
+	doc = frappe.get_doc(
+		{
+			"doctype": "Deployment Request",
+			"app": app,
+			"instance": instance,
+			"branch": branch,
+			"description": description,
+			"linked_request": linked_request,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def get_my_deployment_requests(status: str | None = None) -> list[dict]:
+	filters: dict[str, str] = {"requested_by_user": frappe.session.user}
+	if status:
+		filters["workflow_state"] = status
+
+	return frappe.get_all(
+		"Deployment Request",
+		filters=filters,
+		fields=["name", "app", "instance", "branch", "workflow_state", "creation"],
+		order_by="creation desc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def get_deployment_queue() -> list[dict]:
+	if not set(frappe.get_roles()) & DEPLOYER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	return frappe.get_all(
+		"Deployment Request",
+		filters={"workflow_state": ["in", ["Requested", "In Progress", "Failed"]]},
+		fields=["name", "app", "instance", "branch", "workflow_state", "requested_by_user", "creation"],
+		order_by="creation asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def update_deployment_status(
+	name: str,
+	action: str,
+	commit_hash: str | None = None,
+	errors: str | None = None,
+	fix_notes: str | None = None,
+) -> dict:
+	from frappe.model.workflow import apply_workflow
+
+	doc = frappe.get_doc("Deployment Request", name)
+	if commit_hash:
+		doc.commit_hash = commit_hash
+	if errors:
+		doc.errors = errors
+	if fix_notes:
+		doc.fix_notes = fix_notes
+	if commit_hash or errors or fix_notes:
+		doc.save()
+
+	if action == "Mark Deployed":
+		doc.deployed_by_user = frappe.session.user
+
+	updated = apply_workflow(doc, action)
+	return updated.as_dict()
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_deployments_api`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+ruff format upande_dev_tools/deployments/utils.py
+git add upande_dev_tools/deployments/utils.py upande_dev_tools/tests/test_deployments_api.py
+git commit -m "feat: add deployment request API
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 14: Deployments workspace (desk usability)
+
+**Files:**
+- Create: `upande_dev_tools/deployments/workspace/deployments/deployments.json`
+
+**Interfaces:**
+- Consumes: `Deployment Request`/`Deployment Instance`/`Deployment App` (Tasks 10-11).
+- Produces: a "Deployments" entry in the desk sidebar — nothing else depends on this file.
+
+- [ ] **Step 1: Write the workspace**
+
+`upande_dev_tools/deployments/workspace/deployments/deployments.json`:
+
+```json
+{
+ "charts": [],
+ "content": "[{\"id\":\"dep-header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Deployments</b></span>\",\"col\":12}},{\"id\":\"dep-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Deployment Requests\",\"col\":3}},{\"id\":\"dep-queue-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Queue\",\"col\":3}},{\"id\":\"dep-instance-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Instances\",\"col\":3}},{\"id\":\"dep-app-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Apps\",\"col\":3}}]",
+ "creation": "2026-09-13 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "idx": 0,
+ "indicator_color": "orange",
+ "is_hidden": 0,
+ "label": "Deployments",
+ "link_type": "DocType",
+ "links": [],
+ "modified": "2026-09-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Deployments",
+ "name": "Deployments",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 2.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Deployment Requests",
+   "link_to": "Deployment Request",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Open Queue",
+   "link_to": "Deployment Request",
+   "stats_filter": "[[\"Deployment Request\", \"workflow_state\", \"in\", [\"Requested\", \"In Progress\", \"Failed\"]]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Instances",
+   "link_to": "Deployment Instance",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Apps",
+   "link_to": "Deployment App",
+   "stats_filter": "[]",
+   "type": "DocType"
+  }
+ ],
+ "title": "Deployments",
+ "type": "Workspace"
+}
+```
+
+- [ ] **Step 2: Migrate and verify**
+
+Run: `bench --site <site> migrate`
+
+Verify by loading the desk (`/app/deployments`) and confirming the "Deployments" workspace appears with all four shortcuts working.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add upande_dev_tools/deployments/workspace
+git commit -m "feat: add Deployments workspace
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
 ## Phase 1 acceptance check
 
-After Task 9, run the full suite once to confirm nothing regressed:
+After Task 14, run the full suite once to confirm nothing regressed:
 
 ```bash
 bench --site <site> run-tests --app upande_dev_tools
@@ -1533,4 +2690,4 @@ bench --site <site> run-tests --app upande_dev_tools
 
 Expected: all tests pass, including the pre-existing `test_customization_exporter.py` and `test_module_version_check.py`/etc. suites untouched by this plan.
 
-At this point: a Projects Manager can review and approve/reject/defer a request from the desk; a developer can raise a Note and self-promote it; approving+scheduling a request creates a linked Task; and every capability is also reachable headlessly via `upande_dev_tools.requests.utils.*` over `/api/method/...` — ready for Phase 2 (portal) and Phase 3 (mobile) to build on without touching this layer again.
+At this point: a Projects Manager can review and approve/reject/defer a request from the desk; a developer can raise a Note and self-promote it; approving+scheduling a request creates a linked Task; a developer can raise a deployment request against a mapped instance/app, work it through to Deployed or Failed→Retry, and optionally tie it back to the Request that needed it; and every capability — both `Request` and `Deployment Request` — is reachable headlessly via `upande_dev_tools.requests.utils.*` and `upande_dev_tools.deployments.utils.*` over `/api/method/...` — ready for Phase 2 (portal) and Phase 3 (mobile) to build on without touching this layer again.
