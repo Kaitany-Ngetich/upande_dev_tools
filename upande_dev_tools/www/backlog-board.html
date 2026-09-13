@@ -1,0 +1,71 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Developer</div>
+	<div class="ttl">Backlog Board</div>
+	<div class="sub">Requests and Tasks across the pipeline.</div>
+</div>
+<div class="dpx-card">
+	<div class="dpx-card-hd"><div class="ttl">Requests</div></div>
+	<div class="dpx-card-body" id="board-requests"></div>
+</div>
+<div class="dpx-card" style="margin-top: 18px;">
+	<div class="dpx-card-hd"><div class="ttl">Tasks</div></div>
+	<div class="dpx-card-body" id="board-tasks"></div>
+</div>
+<script>
+frappe.ready(function() {
+	var project = {{ project | tojson }};
+	var args = project ? {project: project} : {};
+
+	function renderColumns(root, rows, groupField, cardFields) {
+		root.innerHTML = "";
+		var groups = {};
+		var order = [];
+		rows.forEach(function(row) {
+			var key = row[groupField] || "(none)";
+			if (!groups[key]) {
+				groups[key] = [];
+				order.push(key);
+			}
+			groups[key].push(row);
+		});
+		var wrap = document.createElement("div");
+		wrap.style.display = "flex";
+		wrap.style.gap = "18px";
+		wrap.style.overflowX = "auto";
+		order.forEach(function(key) {
+			var col = document.createElement("div");
+			col.style.minWidth = "220px";
+			var hd = document.createElement("div");
+			hd.className = "group-lbl";
+			hd.textContent = key + " (" + groups[key].length + ")";
+			col.appendChild(hd);
+			groups[key].forEach(function(row) {
+				var card = document.createElement("div");
+				card.className = "pill";
+				card.style.display = "block";
+				card.style.marginBottom = "8px";
+				card.textContent = cardFields.map(function(f) { return row[f]; }).filter(Boolean).join(" — ");
+				col.appendChild(card);
+			});
+			wrap.appendChild(col);
+		});
+		root.appendChild(wrap);
+	}
+
+	frappe.call({method: "upande_dev_tools.api.requests.get_backlog_board", args: args}).then(function(r) {
+		var data = r.message || {tasks: [], requests: []};
+		renderColumns(document.querySelector("#board-requests"), data.requests || [], "workflow_state", ["title", "priority"]);
+		renderColumns(document.querySelector("#board-tasks"), data.tasks || [], "status", ["subject", "priority"]);
+	});
+});
+</script>
+{% endcall %}
+{% endblock %}

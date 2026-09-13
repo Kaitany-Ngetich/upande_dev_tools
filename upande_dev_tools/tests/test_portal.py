@@ -8,6 +8,7 @@ from upande_dev_tools.api.dashboard import get_dashboard_data
 from upande_dev_tools.api.hooks_explorer import get_installed_apps as hooks_explorer_get_installed_apps
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
+from upande_dev_tools.www.backlog_board import get_context as backlog_board_get_context
 from upande_dev_tools.www.code_editor import get_context as code_editor_get_context
 from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_context
 from upande_dev_tools.www.dev_tools import get_context
@@ -374,7 +375,9 @@ class IntegrationTestPortal(IntegrationTestCase):
 		dev = self._make_user("developer-nav-order@example.test", ["Dev Team"])
 		items = get_nav_items(dev)
 		developer_routes = [item["route"] for item in items if item["nav_group"] == "Developer"]
-		self.assertEqual(developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor", "my-day"])
+		self.assertEqual(
+			developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor", "my-day", "backlog-board"]
+		)
 
 	def test_ported_pages_are_registered_with_correct_attributes(self) -> None:
 		expected = {
@@ -415,4 +418,31 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.icon, "calendar")
 		self.assertEqual(doc.nav_group, "Developer")
 		self.assertEqual(doc.sort_order, 40)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
+
+	def test_backlog_board_permits_dev_team_and_denies_others(self) -> None:
+		dev = self._make_user("backlog-board-dev@example.test", ["Dev Team"])
+		other = self._make_user("backlog-board-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			backlog_board_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				backlog_board_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_backlog_board_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "backlog-board")
+		self.assertEqual(doc.title, "Backlog Board")
+		self.assertEqual(doc.icon, "trello")
+		self.assertEqual(doc.nav_group, "Developer")
+		self.assertEqual(doc.sort_order, 50)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})

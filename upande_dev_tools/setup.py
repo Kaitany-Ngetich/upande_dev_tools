@@ -95,6 +95,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=40,
 		roles=["Dev Team"],
 	)
+	register_dev_portal_page(
+		route="backlog-board",
+		title="Backlog Board",
+		icon="trello",
+		nav_group="Developer",
+		sort_order=50,
+		roles=["Dev Team"],
+	)
 
 
 def run_setup() -> None:
