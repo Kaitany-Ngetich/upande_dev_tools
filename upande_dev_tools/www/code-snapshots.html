@@ -1,0 +1,69 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Developer</div>
+	<div class="ttl">Code Snapshots</div>
+	<div class="sub">Search and browse every recorded code backup snapshot.</div>
+</div>
+<div class="dpx-card">
+	<div class="dpx-card-hd">
+		<div class="ttl">Snapshots</div>
+	</div>
+	<div class="dpx-card-body">
+		<input type="text" id="snap-search" placeholder="Search by document name…" style="margin-bottom:12px;padding:8px 12px;border-radius:999px;border:1px solid var(--hairline);width:280px;">
+		<table id="snap-table">
+			<thead><tr><th>Time</th><th>Document</th><th>App/Module</th><th>Source</th><th>Changed</th></tr></thead>
+			<tbody></tbody>
+		</table>
+		<button id="snap-load-more" class="pill" style="margin-top:12px;cursor:pointer;border:1px solid var(--hairline);background:none;">Load more</button>
+	</div>
+</div>
+<script>
+frappe.ready(function() {
+	var start = 0;
+	var limit = 50;
+	var search = "";
+
+	function loadRows(reset) {
+		if (reset) {
+			start = 0;
+			document.querySelector("#snap-table tbody").innerHTML = "";
+		}
+		frappe.call({
+			method: "upande_dev_tools.api.code_snapshots.get_snapshots",
+			args: {search: search || undefined, start: start, limit: limit}
+		}).then(function(r) {
+			var data = r.message || {rows: [], total: 0};
+			var tbody = document.querySelector("#snap-table tbody");
+			data.rows.forEach(function(row) {
+				var tr = document.createElement("tr");
+				[row.snapshot_time, row.document_name, (row.app || row.module || ""), row.source_type,
+					(row.changed_since_last_backup ? "Yes" : "No")].forEach(function(v) {
+					var td = document.createElement("td");
+					td.textContent = v || "";
+					tr.appendChild(td);
+				});
+				tbody.appendChild(tr);
+			});
+			start += data.rows.length;
+			document.querySelector("#snap-load-more").style.display = start < data.total ? "" : "none";
+		});
+	}
+
+	document.querySelector("#snap-search").addEventListener("input", function(e) {
+		search = e.target.value;
+		loadRows(true);
+	});
+	document.querySelector("#snap-load-more").addEventListener("click", function() { loadRows(false); });
+
+	loadRows(true);
+});
+</script>
+{% endcall %}
+{% endblock %}

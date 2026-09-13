@@ -103,6 +103,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=50,
 		roles=["Dev Team"],
 	)
+	register_dev_portal_page(
+		route="code-snapshots",
+		title="Code Snapshots",
+		icon="archive",
+		nav_group="Developer",
+		sort_order=60,
+		roles=["Dev Team"],
+	)
 
 
 def run_setup() -> None:

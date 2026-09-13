@@ -10,6 +10,7 @@ from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_
 from upande_dev_tools.setup import register_dev_portal_page
 from upande_dev_tools.www.backlog_board import get_context as backlog_board_get_context
 from upande_dev_tools.www.code_editor import get_context as code_editor_get_context
+from upande_dev_tools.www.code_snapshots import get_context as code_snapshots_get_context
 from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_context
 from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
@@ -376,7 +377,8 @@ class IntegrationTestPortal(IntegrationTestCase):
 		items = get_nav_items(dev)
 		developer_routes = [item["route"] for item in items if item["nav_group"] == "Developer"]
 		self.assertEqual(
-			developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor", "my-day", "backlog-board"]
+			developer_routes,
+			["dev-dashboard", "hooks-explorer", "code-editor", "my-day", "backlog-board", "code-snapshots"],
 		)
 
 	def test_ported_pages_are_registered_with_correct_attributes(self) -> None:
@@ -445,4 +447,31 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.icon, "trello")
 		self.assertEqual(doc.nav_group, "Developer")
 		self.assertEqual(doc.sort_order, 50)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
+
+	def test_code_snapshots_permits_dev_team_and_denies_others(self) -> None:
+		dev = self._make_user("code-snapshots-dev@example.test", ["Dev Team"])
+		other = self._make_user("code-snapshots-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			code_snapshots_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				code_snapshots_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_code_snapshots_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "code-snapshots")
+		self.assertEqual(doc.title, "Code Snapshots")
+		self.assertEqual(doc.icon, "archive")
+		self.assertEqual(doc.nav_group, "Developer")
+		self.assertEqual(doc.sort_order, 60)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
