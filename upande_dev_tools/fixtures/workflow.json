@@ -30,5 +30,30 @@
    {"state": "Scheduled", "action": "Start Work", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
    {"state": "In Progress", "action": "Complete", "next_state": "Completed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null}
   ]
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow",
+  "document_type": "Deployment Request",
+  "enable_action_confirmation": 0,
+  "is_active": 1,
+  "modified": "2026-09-13 00:00:00.000000",
+  "name": "Deployment Review",
+  "override_status": 0,
+  "send_email_alert": 0,
+  "workflow_name": "Deployment Review",
+  "workflow_state_field": "workflow_state",
+  "states": [
+   {"state": "Requested", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "In Progress", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Deployed", "doc_status": "0", "allow_edit": "System Manager", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null},
+   {"state": "Failed", "doc_status": "0", "allow_edit": "Dev Team", "update_field": null, "update_value": null, "message": null, "next_action_email_template": null, "is_optional_state": 0, "avoid_status_override": 0, "send_email": 0, "evaluate_as_expression": 0, "workflow_builder_id": null}
+  ],
+  "transitions": [
+   {"state": "Requested", "action": "Start Deployment", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "In Progress", "action": "Mark Deployed", "next_state": "Deployed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "In Progress", "action": "Mark Failed", "next_state": "Failed", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null},
+   {"state": "Failed", "action": "Retry", "next_state": "In Progress", "allowed": "Dev Team", "allow_self_approval": 1, "condition": null, "send_email_to_creator": 0, "transition_tasks": null, "workflow_builder_id": null}
+  ]
  }
 ]

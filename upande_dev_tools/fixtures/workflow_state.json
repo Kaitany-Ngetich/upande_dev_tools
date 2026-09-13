@@ -1,65 +1,12 @@
 [
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "eye-open",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "Under Review",
-  "style": "Warning",
-  "workflow_state_name": "Under Review"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "ok",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "Approved",
-  "style": "Success",
-  "workflow_state_name": "Approved"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "remove",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "Rejected",
-  "style": "Danger",
-  "workflow_state_name": "Rejected"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "time",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "Deferred",
-  "style": "Inverse",
-  "workflow_state_name": "Deferred"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "calendar",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "Scheduled",
-  "style": "Info",
-  "workflow_state_name": "Scheduled"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "cog",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "In Progress",
-  "style": "Primary",
-  "workflow_state_name": "In Progress"
- },
- {
-  "docstatus": 0,
-  "doctype": "Workflow State",
-  "icon": "ok-circle",
-  "modified": "2026-09-13 00:00:00.000000",
-  "name": "Completed",
-  "style": "Success",
-  "workflow_state_name": "Completed"
- }
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "eye-open", "modified": "2026-09-13 00:00:00.000000", "name": "Under Review", "style": "Warning", "workflow_state_name": "Under Review"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "ok", "modified": "2026-09-13 00:00:00.000000", "name": "Approved", "style": "Success", "workflow_state_name": "Approved"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "remove", "modified": "2026-09-13 00:00:00.000000", "name": "Rejected", "style": "Danger", "workflow_state_name": "Rejected"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "time", "modified": "2026-09-13 00:00:00.000000", "name": "Deferred", "style": "Inverse", "workflow_state_name": "Deferred"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "calendar", "modified": "2026-09-13 00:00:00.000000", "name": "Scheduled", "style": "Info", "workflow_state_name": "Scheduled"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "cog", "modified": "2026-09-13 00:00:00.000000", "name": "In Progress", "style": "Primary", "workflow_state_name": "In Progress"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "ok-circle", "modified": "2026-09-13 00:00:00.000000", "name": "Completed", "style": "Success", "workflow_state_name": "Completed"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "inbox", "modified": "2026-09-13 00:00:00.000000", "name": "Requested", "style": "Warning", "workflow_state_name": "Requested"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "upload", "modified": "2026-09-13 00:00:00.000000", "name": "Deployed", "style": "Success", "workflow_state_name": "Deployed"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "remove-circle", "modified": "2026-09-13 00:00:00.000000", "name": "Failed", "style": "Danger", "workflow_state_name": "Failed"}
 ]

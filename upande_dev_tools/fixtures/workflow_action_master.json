@@ -6,5 +6,9 @@
  {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Schedule", "workflow_action_name": "Schedule"},
  {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Promote Note", "workflow_action_name": "Promote Note"},
  {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Start Work", "workflow_action_name": "Start Work"},
- {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Complete", "workflow_action_name": "Complete"}
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Complete", "workflow_action_name": "Complete"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Start Deployment", "workflow_action_name": "Start Deployment"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Mark Deployed", "workflow_action_name": "Mark Deployed"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Mark Failed", "workflow_action_name": "Mark Failed"},
+ {"docstatus": 0, "doctype": "Workflow Action Master", "modified": "2026-09-13 00:00:00.000000", "name": "Retry", "workflow_action_name": "Retry"}
 ]

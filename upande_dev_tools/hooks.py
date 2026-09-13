@@ -294,6 +294,9 @@ fixtures = [
 					"Scheduled",
 					"In Progress",
 					"Completed",
+					"Requested",
+					"Deployed",
+					"Failed",
 				],
 			]
 		],
@@ -313,9 +316,13 @@ fixtures = [
 					"Promote Note",
 					"Start Work",
 					"Complete",
+					"Start Deployment",
+					"Mark Deployed",
+					"Mark Failed",
+					"Retry",
 				],
 			]
 		],
 	},
-	{"doctype": "Workflow", "filters": [["name", "in", ["Request Review"]]]},
+	{"doctype": "Workflow", "filters": [["name", "in", ["Request Review", "Deployment Review"]]]},
 ]
