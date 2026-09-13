@@ -8,6 +8,7 @@ from upande_dev_tools.api.dashboard import get_dashboard_data
 from upande_dev_tools.api.hooks_explorer import get_installed_apps as hooks_explorer_get_installed_apps
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
+from upande_dev_tools.www.activity_log import get_context as activity_log_get_context
 from upande_dev_tools.www.backlog_board import get_context as backlog_board_get_context
 from upande_dev_tools.www.code_editor import get_context as code_editor_get_context
 from upande_dev_tools.www.code_snapshots import get_context as code_snapshots_get_context
@@ -372,13 +373,21 @@ class IntegrationTestPortal(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_developer_nav_group_lists_all_tools_in_order(self) -> None:
-		dev = self._make_user("developer-nav-order@example.test", ["Dev Team"])
+	def test_developer_nav_group_lists_all_seven_tools_in_order(self) -> None:
+		dev = self._make_user("developer-nav-order-full@example.test", ["Dev Team"])
 		items = get_nav_items(dev)
 		developer_routes = [item["route"] for item in items if item["nav_group"] == "Developer"]
 		self.assertEqual(
 			developer_routes,
-			["dev-dashboard", "hooks-explorer", "code-editor", "my-day", "backlog-board", "code-snapshots"],
+			[
+				"dev-dashboard",
+				"hooks-explorer",
+				"code-editor",
+				"my-day",
+				"backlog-board",
+				"code-snapshots",
+				"activity-log",
+			],
 		)
 
 	def test_ported_pages_are_registered_with_correct_attributes(self) -> None:
@@ -474,4 +483,31 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.icon, "archive")
 		self.assertEqual(doc.nav_group, "Developer")
 		self.assertEqual(doc.sort_order, 60)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
+
+	def test_activity_log_permits_dev_team_and_denies_others(self) -> None:
+		dev = self._make_user("activity-log-page-dev@example.test", ["Dev Team"])
+		other = self._make_user("activity-log-page-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			activity_log_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				activity_log_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_activity_log_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "activity-log")
+		self.assertEqual(doc.title, "Activity Log")
+		self.assertEqual(doc.icon, "activity")
+		self.assertEqual(doc.nav_group, "Developer")
+		self.assertEqual(doc.sort_order, 70)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})

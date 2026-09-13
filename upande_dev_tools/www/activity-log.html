@@ -1,0 +1,81 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Developer</div>
+	<div class="ttl">Activity Log</div>
+	<div class="sub">Every recorded developer activity, with an error filter.</div>
+</div>
+<div class="dpx-card">
+	<div class="dpx-card-hd"><div class="ttl">Activity</div></div>
+	<div class="dpx-card-body">
+		<input type="text" id="activity-search" placeholder="Search by title…" style="margin-right:10px;padding:8px 12px;border-radius:999px;border:1px solid var(--hairline);width:240px;">
+		<select id="activity-status" style="padding:8px 12px;border-radius:999px;border:1px solid var(--hairline);"></select>
+		<table id="activity-table" style="margin-top:12px;">
+			<thead><tr><th>Time</th><th>Type</th><th>Title</th><th>Status</th><th>Source</th></tr></thead>
+			<tbody></tbody>
+		</table>
+		<button id="activity-load-more" class="pill" style="margin-top:12px;cursor:pointer;border:1px solid var(--hairline);background:none;">Load more</button>
+	</div>
+</div>
+<script>
+frappe.ready(function() {
+	var start = 0;
+	var limit = 50;
+	var search = "";
+	var status = {{ initial_status | tojson }};
+
+	var statusSelect = document.querySelector("#activity-status");
+	["", "Success", "Warning", "Error", "Info"].forEach(function(opt) {
+		var el = document.createElement("option");
+		el.value = opt;
+		el.textContent = opt || "All";
+		if (opt === status) el.selected = true;
+		statusSelect.appendChild(el);
+	});
+
+	function loadRows(reset) {
+		if (reset) {
+			start = 0;
+			document.querySelector("#activity-table tbody").innerHTML = "";
+		}
+		frappe.call({
+			method: "upande_dev_tools.api.activity_log.get_activity_log",
+			args: {status: status || undefined, search: search || undefined, start: start, limit: limit}
+		}).then(function(r) {
+			var data = r.message || {rows: [], total: 0};
+			var tbody = document.querySelector("#activity-table tbody");
+			data.rows.forEach(function(row) {
+				var tr = document.createElement("tr");
+				[row.activity_time, row.activity_type, row.title, row.status, row.source].forEach(function(v) {
+					var td = document.createElement("td");
+					td.textContent = v || "";
+					tr.appendChild(td);
+				});
+				tbody.appendChild(tr);
+			});
+			start += data.rows.length;
+			document.querySelector("#activity-load-more").style.display = start < data.total ? "" : "none";
+		});
+	}
+
+	document.querySelector("#activity-search").addEventListener("input", function(e) {
+		search = e.target.value;
+		loadRows(true);
+	});
+	statusSelect.addEventListener("change", function(e) {
+		status = e.target.value;
+		loadRows(true);
+	});
+	document.querySelector("#activity-load-more").addEventListener("click", function() { loadRows(false); });
+
+	loadRows(true);
+});
+</script>
+{% endcall %}
+{% endblock %}

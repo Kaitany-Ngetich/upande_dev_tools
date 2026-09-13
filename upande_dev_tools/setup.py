@@ -111,6 +111,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=60,
 		roles=["Dev Team"],
 	)
+	register_dev_portal_page(
+		route="activity-log",
+		title="Activity Log",
+		icon="activity",
+		nav_group="Developer",
+		sort_order=70,
+		roles=["Dev Team"],
+	)
 
 
 def run_setup() -> None:
