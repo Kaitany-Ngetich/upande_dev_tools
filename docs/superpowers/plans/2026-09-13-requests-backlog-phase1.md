@@ -1400,6 +1400,17 @@ Append to `upande_dev_tools/tests/test_requests_api.py` (add `get_my_day`, `get_
 
 		self.assertEqual([t["name"] for t in day["tasks"]], [task.name])
 		self.assertIn(event.name, [m["name"] for m in day["meetings"]])
+
+	def test_get_my_day_denies_viewing_another_users_day(self) -> None:
+		dev = self._make_user("dev-myday-owner@example.test", ["Dev Team"])
+		outsider = self._make_user("outsider-myday@example.test", [])
+
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_my_day(user=dev)
+		finally:
+			frappe.set_user("Administrator")
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1421,6 +1432,8 @@ def get_upcoming_meetings(
 	from frappe.utils import add_to_date, now_datetime
 
 	if project:
+		if not frappe.has_permission("Project", "read", project):
+			frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
 		event_names = frappe.get_all(
 			"Dynamic Link",
 			filters={"parenttype": "Event", "link_doctype": "Project", "link_name": project},
@@ -1428,6 +1441,8 @@ def get_upcoming_meetings(
 		)
 	else:
 		user = for_user or frappe.session.user
+		if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
+			frappe.throw(_("Not permitted."), frappe.PermissionError)
 		event_names = frappe.get_all(
 			"Event Participants",
 			filters={"parenttype": "Event", "email": user},
@@ -1457,6 +1472,8 @@ def get_my_day(user: str | None = None) -> dict:
 	from frappe.utils import today
 
 	user = user or frappe.session.user
+	if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
 	day = today()
 
 	tasks = frappe.get_all(
