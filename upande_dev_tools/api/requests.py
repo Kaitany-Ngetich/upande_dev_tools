@@ -64,3 +64,34 @@ def get_review_queue() -> list[dict]:
 		order_by="creation asc",
 		ignore_permissions=True,
 	)
+
+
+@frappe.whitelist()
+def triage_request(
+	name: str,
+	action: str,
+	project: str | None = None,
+	priority: str | None = None,
+) -> dict:
+	from frappe.model.workflow import apply_workflow
+
+	doc = frappe.get_doc("Request", name)
+	if project:
+		doc.project = project
+	if priority:
+		doc.priority = priority
+	if project or priority:
+		doc.save()
+
+	updated = apply_workflow(doc, action)
+	return updated.as_dict()
+
+
+@frappe.whitelist()
+def promote_to_task(name: str) -> dict:
+	from frappe.model.workflow import apply_workflow
+
+	doc = frappe.get_doc("Request", name)
+	action = "Promote Note" if doc.request_type == "Note" else "Schedule"
+	updated = apply_workflow(doc, action)
+	return updated.as_dict()
