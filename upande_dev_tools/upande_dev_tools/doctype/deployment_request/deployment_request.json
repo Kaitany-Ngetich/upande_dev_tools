@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "DEP-.YYYY.-.#####",
+ "creation": "2026-09-13 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "app",
+  "instance",
+  "column_break_app",
+  "branch",
+  "commit_hash",
+  "workflow_state",
+  "section_break_details",
+  "description",
+  "linked_request",
+  "column_break_submitter",
+  "requested_by_user",
+  "requested_by_employee",
+  "deployed_by_user",
+  "section_break_outcome",
+  "errors",
+  "fix_notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "app",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "App",
+   "options": "Deployment App",
+   "reqd": 1
+  },
+  {
+   "fieldname": "instance",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Instance",
+   "options": "Deployment Instance",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_app",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "app.default_branch",
+   "fetch_if_empty": 1,
+   "fieldname": "branch",
+   "fieldtype": "Data",
+   "label": "Branch",
+   "reqd": 1
+  },
+  {
+   "fieldname": "commit_hash",
+   "fieldtype": "Data",
+   "label": "Commit Hash"
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nRequested\nIn Progress\nDeployed\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "linked_request",
+   "fieldtype": "Link",
+   "label": "Request",
+   "options": "Request"
+  },
+  {
+   "fieldname": "column_break_submitter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "requested_by_user",
+   "fieldtype": "Link",
+   "label": "Requested By (User)",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_by_employee",
+   "fieldtype": "Link",
+   "label": "Requested By (Employee)",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "deployed_by_user",
+   "fieldtype": "Link",
+   "label": "Deployed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_outcome",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "errors",
+   "fieldtype": "Text",
+   "label": "Errors"
+  },
+  {
+   "fieldname": "fix_notes",
+   "fieldtype": "Text",
+   "label": "Fix Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "Deployment Request",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Dev Team",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Projects Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
