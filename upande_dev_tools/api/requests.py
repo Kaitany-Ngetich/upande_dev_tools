@@ -95,3 +95,38 @@ def promote_to_task(name: str) -> dict:
 	action = "Promote Note" if doc.request_type == "Note" else "Schedule"
 	updated = apply_workflow(doc, action)
 	return updated.as_dict()
+
+
+@frappe.whitelist()
+def get_backlog_board(project: str | None = None) -> dict:
+	if project:
+		if not frappe.has_permission("Project", "read", project):
+			frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
+	elif not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	filters: dict[str, str] = {"project": project} if project else {}
+
+	tasks = frappe.get_all(
+		"Task",
+		filters=filters,
+		fields=[
+			"name",
+			"subject",
+			"status",
+			"priority",
+			"project",
+			"custom_request",
+			"custom_planned_for",
+			"exp_end_date",
+		],
+		order_by="priority desc, exp_end_date asc",
+		ignore_permissions=True,
+	)
+	requests = frappe.get_all(
+		"Request",
+		filters=filters,
+		fields=["name", "title", "request_type", "workflow_state", "priority", "project", "linked_task"],
+		ignore_permissions=True,
+	)
+	return {"tasks": tasks, "requests": requests}

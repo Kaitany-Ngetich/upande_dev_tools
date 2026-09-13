@@ -5,6 +5,7 @@ from frappe.tests import IntegrationTestCase
 
 from upande_dev_tools.api.requests import (
 	create_request,
+	get_backlog_board,
 	get_my_requests,
 	get_review_queue,
 	promote_to_task,
@@ -129,3 +130,19 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 
 		doc = frappe.get_doc("Request", created["name"])
 		self.assertEqual(doc.workflow_state, "Completed")
+
+	def test_get_backlog_board_returns_requests_for_project(self) -> None:
+		project = self._make_project()
+		created = create_request(title="Board item", request_type="Feature", project=project)
+
+		board = get_backlog_board(project=project)
+		self.assertIn(created["name"], [r["name"] for r in board["requests"]])
+
+	def test_get_backlog_board_denies_outsider_without_project(self) -> None:
+		outsider = self._make_user("outsider-board@example.test", [])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_backlog_board()
+		finally:
+			frappe.set_user("Administrator")
