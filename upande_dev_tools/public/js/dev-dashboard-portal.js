@@ -242,14 +242,14 @@ upande_dev_tools_portal.mount_dev_dashboard = function (root) {
 					<small>Snapshots Today</small>
 					<h3 id="snapshots-today">0</h3>
 					<small>Total snapshots</small><br>
-					<span class="udt-link" onclick="udt_open_list('Code Backup Snapshot')">View snapshots</span>
+					<span class="udt-link" onclick="window.location.href='/code-snapshots'">View snapshots</span>
 				</div>
 
 				<div class="udt-card">
 					<small>Last Backup</small>
 					<h3 id="last-backup-display">No backup yet</h3>
 					<small>Latest run</small><br>
-					<span class="udt-link" onclick="udt_open_list('Code Backup Snapshot')">View history</span>
+					<span class="udt-link" onclick="window.location.href='/code-snapshots'">View history</span>
 				</div>
 			</div>
 
@@ -284,7 +284,7 @@ upande_dev_tools_portal.mount_dev_dashboard = function (root) {
 				<div class="udt-section">
 					<div class="udt-section-header">
 						<h4>2. Code Backup Snapshots</h4>
-						<button class="btn btn-xs btn-default" onclick="udt_open_list('Code Backup Snapshot')">View All</button>
+						<button class="btn btn-xs btn-default" onclick="window.location.href='/code-snapshots'">View All</button>
 					</div>
 					<div class="udt-section-body">
 						<div class="udt-filters">
@@ -335,7 +335,8 @@ upande_dev_tools_portal.mount_dev_dashboard = function (root) {
 				<div class="udt-section">
 					<div class="udt-section-header">
 						<h4>5. Developer Activity Timeline</h4>
-						<button class="btn btn-xs btn-default" onclick="udt_open_list('Developer Activity Log')">View All</button>
+						<button class="btn btn-xs btn-default" onclick="window.location.href='/activity-log'">View All</button>
+						<button class="btn btn-xs btn-default" onclick="window.location.href='/activity-log?status=Error'">View Errors</button>
 					</div>
 					<div class="udt-section-body" id="activity-list">
 						<div class="udt-empty">Loading...</div>
