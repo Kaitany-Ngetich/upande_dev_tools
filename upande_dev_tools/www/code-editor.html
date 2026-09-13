@@ -9,7 +9,9 @@
 <div id="udt-code-editor-root"></div>
 <script src="/assets/upande_dev_tools/js/code-editor-portal.js"></script>
 <script>
+frappe.ready(function() {
 	upande_dev_tools_portal.mount_code_editor(document.getElementById("udt-code-editor-root"));
+});
 </script>
 {% endcall %}
 {% endblock %}

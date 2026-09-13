@@ -14,7 +14,9 @@
 <div id="udt-hooks-explorer-root"></div>
 <script src="/assets/upande_dev_tools/js/hooks-explorer-portal.js"></script>
 <script>
+frappe.ready(function() {
 	upande_dev_tools_portal.mount_hooks_explorer(document.getElementById("udt-hooks-explorer-root"));
+});
 </script>
 {% endcall %}
 {% endblock %}

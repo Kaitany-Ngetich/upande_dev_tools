@@ -9,7 +9,9 @@
 <div id="udt-dev-dashboard-root"></div>
 <script src="/assets/upande_dev_tools/js/dev-dashboard-portal.js"></script>
 <script>
+frappe.ready(function() {
 	upande_dev_tools_portal.mount_dev_dashboard(document.getElementById("udt-dev-dashboard-root"));
+});
 </script>
 {% endcall %}
 {% endblock %}
