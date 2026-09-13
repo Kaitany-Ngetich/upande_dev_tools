@@ -1,0 +1,15 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div id="udt-dev-dashboard-root"></div>
+<script src="/assets/upande_dev_tools/js/dev-dashboard-portal.js"></script>
+<script>
+	upande_dev_tools_portal.mount_dev_dashboard(document.getElementById("udt-dev-dashboard-root"));
+</script>
+{% endcall %}
+{% endblock %}

@@ -1,11 +1,7 @@
-frappe.pages["upande-dev-dashboard"].on_page_load = function (wrapper) {
-	const page = frappe.ui.make_app_page({
-		parent: wrapper,
-		title: "Dashboard",
-		single_column: true,
-	});
+window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
-	$(page.body).html(`
+upande_dev_tools_portal.mount_dev_dashboard = function (root) {
+	$(root).html(`
 		<style>
 			.udt-dashboard {
 				padding: 12px 14px 24px;

@@ -5,6 +5,7 @@ from frappe.tests import IntegrationTestCase
 
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
+from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_context
 from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
 
@@ -195,6 +196,17 @@ class IntegrationTestPortal(IntegrationTestCase):
 			self.assertEqual(resolve_home_route(dev), "/requests-portal")
 		finally:
 			frappe.delete_doc("Dev Portal Page", "dev-dashboard", ignore_permissions=True, force=True)
+			# "dev-dashboard" is a real, permanently self-registered page (see setup.py) as of
+			# the Tools Dashboard port — restore it so later tests see the same state migrate
+			# would have left them in, regardless of test execution order.
+			register_dev_portal_page(
+				route="dev-dashboard",
+				title="Dashboard",
+				icon="home",
+				nav_group="Developer",
+				sort_order=10,
+				roles=["Dev Team"],
+			)
 
 	def test_enforce_page_access_permits_user_holding_every_required_role(self) -> None:
 		self._make_page("portal-test-dual-allow", ["Dev Team", "System Manager"], require_all_roles=True)
@@ -243,13 +255,28 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
 			frappe.delete_doc("Dev Portal Page", "dev-dashboard", ignore_permissions=True, force=True)
+			# "dev-dashboard" is a real, permanently self-registered page (see setup.py) as of
+			# the Tools Dashboard port — restore it so later tests see the same state migrate
+			# would have left them in, regardless of test execution order.
+			register_dev_portal_page(
+				route="dev-dashboard",
+				title="Dashboard",
+				icon="home",
+				nav_group="Developer",
+				sort_order=10,
+				roles=["Dev Team"],
+			)
 
 	def test_enforce_page_access_terminates_loop_when_home_route_is_unregistered(self) -> None:
-		dev = self._make_user("loop-guard-unregistered@example.test", ["Dev Team"])
-		frappe.set_user(dev)
+		# Uses Projects Manager/"pm-dashboard" rather than Dev Team/"dev-dashboard": the latter
+		# is now a real, permanently self-registered page (the Tools Dashboard port), so it can
+		# no longer stand in for "a role-priority home route with no page registered yet" —
+		# "pm-dashboard" (not yet built) still can.
+		pm = self._make_user("loop-guard-unregistered@example.test", ["Projects Manager"])
+		frappe.set_user(pm)
 		try:
 			with self.assertRaises(frappe.Redirect):
-				enforce_page_access("dev-dashboard")
+				enforce_page_access("pm-dashboard")
 			self.assertEqual(frappe.local.flags.redirect_location, "/app")
 		finally:
 			frappe.set_user("Administrator")
@@ -272,3 +299,34 @@ class IntegrationTestPortal(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
+
+	def test_dev_dashboard_permits_dev_team_and_denies_others(self) -> None:
+		dev = self._make_user("dev-dashboard-dev@example.test", ["Dev Team"])
+		other = self._make_user("dev-dashboard-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			dev_dashboard_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				dev_dashboard_get_context({})
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_resolve_home_route_for_dev_team_is_now_reachable(self) -> None:
+		# Closes the gap Sub-project 1's final review flagged: /dev-dashboard is now a real,
+		# registered, permitted page for Dev Team, so enforce_page_access on it must NOT hit
+		# the loop-guard's /app fallback (that fallback only fires when the resolved home route
+		# is itself denied or unregistered).
+		dev = self._make_user("dev-dashboard-home-route@example.test", ["Dev Team"])
+		self.assertEqual(resolve_home_route(dev), "/dev-dashboard")
+		frappe.set_user(dev)
+		try:
+			enforce_page_access("dev-dashboard")  # must not raise
+		finally:
+			frappe.set_user("Administrator")
