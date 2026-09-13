@@ -5,6 +5,7 @@ from frappe.tests import IntegrationTestCase
 
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
+from upande_dev_tools.www.code_editor import get_context as code_editor_get_context
 from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_context
 from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
@@ -314,6 +315,24 @@ class IntegrationTestPortal(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.Redirect):
 				dev_dashboard_get_context({})
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_code_editor_permits_dev_team_and_denies_others(self) -> None:
+		dev = self._make_user("code-editor-dev@example.test", ["Dev Team"])
+		other = self._make_user("code-editor-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			code_editor_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				code_editor_get_context({})
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None

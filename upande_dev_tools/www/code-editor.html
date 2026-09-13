@@ -1,0 +1,15 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div id="udt-code-editor-root"></div>
+<script src="/assets/upande_dev_tools/js/code-editor-portal.js"></script>
+<script>
+	upande_dev_tools_portal.mount_code_editor(document.getElementById("udt-code-editor-root"));
+</script>
+{% endcall %}
+{% endblock %}

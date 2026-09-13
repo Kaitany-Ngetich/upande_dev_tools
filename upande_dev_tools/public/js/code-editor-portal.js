@@ -1,3 +1,5 @@
+window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
+
 let udt_editor = null;
 let udt_current_app = null;
 let udt_current_file = null;
@@ -6,19 +8,13 @@ let udt_open_tabs = {};
 let udt_active_tab = null;
 let udt_is_switching_tab = false;
 
-frappe.pages["code-editor"].on_page_load = function(wrapper) {
-	const page = frappe.ui.make_app_page({
-		parent: wrapper,
-		title: "Code Editor",
-		single_column: true
-	});
-
-	build_shell(page);
+upande_dev_tools_portal.mount_code_editor = function (root) {
+	build_shell(root);
 	load_monaco();
 };
 
-function build_shell(page) {
-	$(page.body).html(`
+function build_shell(root) {
+	$(root).html(`
 		<style>
 			.udt-shell { height: calc(100vh - 115px); display: flex; flex-direction: column; background: #1e1e1e; color: #cccccc; border: 1px solid #2d2d2d; overflow: hidden; font-size: 13px; }
 			.udt-toolbar { height: 46px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #1f1f1f; border-bottom: 1px solid #333; }
