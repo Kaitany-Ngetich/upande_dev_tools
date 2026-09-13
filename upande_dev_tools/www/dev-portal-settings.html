@@ -1,6 +1,8 @@
 {% extends "templates/web.html" %}
 {% block page_content %}
-{% include "templates/includes/dev_portal_shell.html" %}
+{% include "templates/includes/dev_portal_shell_head.html" %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
 <div class="dpx-page-hd">
 	<div class="eyebrow">Admin</div>
 	<div class="ttl">Portal Pages</div>
@@ -42,4 +44,5 @@ frappe.ready(function() {
 	});
 });
 </script>
+{% endcall %}
 {% endblock %}

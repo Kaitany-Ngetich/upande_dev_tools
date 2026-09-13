@@ -1,8 +1,15 @@
-<link href="/assets/upande_dev_tools/css/dev-portal.css" rel="stylesheet">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+{# The stylesheet/font <link> tags previously lived at the top of this file. Because pages consume
+   this shell via {% from %} (to get the dpx_shell macro), Jinja does not emit a template's top-level
+   output through {% from %}/{% import %} - only the imported macro's own rendered output appears at
+   the {% call %} site. The <link> tags therefore now live in dev_portal_shell_head.html, which pages
+   should {% include %} directly (an {% include %} does emit top-level output) alongside importing
+   dpx_shell from this file.
 
+   This macro reads context vars set by the page controller's get_context() (page_title, active_route)
+   and reads its jinja globals fine either way (frappe, get_nav_items - registered as environment
+   globals via the `jinja` hook), but page_title/active_route are per-render context, not globals -
+   so pages must import with `{% from "..." import dpx_shell with context %}`, not a plain import. #}
+{% macro dpx_shell() %}
 <div class="dpx">
 	<aside class="dpx-side">
 		<a class="brand" href="{{ frappe.utils.get_url() }}">
@@ -34,7 +41,8 @@
 			<h1>{{ page_title }}</h1>
 		</div>
 		<div class="dpx-content">
-			{% block dpx_content %}{% endblock %}
+			{{ caller() }}
 		</div>
 	</main>
 </div>
+{% endmacro %}
