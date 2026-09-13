@@ -88,6 +88,8 @@ app_license = "mit"
 # before_install = "upande_dev_tools.install.before_install"
 # after_install = "upande_dev_tools.install.after_install"
 
+after_migrate = "upande_dev_tools.setup.create_task_custom_fields"
+
 # Uninstallation
 # ------------
 
