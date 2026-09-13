@@ -2661,11 +2661,13 @@ def update_deployment_status(
 		doc.errors = errors
 	if fix_notes:
 		doc.fix_notes = fix_notes
-	if commit_hash or errors or fix_notes:
-		doc.save()
-
 	if action == "Mark Deployed":
 		doc.deployed_by_user = frappe.session.user
+	# apply_workflow() below reloads the document from the DB before transitioning
+	# it, discarding any unsaved in-memory changes — deployed_by_user must be saved
+	# here, not set after this save, or it never persists.
+	if commit_hash or errors or fix_notes or action == "Mark Deployed":
+		doc.save()
 
 	updated = apply_workflow(doc, action)
 	return updated.as_dict()
