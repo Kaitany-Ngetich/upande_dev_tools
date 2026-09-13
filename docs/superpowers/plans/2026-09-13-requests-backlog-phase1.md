@@ -740,9 +740,16 @@ Append to `upande_dev_tools/requests/doctype/request/test_request.py`:
 		name = "Requests Phase 1 Test Project"
 		if frappe.db.exists("Project", name):
 			return name
-		return frappe.get_doc({"doctype": "Project", "project_name": name}).insert(
-			ignore_permissions=True
-		).name
+		# Project.company is mandatory; reuse whatever Company already exists on
+		# this site rather than hardcoding one — there is always at least one on
+		# a real bench, and creating a new Company triggers HRMS's regional
+		# setup side effects, which this test has no reason to exercise.
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("No Company exists on this site to attach a test Project to.")
+		return frappe.get_doc(
+			{"doctype": "Project", "project_name": name, "company": company}
+		).insert(ignore_permissions=True).name
 
 	def test_raised_by_user_defaults_to_session_user(self) -> None:
 		if not frappe.db.exists("User", "dev-note@example.test"):
@@ -1132,9 +1139,16 @@ You'll also need the `_make_project` helper on this class — it's identical to 
 		name = "Requests Phase 1 Test Project"
 		if frappe.db.exists("Project", name):
 			return name
-		return frappe.get_doc({"doctype": "Project", "project_name": name}).insert(
-			ignore_permissions=True
-		).name
+		# Project.company is mandatory; reuse whatever Company already exists on
+		# this site rather than hardcoding one — there is always at least one on
+		# a real bench, and creating a new Company triggers HRMS's regional
+		# setup side effects, which this test has no reason to exercise.
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("No Company exists on this site to attach a test Project to.")
+		return frappe.get_doc(
+			{"doctype": "Project", "project_name": name, "company": company}
+		).insert(ignore_permissions=True).name
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1312,6 +1326,7 @@ Append to `upande_dev_tools/tests/test_requests_api.py` (add `get_my_day`, `get_
 			{
 				"doctype": "Event",
 				"subject": "Sprint planning",
+				"event_type": "Private",
 				"starts_on": add_to_date(now_datetime(), hours=2),
 				"ends_on": add_to_date(now_datetime(), hours=3),
 			}
@@ -1340,6 +1355,7 @@ Append to `upande_dev_tools/tests/test_requests_api.py` (add `get_my_day`, `get_
 			{
 				"doctype": "Event",
 				"subject": "Standup",
+				"event_type": "Private",
 				"starts_on": add_to_date(now_datetime(), hours=1),
 				"ends_on": add_to_date(now_datetime(), hours=1, minutes=15),
 			}
@@ -2682,12 +2698,19 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ## Phase 1 acceptance check
 
-After Task 14, run the full suite once to confirm nothing regressed:
+After Task 14, run every module touched by this plan to confirm nothing regressed. Run each module-scoped (not `--app upande_dev_tools` as a whole) — this bench has a pre-existing, unrelated site-wide issue where the whole-app run drags in ERPNext's own test bootstrapping and fails on a broken regional (India) company setup; that failure predates this plan and reproduces on `main`, so it is not a regression to chase here:
 
 ```bash
-bench --site <site> run-tests --app upande_dev_tools
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_requests_api
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_instance.test_deployment_instance
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_app.test_deployment_app
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_deployments_api
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.module_version_check.test_module_version_check
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_customization_exporter
 ```
 
-Expected: all tests pass, including the pre-existing `test_customization_exporter.py` and `test_module_version_check.py`/etc. suites untouched by this plan.
+Expected: all pass.
 
 At this point: a Projects Manager can review and approve/reject/defer a request from the desk; a developer can raise a Note and self-promote it; approving+scheduling a request creates a linked Task; a developer can raise a deployment request against a mapped instance/app, work it through to Deployed or Failed→Retry, and optionally tie it back to the Request that needed it; and every capability — both `Request` and `Deployment Request` — is reachable headlessly via `upande_dev_tools.requests.utils.*` and `upande_dev_tools.deployments.utils.*` over `/api/method/...` — ready for Phase 2 (portal) and Phase 3 (mobile) to build on without touching this layer again.
