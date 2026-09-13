@@ -96,3 +96,18 @@ class IntegrationTestDevPortalSettingsApi(IntegrationTestCase):
 			frappe.set_user("Administrator")
 		doc = frappe.get_doc("Dev Portal Page", "dev-portal-settings")
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "System Manager"})
+
+	def test_update_page_roles_guard_accounts_for_require_all_roles(self) -> None:
+		both = self._make_user("settings-lockout-guard-strict@example.test", ["Dev Team", "System Manager"])
+		frappe.set_user(both)
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				update_page_roles(
+					route="dev-portal-settings",
+					roles=["Dev Team", "System Manager", "Projects Manager"],
+					require_all_roles=True,
+				)
+		finally:
+			frappe.set_user("Administrator")
+		doc = frappe.get_doc("Dev Portal Page", "dev-portal-settings")
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "System Manager"})

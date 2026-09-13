@@ -222,3 +222,34 @@ class IntegrationTestPortal(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
+
+	def test_enforce_page_access_terminates_loop_when_home_route_is_itself_denied(self) -> None:
+		self._make_page("dev-dashboard", [])  # registered but denies everyone
+		dev = self._make_user("loop-guard-registered@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				enforce_page_access("dev-dashboard")
+			# _route_permits already agrees with enforce_page_access's own denial for a
+			# *registered* page (both run the identical _is_permitted check), so
+			# resolve_home_route already skips this denied route on its own and lands on
+			# the next fallback (here, the unregistered default "/requests-portal") without
+			# ever needing the new same-route guard below to fire. That guard's registered-page
+			# arm exists for defense in depth (see enforce_page_access), not because this
+			# scenario can currently loop.
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+			frappe.delete_doc("Dev Portal Page", "dev-dashboard", ignore_permissions=True, force=True)
+
+	def test_enforce_page_access_terminates_loop_when_home_route_is_unregistered(self) -> None:
+		dev = self._make_user("loop-guard-unregistered@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				enforce_page_access("dev-dashboard")
+			self.assertEqual(frappe.local.flags.redirect_location, "/app")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None

@@ -41,11 +41,26 @@ def update_page_roles(route: str, roles: list[str] | str, require_all_roles: boo
 	if isinstance(roles, str):
 		roles = frappe.parse_json(roles)
 
-	if route == SETTINGS_ROUTE and not set(roles) >= set(SETTINGS_ROLES):
-		frappe.throw(
-			_("The settings page must always stay reachable by both Dev Team and System Manager."),
-			frappe.ValidationError,
-		)
+	if route == SETTINGS_ROUTE:
+		new_require_all = bool(int(require_all_roles))
+		proposed = set(roles)
+		settings_roles = set(SETTINGS_ROLES)
+		# OR mode (require_all_roles=0): each of Dev Team and System Manager must remain
+		# individually sufficient, so both must stay listed (proposed must retain the full
+		# settings_roles set) - a lone-Dev-Team-only or lone-System-Manager-only admin must
+		# not be dropped. AND mode (require_all_roles=1): reachability instead depends on
+		# whether a Dev Team + System Manager admin (holding exactly settings_roles, and
+		# nothing guaranteed beyond that) still satisfies the ALL-of-proposed requirement,
+		# which holds only if proposed adds no role beyond settings_roles - i.e. proposed
+		# must be a subset, not merely overlap or a superset (a superset - e.g. an extra
+		# third role required alongside both - locks out that admin, which is exactly the
+		# bug this guard closes).
+		still_reachable = proposed <= settings_roles if new_require_all else proposed >= settings_roles
+		if not still_reachable:
+			frappe.throw(
+				_("The settings page must always stay reachable by both Dev Team and System Manager."),
+				frappe.ValidationError,
+			)
 
 	doc = frappe.get_doc("Dev Portal Page", route)
 	doc.allowed_roles = []

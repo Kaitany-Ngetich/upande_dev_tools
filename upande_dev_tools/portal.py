@@ -65,14 +65,18 @@ def enforce_page_access(route: str) -> None:
 		raise frappe.Redirect
 
 	page = _fetch_page(route)
-	if not page:
-		frappe.local.flags.redirect_location = resolve_home_route()
-		raise frappe.Redirect
+	if page and _is_permitted(
+		_allowed_roles(page.name), bool(page.require_all_roles), set(frappe.get_roles())
+	):
+		return
 
-	allowed = _allowed_roles(page.name)
-	if not _is_permitted(allowed, bool(page.require_all_roles), set(frappe.get_roles())):
-		frappe.local.flags.redirect_location = resolve_home_route()
-		raise frappe.Redirect
+	target = resolve_home_route()
+	if target == f"/{route}":
+		# resolve_home_route just picked the very route we're about to deny — redirecting
+		# there would loop forever. Fall through to a route this function never gates.
+		target = "/app"
+	frappe.local.flags.redirect_location = target
+	raise frappe.Redirect
 
 
 def get_nav_items(user: str | None = None) -> list[dict]:

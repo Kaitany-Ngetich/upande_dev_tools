@@ -29,10 +29,10 @@
 			{% endfor %}
 		</nav>
 		<div class="footer">
-			<span class="av">{{ frappe.get_fullname(frappe.session.user)[0] | upper }}</span>
+			<span class="av">{{ frappe.get_fullname(frappe.session.user)[0] | upper | e }}</span>
 			<div class="who">
-				<div class="nm">{{ frappe.get_fullname(frappe.session.user) }}</div>
-				<div class="em">{{ frappe.session.user }}</div>
+				<div class="nm">{{ frappe.get_fullname(frappe.session.user) | e }}</div>
+				<div class="em">{{ frappe.session.user | e }}</div>
 			</div>
 		</div>
 	</aside>
