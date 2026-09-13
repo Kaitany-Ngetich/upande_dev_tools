@@ -51,3 +51,24 @@ class IntegrationTestCodeSnapshotsApi(IntegrationTestCase):
 			frappe.set_user("Administrator")
 		self.assertIn("snap-test-1", [row["document_name"] for row in result["rows"]])
 		self.assertGreaterEqual(result["total"], 1)
+
+	def test_get_snapshots_clamps_pagination_arguments(self) -> None:
+		dev = self._make_user("snapshots-pagination@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			result_zero_limit = get_snapshots(limit=0)
+			self.assertLessEqual(len(result_zero_limit["rows"]), 200)
+
+			result_negative = get_snapshots(start=-5, limit=-1)
+			self.assertLessEqual(len(result_negative["rows"]), 200)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_snapshots_rejects_non_string_filter_types(self) -> None:
+		dev = self._make_user("snapshots-type-guard@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(Exception):
+				get_snapshots(app=["like", "%"])
+		finally:
+			frappe.set_user("Administrator")

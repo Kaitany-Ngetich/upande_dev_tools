@@ -29,6 +29,10 @@ frappe.ready(function() {
 	var limit = 50;
 	var search = "";
 	var status = {{ initial_status | tojson }};
+	var KNOWN_STATUSES = ["Success", "Warning", "Error", "Info"];
+	if (status && KNOWN_STATUSES.indexOf(status) === -1) {
+		status = "";
+	}
 
 	var statusSelect = document.querySelector("#activity-status");
 	["", "Success", "Warning", "Error", "Info"].forEach(function(opt) {

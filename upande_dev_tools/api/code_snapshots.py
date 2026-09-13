@@ -1,4 +1,5 @@
 import frappe
+from frappe.utils import cint
 
 DEV_TOOLS_ROLES = {"Dev Team"}
 
@@ -8,9 +9,16 @@ def _require_dev_team():
 		frappe.throw("Not permitted", frappe.PermissionError)
 
 
+def _clamp_pagination(start: int, limit: int) -> tuple[int, int]:
+	start = max(0, cint(start))
+	limit = max(1, min(cint(limit), 200))
+	return start, limit
+
+
 @frappe.whitelist()
 def get_snapshots(app: str | None = None, search: str | None = None, start: int = 0, limit: int = 50) -> dict:
 	_require_dev_team()
+	start, limit = _clamp_pagination(start, limit)
 	filters: dict = {}
 	if app:
 		filters["app"] = app

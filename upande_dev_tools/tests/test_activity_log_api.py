@@ -53,3 +53,24 @@ class IntegrationTestActivityLogApi(IntegrationTestCase):
 		titles = [row["title"] for row in result["rows"]]
 		self.assertIn("activity-log-test-error", titles)
 		self.assertNotIn("activity-log-test-success", titles)
+
+	def test_get_activity_log_clamps_pagination_arguments(self) -> None:
+		dev = self._make_user("activity-log-pagination@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			result_zero_limit = get_activity_log(limit=0)
+			self.assertLessEqual(len(result_zero_limit["rows"]), 200)
+
+			result_negative = get_activity_log(start=-5, limit=-1)
+			self.assertLessEqual(len(result_negative["rows"]), 200)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_activity_log_rejects_non_string_filter_types(self) -> None:
+		dev = self._make_user("activity-log-type-guard@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(Exception):
+				get_activity_log(status=["!=", "zzz"])
+		finally:
+			frappe.set_user("Administrator")
