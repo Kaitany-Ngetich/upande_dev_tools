@@ -77,10 +77,9 @@ required_apps = ["erpnext"]
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "upande_dev_tools.utils.jinja_methods",
-# 	"filters": "upande_dev_tools.utils.jinja_filters"
-# }
+jinja = {
+	"methods": ["upande_dev_tools.portal.get_nav_items"],
+}
 
 # Installation
 # ------------

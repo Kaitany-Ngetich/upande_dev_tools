@@ -1,0 +1,40 @@
+<link href="/assets/upande_dev_tools/css/dev-portal.css" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<div class="dpx">
+	<aside class="dpx-side">
+		<a class="brand" href="{{ frappe.utils.get_url() }}">
+			<span class="name">Upande Dev Tools<small>Dev Portal</small></span>
+		</a>
+		<nav class="nav">
+			{% set nav_items = get_nav_items() %}
+			{% set ns = namespace(last_group="") %}
+			{% for item in nav_items %}
+				{% if item.nav_group != ns.last_group %}
+					<span class="group-lbl">{{ item.nav_group }}</span>
+					{% set ns.last_group = item.nav_group %}
+				{% endif %}
+				<a class="nav-item{% if item.route == active_route %} active{% endif %}" href="/{{ item.route }}">
+					<span>{{ item.title }}</span>
+				</a>
+			{% endfor %}
+		</nav>
+		<div class="footer">
+			<span class="av">{{ frappe.get_fullname(frappe.session.user)[0] | upper }}</span>
+			<div class="who">
+				<div class="nm">{{ frappe.get_fullname(frappe.session.user) }}</div>
+				<div class="em">{{ frappe.session.user }}</div>
+			</div>
+		</div>
+	</aside>
+	<main class="dpx-main">
+		<div class="dpx-topbar">
+			<h1>{{ page_title }}</h1>
+		</div>
+		<div class="dpx-content">
+			{% block dpx_content %}{% endblock %}
+		</div>
+	</main>
+</div>
