@@ -40,5 +40,10 @@ class Request(Document):
 					"custom_request": self.name,
 				}
 			)
+			# A freshly created Task has no "Task Depends On" rows, so there is no cycle to
+			# detect — skip Task's own recursion check (an ERPNext-native flag, also used
+			# internally by erpnext/projects/doctype/task/task.py itself for the same reason)
+			# rather than run a query this bench's installed pypika can't execute.
+			task.flags.ignore_recursion_check = True
 			task.insert(ignore_permissions=True)
 			self.db_set("linked_task", task.name, update_modified=False)
