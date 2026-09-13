@@ -60,3 +60,88 @@ class IntegrationTestRequest(IntegrationTestCase):
 				apply_workflow(doc, "Approve")
 		finally:
 			frappe.set_user("Administrator")
+
+	def _make_project(self) -> str:
+		name = "Requests Phase 1 Test Project"
+		if frappe.db.exists("Project", name):
+			return name
+		# Project.company is mandatory; reuse whatever Company already exists on
+		# this site rather than hardcoding one — there is always at least one on
+		# a real bench, and creating a new Company triggers HRMS's regional
+		# setup side effects, which this test has no reason to exercise.
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("No Company exists on this site to attach a test Project to.")
+		return frappe.get_doc(
+			{"doctype": "Project", "project_name": name, "company": company}
+		).insert(ignore_permissions=True).name
+
+	def test_raised_by_user_defaults_to_session_user(self) -> None:
+		if not frappe.db.exists("User", "dev-note@example.test"):
+			frappe.get_doc(
+				{
+					"doctype": "User",
+					"email": "dev-note@example.test",
+					"first_name": "Dev",
+					"send_welcome_email": 0,
+				}
+			).insert(ignore_permissions=True)
+		frappe.get_doc("User", "dev-note@example.test").add_roles("Dev Team")
+
+		frappe.set_user("dev-note@example.test")
+		try:
+			doc = frappe.get_doc(
+				{"doctype": "Request", "title": "Quick note", "request_type": "Note"}
+			).insert(ignore_permissions=True)
+			self.assertEqual(doc.raised_by_user, "dev-note@example.test")
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_note_requires_dev_team_role(self) -> None:
+		if not frappe.db.exists("User", "no-dev-role@example.test"):
+			frappe.get_doc(
+				{
+					"doctype": "User",
+					"email": "no-dev-role@example.test",
+					"first_name": "NoRole",
+					"send_welcome_email": 0,
+				}
+			).insert(ignore_permissions=True)
+
+		frappe.set_user("no-dev-role@example.test")
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				frappe.get_doc(
+					{"doctype": "Request", "title": "Not allowed", "request_type": "Note"}
+				).insert(ignore_permissions=True)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_approve_requires_project_and_priority(self) -> None:
+		doc = frappe.get_doc(
+			{"doctype": "Request", "title": "Needs triage", "request_type": "Bug"}
+		).insert(ignore_permissions=True)
+		doc.workflow_state = "Approved"
+		with self.assertRaises(frappe.ValidationError):
+			doc.save(ignore_permissions=True)
+
+	def test_scheduling_creates_linked_task(self) -> None:
+		project = self._make_project()
+		doc = frappe.get_doc(
+			{
+				"doctype": "Request",
+				"title": "Ship the button",
+				"request_type": "Feature",
+				"project": project,
+				"priority": "High",
+			}
+		).insert(ignore_permissions=True)
+		doc.workflow_state = "Approved"
+		doc.save(ignore_permissions=True)
+		doc.workflow_state = "Scheduled"
+		doc.save(ignore_permissions=True)
+
+		self.assertTrue(doc.linked_task)
+		task = frappe.get_doc("Task", doc.linked_task)
+		self.assertEqual(task.custom_request, doc.name)
+		self.assertEqual(task.subject, doc.title)
