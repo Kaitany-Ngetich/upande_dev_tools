@@ -20,11 +20,11 @@
 			{% set ns = namespace(last_group="") %}
 			{% for item in nav_items %}
 				{% if item.nav_group != ns.last_group %}
-					<span class="group-lbl">{{ item.nav_group }}</span>
+					<span class="group-lbl">{{ item.nav_group | e }}</span>
 					{% set ns.last_group = item.nav_group %}
 				{% endif %}
-				<a class="nav-item{% if item.route == active_route %} active{% endif %}" href="/{{ item.route }}">
-					<span>{{ item.title }}</span>
+				<a class="nav-item{% if item.route == active_route %} active{% endif %}" href="/{{ item.route | e }}">
+					<span>{{ item.title | e }}</span>
 				</a>
 			{% endfor %}
 		</nav>

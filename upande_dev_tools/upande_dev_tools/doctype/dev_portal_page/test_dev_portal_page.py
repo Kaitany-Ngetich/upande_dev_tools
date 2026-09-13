@@ -30,3 +30,17 @@ class IntegrationTestDevPortalPage(IntegrationTestCase):
 		).insert(ignore_permissions=True)
 		roles = {row.role for row in doc.allowed_roles}
 		self.assertEqual(roles, {"Dev Team", "System Manager"})
+
+	def test_dev_team_alone_cannot_write_or_create(self) -> None:
+		email = "dev-portal-page-perm-test@example.test"
+		if not frappe.db.exists("User", email):
+			frappe.get_doc(
+				{"doctype": "User", "email": email, "first_name": "Test", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+		user = frappe.get_doc("User", email)
+		if "Dev Team" not in {r.role for r in user.roles}:
+			user.add_roles("Dev Team")
+
+		self.assertTrue(frappe.has_permission("Dev Portal Page", "read", user=email))
+		self.assertFalse(frappe.has_permission("Dev Portal Page", "write", user=email))
+		self.assertFalse(frappe.has_permission("Dev Portal Page", "create", user=email))

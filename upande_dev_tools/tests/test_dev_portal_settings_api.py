@@ -4,6 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from upande_dev_tools.api.dev_portal_settings import get_registered_pages, update_page_roles
+from upande_dev_tools.www.dev_portal_settings import get_context
 
 
 class IntegrationTestDevPortalSettingsApi(IntegrationTestCase):
@@ -74,3 +75,24 @@ class IntegrationTestDevPortalSettingsApi(IntegrationTestCase):
 
 		doc = frappe.get_doc("Dev Portal Page", "settings-update-test")
 		self.assertEqual([row.role for row in doc.allowed_roles], ["Projects Manager"])
+
+	def test_get_context_denies_single_role_user(self) -> None:
+		dev_only = self._make_user("settings-context-dev-only@example.test", ["Dev Team"])
+		frappe.set_user(dev_only)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				get_context({})
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_update_page_roles_refuses_to_lock_out_settings_page(self) -> None:
+		both = self._make_user("settings-lockout-guard@example.test", ["Dev Team", "System Manager"])
+		frappe.set_user(both)
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				update_page_roles(route="dev-portal-settings", roles=["Dev Team"])
+		finally:
+			frappe.set_user("Administrator")
+		doc = frappe.get_doc("Dev Portal Page", "dev-portal-settings")
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "System Manager"})

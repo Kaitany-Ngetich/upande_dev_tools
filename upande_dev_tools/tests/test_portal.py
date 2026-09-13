@@ -186,3 +186,39 @@ class IntegrationTestPortal(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
+
+	def test_resolve_home_route_skips_role_priority_route_that_denies_user(self) -> None:
+		self._make_page("dev-dashboard", [])  # registered but denies everyone (empty allowed_roles)
+		dev = self._make_user("home-route-skip@example.test", ["Dev Team"])
+		try:
+			self.assertEqual(resolve_home_route(dev), "/requests-portal")
+		finally:
+			frappe.delete_doc("Dev Portal Page", "dev-dashboard", ignore_permissions=True, force=True)
+
+	def test_enforce_page_access_permits_user_holding_every_required_role(self) -> None:
+		self._make_page("portal-test-dual-allow", ["Dev Team", "System Manager"], require_all_roles=True)
+		both = self._make_user("portal-dual-allow@example.test", ["Dev Team", "System Manager"])
+		frappe.set_user(both)
+		try:
+			enforce_page_access("portal-test-dual-allow")  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_nav_items_requires_every_role_when_require_all_roles(self) -> None:
+		self._make_page(
+			"portal-nav-dual", ["Dev Team", "System Manager"], require_all_roles=True, nav_group="Group B"
+		)
+		dev_only = self._make_user("portal-nav-dual-partial@example.test", ["Dev Team"])
+		both = self._make_user("portal-nav-dual-both@example.test", ["Dev Team", "System Manager"])
+		self.assertNotIn("portal-nav-dual", {item["route"] for item in get_nav_items(dev_only)})
+		self.assertIn("portal-nav-dual", {item["route"] for item in get_nav_items(both)})
+
+	def test_dev_tools_entry_redirects_guest_to_login(self) -> None:
+		frappe.set_user("Guest")
+		try:
+			with self.assertRaises(frappe.Redirect):
+				get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/login")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None

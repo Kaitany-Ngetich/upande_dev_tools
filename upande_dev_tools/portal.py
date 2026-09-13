@@ -15,9 +15,11 @@ def resolve_home_route(user: str | None = None) -> str:
 
 	roles = set(frappe.get_roles(user))
 	for role, route in HOME_ROUTE_BY_ROLE:
-		if role in roles:
+		if role in roles and _route_permits(route, roles):
 			return route
-	return DEFAULT_AUTHENTICATED_ROUTE
+	if _route_permits(DEFAULT_AUTHENTICATED_ROUTE, roles):
+		return DEFAULT_AUTHENTICATED_ROUTE
+	return "/app"
 
 
 def _fetch_page(route: str) -> frappe._dict | None:
@@ -40,6 +42,21 @@ def _is_permitted(allowed: set[str], require_all: bool, user_roles: set[str]) ->
 	if require_all:
 		return allowed <= user_roles
 	return bool(user_roles & allowed)
+
+
+def _route_permits(route: str, user_roles: set[str]) -> bool:
+	"""Whether user_roles may access `route` (leading slash optional). A route with
+	no `Dev Portal Page` registration yet is treated as permitted — an optimistic
+	default for a route a later sub-project hasn't registered as a page yet, so
+	behavior for not-yet-built dashboards (dev-dashboard, pm-dashboard, as of this
+	sub-project) matches what it was before this function existed. This exists so
+	resolve_home_route never hands back a route enforce_page_access would then
+	deny for the same user — that combination was a self-redirect infinite loop.
+	"""
+	page = _fetch_page(route.lstrip("/"))
+	if not page:
+		return True
+	return _is_permitted(_allowed_roles(page.name), bool(page.require_all_roles), user_roles)
 
 
 def enforce_page_access(route: str) -> None:

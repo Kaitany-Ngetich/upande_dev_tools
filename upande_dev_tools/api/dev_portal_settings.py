@@ -1,6 +1,9 @@
 import frappe
 from frappe import _
 
+SETTINGS_ROLES = ("Dev Team", "System Manager")
+SETTINGS_ROUTE = "dev-portal-settings"
+
 
 def _require_dual_role(role_a: str, role_b: str) -> None:
 	roles = set(frappe.get_roles())
@@ -10,7 +13,7 @@ def _require_dual_role(role_a: str, role_b: str) -> None:
 
 @frappe.whitelist()
 def get_registered_pages() -> list[dict]:
-	_require_dual_role("Dev Team", "System Manager")
+	_require_dual_role(*SETTINGS_ROLES)
 
 	pages = frappe.get_all(
 		"Dev Portal Page",
@@ -33,10 +36,16 @@ def get_registered_pages() -> list[dict]:
 
 @frappe.whitelist()
 def update_page_roles(route: str, roles: list[str] | str, require_all_roles: bool | int = False) -> dict:
-	_require_dual_role("Dev Team", "System Manager")
+	_require_dual_role(*SETTINGS_ROLES)
 
 	if isinstance(roles, str):
 		roles = frappe.parse_json(roles)
+
+	if route == SETTINGS_ROUTE and not set(roles) >= set(SETTINGS_ROLES):
+		frappe.throw(
+			_("The settings page must always stay reachable by both Dev Team and System Manager."),
+			frappe.ValidationError,
+		)
 
 	doc = frappe.get_doc("Dev Portal Page", route)
 	doc.allowed_roles = []
