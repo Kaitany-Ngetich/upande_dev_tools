@@ -32,6 +32,7 @@
 - All paths below are relative to the app repo root (`apps/upande_dev_tools/`), i.e. `upande_dev_tools/hooks.py` means `apps/upande_dev_tools/upande_dev_tools/hooks.py`.
 - After any task that adds a fixture, custom field, or new doctype, run `bench --site <site> migrate` before running that task's tests — fixtures and `after_migrate` hooks only take effect after a migrate.
 - **Every doctype-folder test file must declare `IGNORE_TEST_RECORD_DEPENDENCIES`** listing every doctype its own doctype has a `Link` field to (`IntegrationTestCase` recursively auto-generates a "missing test record" for each one, and on this bench that walk eventually reaches `Company` — via `User`→`Email Account`→`Company` or similar — and hits the same pre-existing, unrelated regional-setup bug noted above, just via a different path). None of this plan's tests rely on that auto-generated fixture; every test builds its own Project/User/Employee explicitly, so excluding them is always safe. `Request` needs `["Project", "Task", "User", "Employee", "Contact"]`; `Deployment Request` needs `["User", "Employee"]` (its other links — `Deployment App`, `Deployment Instance`, `Request` — either have no Link fields of their own or already exclude the dangerous ones via their own test file). `Deployment Instance`/`Deployment App` have no Link fields and need no such list. This attribute only works in a doctype-folder test file — do not add it to the top-level `tests/` API-test files, which don't need it (they have no `cls.doctype`, so this auto-walk never runs for them) and Frappe raises `NotImplementedError` if `IGNORE_TEST_RECORD_DEPENDENCIES` is set there anyway.
+- **This bench's installed `pypika` (vanilla PyPI `0.48.9`) doesn't match the frappe-fork version `apps/frappe/pyproject.toml` pins**, so any `Task` insert/save that reaches ERPNext's `Task.check_recursion` (`erpnext/projects/doctype/task/task.py`) crashes with `TypeError: QueryBuilder.__init__() got an unexpected keyword argument 'recursive'` — reproducible with a bare `frappe.get_doc({"doctype": "Task", ...}).insert()`, nothing to do with this plan's own code. Fix: set `task.flags.ignore_recursion_check = True` before inserting any Task this plan creates programmatically (a freshly created Task has no `Task Depends On` rows, so there is genuinely no cycle to check — this is the same first-class flag ERPNext's own `task.py` uses internally for the same reason, not a workaround). Do not attempt to fix the bench's `pypika` install itself — that's shared, bench-wide infrastructure outside this plan's scope, not a per-task decision.
 
 ## Deviations from the spec's illustrative file tree (decided during planning)
 
@@ -875,6 +876,12 @@ class Request(Document):
 					"custom_request": self.name,
 				}
 			)
+			# A freshly created Task has no "Task Depends On" rows, so there is no
+			# cycle to detect — skip Task's own recursion check (an ERPNext-native
+			# flag, also used internally by erpnext/projects/doctype/task/task.py
+			# itself for the same reason) rather than run a query this bench's
+			# installed pypika can't execute (see Global Constraints).
+			task.flags.ignore_recursion_check = True
 			task.insert(ignore_permissions=True)
 			self.db_set("linked_task", task.name, update_modified=False)
 ```
@@ -1346,7 +1353,9 @@ Append to `upande_dev_tools/tests/test_requests_api.py` (add `get_my_day`, `get_
 				"project": project,
 				"custom_planned_for": today(),
 			}
-		).insert(ignore_permissions=True)
+		)
+		task.flags.ignore_recursion_check = True  # see Global Constraints (pypika)
+		task.insert(ignore_permissions=True)
 		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
 
 		event = frappe.get_doc(
