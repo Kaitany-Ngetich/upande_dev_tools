@@ -46,13 +46,13 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		dev = self._make_user("dev-scope@example.test", ["Dev Team"])
 		other = self._make_user("other-scope@example.test", ["Dev Team"])
 
-		frappe.set_user(dev)
-		created = create_request(title="My own request", request_type="Bug")
-		frappe.set_user(other)
-		create_request(title="Someone else's request", request_type="Bug")
-
-		frappe.set_user(dev)
 		try:
+			frappe.set_user(dev)
+			created = create_request(title="My own request", request_type="Bug")
+			frappe.set_user(other)
+			create_request(title="Someone else's request", request_type="Bug")
+
+			frappe.set_user(dev)
 			mine = get_my_requests()
 		finally:
 			frappe.set_user("Administrator")

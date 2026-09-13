@@ -8,7 +8,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -88,6 +88,7 @@ app_license = "mit"
 # before_install = "upande_dev_tools.install.before_install"
 # after_install = "upande_dev_tools.install.after_install"
 
+after_install = "upande_dev_tools.setup.create_task_custom_fields"
 after_migrate = "upande_dev_tools.setup.create_task_custom_fields"
 
 # Uninstallation

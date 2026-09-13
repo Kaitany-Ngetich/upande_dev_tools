@@ -104,14 +104,26 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		app = self._make_app()
 		instance = self._make_instance()
 
-		frappe.set_user(dev)
-		created = create_deployment_request(app=app, instance=instance)
-		frappe.set_user(other)
-		create_deployment_request(app=app, instance=instance)
-
-		frappe.set_user(dev)
 		try:
+			frappe.set_user(dev)
+			created = create_deployment_request(app=app, instance=instance)
+			frappe.set_user(other)
+			create_deployment_request(app=app, instance=instance)
+
+			frappe.set_user(dev)
 			mine = get_my_deployment_requests()
 		finally:
 			frappe.set_user("Administrator")
 		self.assertEqual([r["name"] for r in mine], [created["name"]])
+
+	def test_create_deployment_request_requires_dev_team_or_system_manager(self) -> None:
+		outsider = self._make_user("outsider-create-deploy@example.test", [])
+		app = self._make_app()
+		instance = self._make_instance()
+
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				create_deployment_request(app=app, instance=instance)
+		finally:
+			frappe.set_user("Administrator")

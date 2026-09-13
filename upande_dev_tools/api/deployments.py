@@ -12,6 +12,9 @@ def create_deployment_request(
 	description: str | None = None,
 	linked_request: str | None = None,
 ) -> dict:
+	if not set(frappe.get_roles()) & DEPLOYER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "Deployment Request",
