@@ -209,3 +209,14 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 
 		self.assertEqual([t["name"] for t in day["tasks"]], [task.name])
 		self.assertIn(event.name, [m["name"] for m in day["meetings"]])
+
+	def test_get_my_day_denies_viewing_another_users_day(self) -> None:
+		dev = self._make_user("dev-myday-owner@example.test", ["Dev Team"])
+		outsider = self._make_user("outsider-myday@example.test", [])
+
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_my_day(user=dev)
+		finally:
+			frappe.set_user("Administrator")

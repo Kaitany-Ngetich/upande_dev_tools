@@ -141,6 +141,8 @@ def get_upcoming_meetings(
 	from frappe.utils import add_to_date, now_datetime
 
 	if project:
+		if not frappe.has_permission("Project", "read", project):
+			frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
 		event_names = frappe.get_all(
 			"Dynamic Link",
 			filters={"parenttype": "Event", "link_doctype": "Project", "link_name": project},
@@ -148,6 +150,8 @@ def get_upcoming_meetings(
 		)
 	else:
 		user = for_user or frappe.session.user
+		if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
+			frappe.throw(_("Not permitted."), frappe.PermissionError)
 		event_names = frappe.get_all(
 			"Event Participants",
 			filters={"parenttype": "Event", "email": user},
@@ -177,6 +181,8 @@ def get_my_day(user: str | None = None) -> dict:
 	from frappe.utils import today
 
 	user = user or frappe.session.user
+	if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
 	day = today()
 
 	tasks = frappe.get_all(
