@@ -1,13 +1,17 @@
 # Copyright (c) 2026, Upande Limited
 
 import frappe
+from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests import IntegrationTestCase
+from frappe.utils import add_to_date, now_datetime, today
 
 from upande_dev_tools.api.requests import (
 	create_request,
 	get_backlog_board,
+	get_my_day,
 	get_my_requests,
 	get_review_queue,
+	get_upcoming_meetings,
 	promote_to_task,
 	triage_request,
 )
@@ -146,3 +150,62 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 				get_backlog_board()
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_get_upcoming_meetings_by_project(self) -> None:
+		project = self._make_project()
+		event = frappe.get_doc(
+			{
+				"doctype": "Event",
+				"subject": "Sprint planning",
+				"event_type": "Private",
+				"starts_on": add_to_date(now_datetime(), hours=2),
+				"ends_on": add_to_date(now_datetime(), hours=3),
+			}
+		)
+		event.append("links", {"link_doctype": "Project", "link_name": project})
+		event.insert(ignore_permissions=True)
+
+		meetings = get_upcoming_meetings(project=project)
+		self.assertIn(event.name, [m["name"] for m in meetings])
+
+	def test_get_my_day_returns_assigned_planned_task_and_events(self) -> None:
+		dev = self._make_user("dev-myday@example.test", ["Dev Team"])
+		project = self._make_project()
+
+		task = frappe.get_doc(
+			{
+				"doctype": "Task",
+				"subject": "Fix login bug",
+				"project": project,
+				"custom_planned_for": today(),
+			}
+		)
+		task.flags.ignore_recursion_check = True  # see Global Constraints (pypika)
+		task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
+
+		event = frappe.get_doc(
+			{
+				"doctype": "Event",
+				"subject": "Standup",
+				"event_type": "Private",
+				"starts_on": add_to_date(now_datetime(), hours=1),
+				"ends_on": add_to_date(now_datetime(), hours=1, minutes=15),
+			}
+		)
+		# Event Participants' reference_doctype/reference_docname are mandatory fields
+		# on this Frappe version; set them alongside "email" (which get_upcoming_meetings
+		# actually filters on) so the mandatory-field check passes on insert.
+		event.append(
+			"event_participants", {"reference_doctype": "User", "reference_docname": dev, "email": dev}
+		)
+		event.insert(ignore_permissions=True)
+
+		frappe.set_user(dev)
+		try:
+			day = get_my_day()
+		finally:
+			frappe.set_user("Administrator")
+
+		self.assertEqual([t["name"] for t in day["tasks"]], [task.name])
+		self.assertIn(event.name, [m["name"] for m in day["meetings"]])

@@ -130,3 +130,64 @@ def get_backlog_board(project: str | None = None) -> dict:
 		ignore_permissions=True,
 	)
 	return {"tasks": tasks, "requests": requests}
+
+
+@frappe.whitelist()
+def get_upcoming_meetings(
+	project: str | None = None,
+	for_user: str | None = None,
+	within_days: int = 14,
+) -> list[dict]:
+	from frappe.utils import add_to_date, now_datetime
+
+	if project:
+		event_names = frappe.get_all(
+			"Dynamic Link",
+			filters={"parenttype": "Event", "link_doctype": "Project", "link_name": project},
+			pluck="parent",
+		)
+	else:
+		user = for_user or frappe.session.user
+		event_names = frappe.get_all(
+			"Event Participants",
+			filters={"parenttype": "Event", "email": user},
+			pluck="parent",
+		)
+
+	if not event_names:
+		return []
+
+	now = now_datetime()
+	end = add_to_date(now, days=within_days)
+	return frappe.get_all(
+		"Event",
+		filters=[
+			["name", "in", event_names],
+			["starts_on", ">=", now],
+			["starts_on", "<=", end],
+		],
+		fields=["name", "subject", "starts_on", "ends_on", "event_category", "location"],
+		order_by="starts_on asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def get_my_day(user: str | None = None) -> dict:
+	from frappe.utils import today
+
+	user = user or frappe.session.user
+	day = today()
+
+	tasks = frappe.get_all(
+		"Task",
+		filters=[
+			["_assign", "like", f"%{user}%"],
+			["custom_planned_for", "=", day],
+		],
+		fields=["name", "subject", "status", "priority", "project", "custom_request", "exp_end_date"],
+		order_by="priority desc",
+		ignore_permissions=True,
+	)
+	meetings = get_upcoming_meetings(for_user=user, within_days=1)
+	return {"date": day, "tasks": tasks, "meetings": meetings}
