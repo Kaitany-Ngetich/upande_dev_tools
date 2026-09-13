@@ -20,9 +20,13 @@ This is phase 1 of 3:
    customizations, roles, and the whitelisted API. Usable from the desk immediately;
    the foundation the later phases build on.
 2. **Phase 2** — `www` portal: role-scoped dashboards (Developer, Projects Manager,
-   Customer/Employee) and the settings page, replacing the current desk pages.
+   Customer/Employee) and the settings page, replacing the current desk pages. Every
+   audience sees upcoming meetings and each developer's tasks for the day, scoped to
+   what that audience is allowed to see.
 3. **Phase 3** — mobile app (quick-capture + backlog + stats), styled to match
-   `upande-production` / `upande-packhouse`.
+   `upande-production` / `upande-packhouse`. Same calendar/day view as the dashboard,
+   but deeper — a developer's own meetings and today's tasks are the app's home
+   screen, not a widget on it.
 
 Each phase gets its own spec and plan. This document covers Phase 1 only.
 
@@ -163,6 +167,44 @@ No new `Project` fields are needed in Phase 1 — Phase 2's dashboards read `Tas
   `Projects Manager` gets read/write plus the workflow actions above; portal/customer
   access is granted narrowly through the whitelisted API (Phase 2), not broad
   doctype-level portal permissions.
+- **These are the only two roles the whole feature ever checks**, in every phase:
+  `Dev Team` gates every developer-facing view (the portal's Developer dashboard, and
+  the mobile app in its entirety — Phase 3 introduces no app-specific role); `Dev Team`
+  **and** `System Manager` together gate settings/admin surfaces, whether that surface
+  is the portal's settings page or an equivalent admin screen inside the mobile app.
+  Later phases must reuse this pair rather than defining new roles or a separate
+  mobile permission model.
+
+## Calendar integration
+
+"Meetings" are native Frappe `Event` records — no new doctype and no new custom
+fields are needed. `Event` already carries everything required for this:
+
+- `event_participants` (child table) resolves participants by `email`, which matches
+  `Employee.user_id` / `User.name` — this is how "which meetings is this developer in"
+  is answered.
+- `links` (Dynamic Link child table) is the native way to associate an `Event` with a
+  `Project` or `Task` — this is how "which meetings belong to this project" is
+  answered, using the mechanism Frappe already ships rather than inventing a
+  `Request`/`Event` link field.
+
+Two whitelisted helpers in `requests/utils.py` sit on top of this, and are what Phase 2
+and Phase 3 both call — neither phase re-implements the query:
+
+- `get_upcoming_meetings(project=None)` — `Event`s linked (via `links`) to the given
+  project, or, with no project, every event the caller participates in. Powers the
+  "upcoming meetings" view for all three dashboard audiences and the mobile app.
+- `get_my_day(user=None)` — one call combining a developer's today: `Task`s assigned to
+  them (via the standard Frappe assignment/`ToDo` mechanism — `_assign` — **not** a new
+  "assigned developer" field) where `custom_planned_for` is today, plus today's `Event`s
+  from `get_upcoming_meetings`. This is the mobile app's home-screen data source and
+  the dashboard's per-developer widget; both read the same method so the two surfaces
+  never drift apart.
+
+Visibility is scoped by caller inside these methods, not by two separate
+implementations: a customer calling `get_upcoming_meetings(project=X)` only ever sees
+events linked to a project they're a stakeholder on; a developer calling `get_my_day()`
+only ever sees their own assignments and events.
 
 ## API surface (shared by desk, portal, and mobile)
 
@@ -180,6 +222,8 @@ authenticate (session cookie from `/api/method/login`, no separate mobile-only A
 - `promote_to_task(name)` — the `Schedule` transition; creates/links the Task.
 - `get_backlog_board(project=None)` — Tasks + linked Requests grouped by status, the
   data source for Phase 2's dashboards.
+- `get_upcoming_meetings(project=None)` / `get_my_day(user=None)` — see Calendar
+  integration above.
 
 ## Testing
 
@@ -187,11 +231,15 @@ Standard Frappe doctype tests (`test_request.py`) covering: workflow transition 
 (Approve without project/priority fails; only Projects Manager can Approve/Reject/Defer;
 a Note can self-promote), `raised_by_*` auto-resolution for a user with and without a
 linked Employee, and `promote_to_task` producing a Task with `custom_request` set back
-correctly.
+correctly. `test_utils.py` covers `get_my_day` (returns only the calling user's assigned,
+`custom_planned_for`-today tasks and their own events) and `get_upcoming_meetings`
+(scoped to a project's linked events, or the caller's participation when no project is
+given).
 
 ## Out of scope (deferred to later phases)
 
-- The `www` portal pages and role-scoped dashboards (Phase 2).
+- The `www` portal pages and role-scoped dashboards, including any calendar/"my day"
+  UI widget (Phase 2). Phase 1 ships only the `get_upcoming_meetings`/`get_my_day` API.
 - The mobile app (Phase 3).
 - Migrating the existing desk pages (`upande_dev_dashboard`, `hooks_explorer`,
   `code_editor`) into the portal (Phase 2).
