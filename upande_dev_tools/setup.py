@@ -87,6 +87,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=30,
 		roles=["Dev Team"],
 	)
+	register_dev_portal_page(
+		route="my-day",
+		title="My Day",
+		icon="calendar",
+		nav_group="Developer",
+		sort_order=40,
+		roles=["Dev Team"],
+	)
 
 
 def run_setup() -> None:

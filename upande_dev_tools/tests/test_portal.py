@@ -12,6 +12,7 @@ from upande_dev_tools.www.code_editor import get_context as code_editor_get_cont
 from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_context
 from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
+from upande_dev_tools.www.my_day import get_context as my_day_get_context
 
 
 class IntegrationTestPortal(IntegrationTestCase):
@@ -369,11 +370,13 @@ class IntegrationTestPortal(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_developer_nav_group_lists_all_three_tools_in_order(self) -> None:
+	def test_developer_nav_group_lists_all_tools_in_order(self) -> None:
 		dev = self._make_user("developer-nav-order@example.test", ["Dev Team"])
 		items = get_nav_items(dev)
 		developer_routes = [item["route"] for item in items if item["nav_group"] == "Developer"]
-		self.assertEqual(developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor"])
+		self.assertEqual(
+			developer_routes, ["dev-dashboard", "hooks-explorer", "code-editor", "my-day"]
+		)
 
 	def test_ported_pages_are_registered_with_correct_attributes(self) -> None:
 		expected = {
@@ -388,3 +391,30 @@ class IntegrationTestPortal(IntegrationTestCase):
 			self.assertEqual(doc.nav_group, "Developer")
 			self.assertEqual(doc.sort_order, sort_order)
 			self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
+
+	def test_my_day_permits_dev_team_and_denies_others(self) -> None:
+		dev = self._make_user("my-day-dev@example.test", ["Dev Team"])
+		other = self._make_user("my-day-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			my_day_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				my_day_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_my_day_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "my-day")
+		self.assertEqual(doc.title, "My Day")
+		self.assertEqual(doc.icon, "calendar")
+		self.assertEqual(doc.nav_group, "Developer")
+		self.assertEqual(doc.sort_order, 40)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
