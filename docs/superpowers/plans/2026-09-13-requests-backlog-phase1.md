@@ -4,7 +4,7 @@
 
 **Goal:** Ship the `Request` doctype, its approval workflow, the Task/Project integration, and the whitelisted API that Phase 2 (portal) and Phase 3 (mobile) will both build on — usable from the desk immediately.
 
-**Architecture:** A new Frappe module `Requests` inside `upande_dev_tools`, laid out like ERPNext's `projects` module (`doctype/`, `workspace/`, a flat `utils.py`). One `Request` doctype drives everything through a native Frappe `Workflow` (fixture-shipped), which is also what enforces every access rule described below — no hand-rolled permission checks duplicate what the workflow engine already does for free. Two Task custom fields close the loop back to the official backlog.
+**Architecture:** Everything lives in the app's one existing Frappe module, `Upande Dev Tools` — new doctypes join its existing `doctype/` folder, new whitelisted API files join its existing app-root `api/` folder, and the existing workspace gains shortcuts. One `Request` doctype drives everything through a native Frappe `Workflow` (fixture-shipped), which is also what enforces every access rule described below — no hand-rolled permission checks duplicate what the workflow engine already does for free. Two Task custom fields close the loop back to the official backlog.
 
 **Tech Stack:** Frappe framework (this bench: `>=16.0.0,<=17.0.0`), Python 3.14, MariaDB via the Frappe ORM. No JavaScript in this phase — Frappe's Workflow feature renders its own action buttons, so no client script is needed yet.
 
@@ -25,9 +25,10 @@
   # Copyright (c) 2026, shadrack@upande.com and Contributors
   # See license.txt
   ```
-  (Exact capitalization/wording differs between the two — that's the existing convention in this app, matched from `module_version_check.py`/`test_module_version_check.py`.)
+  (Exact capitalization/wording differs between the two — that's the existing convention in this app, matched from `module_version_check.py`/`test_module_version_check.py`.) Files in the top-level `tests/` folder (not tied to one doctype) instead match `upande_dev_tools/tests/test_customization_exporter.py`'s single-line header: `# Copyright (c) 2026, Upande Limited`.
 - Doctype tests extend `frappe.tests.IntegrationTestCase` (the convention already used by `test_module_version_check.py`), named `IntegrationTest<DoctypeNameNoSpaces>`.
-- API-module tests (testing `requests/utils.py`, not tied to one doctype) live in the app's existing top-level `tests/` folder, matching `upande_dev_tools/tests/test_customization_exporter.py`'s pattern.
+- API-module tests (testing `api/requests.py`/`api/deployments.py`, not tied to one doctype) live in the app's existing top-level `tests/` folder, matching `upande_dev_tools/tests/test_customization_exporter.py`'s pattern.
+- New doctypes join the existing `Upande Dev Tools` module — no new entry in `modules.txt`, ever, in this plan. New whitelisted API files join the existing app-root `api/` package (most files there have no header comment at all; follow that majority convention for new API files rather than the one file that has one).
 - All paths below are relative to the app repo root (`apps/upande_dev_tools/`), i.e. `upande_dev_tools/hooks.py` means `apps/upande_dev_tools/upande_dev_tools/hooks.py`.
 - After any task that adds a fixture, custom field, or new doctype, run `bench --site <site> migrate` before running that task's tests — fixtures and `after_migrate` hooks only take effect after a migrate.
 
@@ -35,49 +36,42 @@
 
 The spec's "Module layout" section sketched an example tree; these are the concrete, corrected choices this plan implements:
 
-1. **No `fixtures/custom_docperm.json`.** `Request` is a doctype we own, so its role grants belong directly in `request.json`'s own `permissions` list, not a `Custom DocPerm` fixture (that mechanism is for customizing permissions on a *foreign* doctype, which we don't do in Phase 1).
-2. **Task custom fields ship as code, not a static fixture.** This app's sibling `upande_coffee` already establishes the pattern of an `after_migrate` hook calling `frappe.custom.doctype.custom_field.custom_field.create_custom_fields(...)` — idempotent, re-applies on every migrate, and is the standard Frappe helper for exactly this. This plan follows that precedent (`requests/setup.py`) instead of hand-typing a ~50-key-per-field native customization JSON blob.
-3. **No `dashboard_chart/`/`number_card/` in Phase 1.** Those are Desk analytics widgets that Phase 2's real dashboard supersedes; building them now would be thrown away. Phase 1's "usable from the desk" goal is met by the doctype + one workspace with shortcuts.
-4. **No `Open` workflow state.** Frappe assigns the *first row* of a Workflow's `states` table as the default state of every newly inserted document (`frappe.model.workflow.validate_workflow`) — so making `Under Review` that first row gives the spec's "automatically, no separate action" behavior for free, without a transient state that would need extra code to skip past.
-5. **`Request.priority` options are `Low/Medium/High/Urgent`**, not `Low/Medium/High/Critical` as in the spec's prose — matching Task's own native `priority` field options exactly (`erpnext/projects/doctype/task/task.json`), so the value copies straight across when a Task is created with no translation step. Same scale, aligned vocabulary.
-6. **An extra `Reopen` transition** (`Deferred → Under Review`, Projects Manager) so a deferred request isn't a permanent dead end.
-7. **The `Dev Team` + `System Manager` dual-role `has_permission` gate described in the spec is not implemented by this plan.** It gates a settings *doctype/page* that doesn't exist until Phase 2 — there is nothing to attach it to yet. This plan only ships the `Dev Team` role itself (Task 2); the `has_permission` hook lands with Phase 2's settings page.
-8. **An extra `Promote Note` transition** (`Under Review → Scheduled`, Dev Team, conditioned on `doc.request_type == "Note"`) implements the spec's "Note self-promotion" using the workflow engine's own `condition` field, rather than bypassing the workflow engine in Python — `validate_workflow` runs on every `save()` regardless of `ignore_permissions`, so a hand-rolled bypass would have been rejected by the framework anyway. `promote_to_task` becomes a two-line dispatch instead of two separate code paths.
+1. **No new Frappe module.** The spec's own file tree originally sketched a second (`Requests`) and later a third (`Deployments`) module; this was corrected during the build (a running implementer's work was stopped and redone) — everything in this plan lands in the app's one existing `Upande Dev Tools` module instead: doctypes join its existing `doctype/` folder, whitelisted API files join its existing app-root `api/` folder as `api/requests.py`/`api/deployments.py`, and the existing workspace gains shortcuts rather than new workspaces being created. `modules.txt` is untouched by this entire plan.
+2. **No `fixtures/custom_docperm.json`.** `Request` is a doctype we own, so its role grants belong directly in `request.json`'s own `permissions` list, not a `Custom DocPerm` fixture (that mechanism is for customizing permissions on a *foreign* doctype, which we don't do in Phase 1).
+3. **Task custom fields ship as code, not a static fixture.** This app's sibling `upande_coffee` already establishes the pattern of an `after_migrate` hook calling `frappe.custom.doctype.custom_field.custom_field.create_custom_fields(...)` — idempotent, re-applies on every migrate, and is the standard Frappe helper for exactly this. This plan follows that precedent (`upande_dev_tools/setup.py`) instead of hand-typing a ~50-key-per-field native customization JSON blob.
+4. **No `dashboard_chart/`/`number_card/` in Phase 1.** Those are Desk analytics widgets that Phase 2's real dashboard supersedes; building them now would be thrown away. Phase 1's "usable from the desk" goal is met by the doctypes plus new shortcuts on the app's existing workspace.
+5. **No `Open` workflow state.** Frappe assigns the *first row* of a Workflow's `states` table as the default state of every newly inserted document (`frappe.model.workflow.validate_workflow`) — so making `Under Review` that first row gives the spec's "automatically, no separate action" behavior for free, without a transient state that would need extra code to skip past.
+6. **`Request.priority` options are `Low/Medium/High/Urgent`**, not `Low/Medium/High/Critical` as in the spec's prose — matching Task's own native `priority` field options exactly (`erpnext/projects/doctype/task/task.json`), so the value copies straight across when a Task is created with no translation step. Same scale, aligned vocabulary.
+7. **An extra `Reopen` transition** (`Deferred → Under Review`, Projects Manager) so a deferred request isn't a permanent dead end.
+8. **The `Dev Team` + `System Manager` dual-role `has_permission` gate described in the spec is not implemented by this plan.** It gates a settings *doctype/page* that doesn't exist until Phase 2 — there is nothing to attach it to yet. This plan only ships the `Dev Team` role itself (Task 2); the `has_permission` hook lands with Phase 2's settings page.
+9. **An extra `Promote Note` transition** (`Under Review → Scheduled`, Dev Team, conditioned on `doc.request_type == "Note"`) implements the spec's "Note self-promotion" using the workflow engine's own `condition` field, rather than bypassing the workflow engine in Python — `validate_workflow` runs on every `save()` regardless of `ignore_permissions`, so a hand-rolled bypass would have been rejected by the framework anyway. `promote_to_task` becomes a two-line dispatch instead of two separate code paths.
 
 ---
 
-### Task 1: `Requests` module scaffold + the `Request` doctype
+### Task 1: The `Request` doctype
 
 **Files:**
-- Modify: `upande_dev_tools/modules.txt`
-- Create: `upande_dev_tools/requests/__init__.py`
-- Create: `upande_dev_tools/requests/doctype/__init__.py`
-- Create: `upande_dev_tools/requests/doctype/request/__init__.py`
-- Create: `upande_dev_tools/requests/doctype/request/request.json`
-- Create: `upande_dev_tools/requests/doctype/request/request.py`
-- Test: `upande_dev_tools/requests/doctype/request/test_request.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/request/__init__.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/request/request.json`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/request/request.py`
+- Test: `upande_dev_tools/upande_dev_tools/doctype/request/test_request.py`
 
 **Interfaces:**
 - Produces: doctype `Request` with fields `title`, `request_type` (`Feature`/`Bug`/`Master Data`/`Question`/`Note`), `priority` (`Low`/`Medium`/`High`/`Urgent`), `workflow_state`, `description`, `product_area`, `project` (Link Project), `linked_task` (Link Task), `raised_by_user`/`raised_by_employee`/`raised_by_contact`, `source`, `resolution_notes`. Later tasks add controller logic and API functions on top of this schema — nothing here yet reads or writes those fields programmatically.
 
-- [ ] **Step 1: Add the module**
+This doctype joins the app's existing, single `Upande Dev Tools` module (the same
+one `Code Backup Snapshot`, `Module Version Check`, etc. already live in) —
+`upande_dev_tools/upande_dev_tools/doctype/` already exists with its own
+`__init__.py`, so nothing here touches `modules.txt` or creates any module-level
+package files; only this one doctype's own folder is new.
 
-Append a line to `upande_dev_tools/modules.txt` so it reads:
+- [ ] **Step 1: Create the package file**
 
-```
-Upande Dev Tools
-Requests
-```
+`upande_dev_tools/upande_dev_tools/doctype/request/__init__.py` — empty file.
 
-- [ ] **Step 2: Create the module package**
+- [ ] **Step 2: Write the doctype schema**
 
-`upande_dev_tools/requests/__init__.py` — empty file.
-`upande_dev_tools/requests/doctype/__init__.py` — empty file.
-`upande_dev_tools/requests/doctype/request/__init__.py` — empty file.
-
-- [ ] **Step 3: Write the doctype schema**
-
-`upande_dev_tools/requests/doctype/request/request.json`:
+`upande_dev_tools/upande_dev_tools/doctype/request/request.json`:
 
 ```json
 {
@@ -232,7 +226,7 @@ Requests
  "links": [],
  "modified": "2026-09-13 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Requests",
+ "module": "Upande Dev Tools",
  "name": "Request",
  "naming_rule": "Expression (old style)",
  "owner": "Administrator",
@@ -274,9 +268,9 @@ Requests
 }
 ```
 
-- [ ] **Step 4: Write the minimal controller**
+- [ ] **Step 3: Write the minimal controller**
 
-`upande_dev_tools/requests/doctype/request/request.py`:
+`upande_dev_tools/upande_dev_tools/doctype/request/request.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and contributors
@@ -289,9 +283,9 @@ class Request(Document):
 	pass
 ```
 
-- [ ] **Step 5: Write the failing test**
+- [ ] **Step 4: Write the failing test**
 
-`upande_dev_tools/requests/doctype/request/test_request.py`:
+`upande_dev_tools/upande_dev_tools/doctype/request/test_request.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and Contributors
@@ -318,23 +312,23 @@ class IntegrationTestRequest(IntegrationTestCase):
 
 Note: this test does **not** assert `workflow_state == "Under Review"` yet — the Workflow record that assigns that default doesn't exist until Task 2. Without an active Workflow, `workflow_state` is simply left blank on insert, which is correct for this task.
 
-- [ ] **Step 6: Run test to verify it fails**
+- [ ] **Step 5: Run test to verify it fails**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: FAIL — `Request` is not a valid DocType (JSON not yet synced).
 
-- [ ] **Step 7: Sync and re-run**
+- [ ] **Step 6: Sync and re-run**
 
 Run: `bench --site <site> migrate`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/doctype/request/request.py upande_dev_tools/requests/doctype/request/test_request.py
-git add upande_dev_tools/modules.txt upande_dev_tools/requests
-git commit -m "feat: scaffold Requests module and Request doctype
+ruff format upande_dev_tools/upande_dev_tools/doctype/request/request.py upande_dev_tools/upande_dev_tools/doctype/request/test_request.py
+git add upande_dev_tools/upande_dev_tools/doctype/request
+git commit -m "feat: add Request doctype
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
@@ -349,14 +343,14 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `upande_dev_tools/fixtures/workflow_state.json`
 - Create: `upande_dev_tools/fixtures/workflow_action_master.json`
 - Create: `upande_dev_tools/fixtures/workflow.json`
-- Test: `upande_dev_tools/requests/doctype/request/test_request.py` (extend)
+- Test: `upande_dev_tools/upande_dev_tools/doctype/request/test_request.py` (extend)
 
 **Interfaces:**
 - Produces: an active `Request Review` Workflow on `Request`, states `Under Review` (default) / `Approved` / `Rejected` / `Deferred` / `Scheduled` / `In Progress` / `Completed`, actions `Approve`/`Reject`/`Defer`/`Reopen`/`Schedule`/`Promote Note`/`Start Work`/`Complete`. Role `Dev Team` exists. Later tasks rely on these exact state/action/role names verbatim.
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `upande_dev_tools/requests/doctype/request/test_request.py`:
+Append to `upande_dev_tools/upande_dev_tools/doctype/request/test_request.py`:
 
 ```python
 	def test_new_request_defaults_to_under_review(self) -> None:
@@ -404,7 +398,7 @@ Append to `upande_dev_tools/requests/doctype/request/test_request.py`:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: FAIL — no active Workflow for `Request`, so `workflow_state` stays blank and `apply_workflow` raises "no workflow found" rather than a permission error.
 
 - [ ] **Step 3: Ship the Role**
@@ -611,13 +605,13 @@ fixtures = [
 - [ ] **Step 8: Migrate and run tests**
 
 Run: `bench --site <site> migrate`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: PASS — the second test now correctly gets a `WorkflowPermissionError` (a `frappe.ValidationError` subclass) because `dev-only@example.test` only holds `Dev Team`, not `Projects Manager`.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add upande_dev_tools/hooks.py upande_dev_tools/fixtures upande_dev_tools/requests/doctype/request/test_request.py
+git add upande_dev_tools/hooks.py upande_dev_tools/fixtures upande_dev_tools/upande_dev_tools/doctype/request/test_request.py
 git commit -m "feat: ship Request approval workflow and Dev Team role
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -628,7 +622,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 3: Task custom fields (`custom_request`, `custom_planned_for`)
 
 **Files:**
-- Create: `upande_dev_tools/requests/setup.py`
+- Create: `upande_dev_tools/setup.py`
 - Modify: `upande_dev_tools/hooks.py`
 - Test: `upande_dev_tools/tests/test_requests_api.py`
 
@@ -637,11 +631,12 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-`upande_dev_tools/tests/test_requests_api.py`:
+`upande_dev_tools/tests/test_requests_api.py` (header matches the existing
+`upande_dev_tools/tests/test_customization_exporter.py` in this same folder, not
+the doctype-test header used elsewhere in this plan):
 
 ```python
-# Copyright (c) 2026, shadrack@upande.com and Contributors
-# See license.txt
+# Copyright (c) 2026, Upande Limited
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -661,12 +656,9 @@ Expected: FAIL — `Task` has no such fields yet.
 
 - [ ] **Step 3: Write the setup module**
 
-`upande_dev_tools/requests/setup.py`:
+`upande_dev_tools/setup.py`:
 
 ```python
-# Copyright (c) 2026, shadrack@upande.com and contributors
-# For license information, please see license.txt
-
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 TASK_CUSTOM_FIELDS = {
@@ -700,7 +692,7 @@ def create_task_custom_fields() -> None:
 In `upande_dev_tools/hooks.py`, add (near the other commented install hooks):
 
 ```python
-after_migrate = "upande_dev_tools.requests.setup.create_task_custom_fields"
+after_migrate = "upande_dev_tools.setup.create_task_custom_fields"
 ```
 
 - [ ] **Step 5: Migrate and run the test**
@@ -712,8 +704,8 @@ Expected: PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/setup.py
-git add upande_dev_tools/requests/setup.py upande_dev_tools/hooks.py upande_dev_tools/tests/test_requests_api.py
+ruff format upande_dev_tools/setup.py
+git add upande_dev_tools/setup.py upande_dev_tools/hooks.py upande_dev_tools/tests/test_requests_api.py
 git commit -m "feat: ship Task.custom_request and Task.custom_planned_for
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -724,8 +716,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 4: Request controller — submitter resolution, approval guard, auto-created Task
 
 **Files:**
-- Modify: `upande_dev_tools/requests/doctype/request/request.py`
-- Test: `upande_dev_tools/requests/doctype/request/test_request.py` (extend)
+- Modify: `upande_dev_tools/upande_dev_tools/doctype/request/request.py`
+- Test: `upande_dev_tools/upande_dev_tools/doctype/request/test_request.py` (extend)
 
 **Interfaces:**
 - Consumes: `Task.custom_request`/`custom_planned_for` (Task 3); Workflow states `Approved`/`Scheduled` (Task 2).
@@ -733,7 +725,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `upande_dev_tools/requests/doctype/request/test_request.py`:
+Append to `upande_dev_tools/upande_dev_tools/doctype/request/test_request.py`:
 
 ```python
 	def _make_project(self) -> str:
@@ -824,12 +816,12 @@ Append to `upande_dev_tools/requests/doctype/request/test_request.py`:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: FAIL — none of this logic exists in the controller yet.
 
 - [ ] **Step 3: Implement the controller**
 
-`upande_dev_tools/requests/doctype/request/request.py`:
+`upande_dev_tools/upande_dev_tools/doctype/request/request.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and contributors
@@ -880,14 +872,14 @@ class Request(Document):
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/doctype/request/request.py
-git add upande_dev_tools/requests/doctype/request
+ruff format upande_dev_tools/upande_dev_tools/doctype/request/request.py
+git add upande_dev_tools/upande_dev_tools/doctype/request
 git commit -m "feat: resolve request submitter and auto-create Task on Schedule
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -898,7 +890,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 5: Create/list API — `create_request`, `get_my_requests`, `get_review_queue`
 
 **Files:**
-- Create: `upande_dev_tools/requests/utils.py`
+- Create: `upande_dev_tools/api/requests.py`
 - Test: `upande_dev_tools/tests/test_requests_api.py` (extend)
 
 **Interfaces:**
@@ -910,7 +902,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 Change the top-level import line in `upande_dev_tools/tests/test_requests_api.py` from a bare `import frappe` / `IntegrationTestCase` pair to also pull in the new functions:
 
 ```python
-from upande_dev_tools.requests.utils import create_request, get_my_requests, get_review_queue
+from upande_dev_tools.api.requests import create_request, get_my_requests, get_review_queue
 ```
 
 Then add the following as new **methods inside the existing `IntegrationTestRequestsApi` class** (the one Task 3 created, holding `test_task_has_request_custom_fields`) — do not declare the class again, just extend its body:
@@ -964,16 +956,13 @@ Then add the following as new **methods inside the existing `IntegrationTestRequ
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_requests_api`
-Expected: FAIL — `upande_dev_tools.requests.utils` doesn't exist yet.
+Expected: FAIL — `upande_dev_tools.api.requests` doesn't exist yet.
 
 - [ ] **Step 3: Implement the API module**
 
-`upande_dev_tools/requests/utils.py`:
+`upande_dev_tools/api/requests.py`:
 
 ```python
-# Copyright (c) 2026, shadrack@upande.com and contributors
-# For license information, please see license.txt
-
 import frappe
 from frappe import _
 
@@ -1050,8 +1039,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/utils.py
-git add upande_dev_tools/requests/utils.py upande_dev_tools/tests/test_requests_api.py
+ruff format upande_dev_tools/api/requests.py
+git add upande_dev_tools/api/requests.py upande_dev_tools/tests/test_requests_api.py
 git commit -m "feat: add create_request/get_my_requests/get_review_queue API
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -1062,7 +1051,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 6: Triage & promotion API — `triage_request`, `promote_to_task`
 
 **Files:**
-- Modify: `upande_dev_tools/requests/utils.py`
+- Modify: `upande_dev_tools/api/requests.py`
 - Test: `upande_dev_tools/tests/test_requests_api.py` (extend)
 
 **Interfaces:**
@@ -1074,7 +1063,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 Widen the import line at the top of `upande_dev_tools/tests/test_requests_api.py` (added in Task 5) to also pull in `promote_to_task`/`triage_request`:
 
 ```python
-from upande_dev_tools.requests.utils import (
+from upande_dev_tools.api.requests import (
 	create_request,
 	get_my_requests,
 	get_review_queue,
@@ -1158,7 +1147,7 @@ Expected: FAIL — `triage_request`/`promote_to_task` don't exist yet.
 
 - [ ] **Step 3: Implement**
 
-Append to `upande_dev_tools/requests/utils.py`:
+Append to `upande_dev_tools/api/requests.py`:
 
 ```python
 @frappe.whitelist()
@@ -1200,8 +1189,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/utils.py
-git add upande_dev_tools/requests/utils.py upande_dev_tools/tests/test_requests_api.py
+ruff format upande_dev_tools/api/requests.py
+git add upande_dev_tools/api/requests.py upande_dev_tools/tests/test_requests_api.py
 git commit -m "feat: add triage_request/promote_to_task API
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -1212,7 +1201,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 7: Backlog board API — `get_backlog_board`
 
 **Files:**
-- Modify: `upande_dev_tools/requests/utils.py`
+- Modify: `upande_dev_tools/api/requests.py`
 - Test: `upande_dev_tools/tests/test_requests_api.py` (extend)
 
 **Interfaces:**
@@ -1248,7 +1237,7 @@ Expected: FAIL — `get_backlog_board` doesn't exist yet.
 
 - [ ] **Step 3: Implement**
 
-Append to `upande_dev_tools/requests/utils.py`:
+Append to `upande_dev_tools/api/requests.py`:
 
 ```python
 @frappe.whitelist()
@@ -1296,8 +1285,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/utils.py
-git add upande_dev_tools/requests/utils.py upande_dev_tools/tests/test_requests_api.py
+ruff format upande_dev_tools/api/requests.py
+git add upande_dev_tools/api/requests.py upande_dev_tools/tests/test_requests_api.py
 git commit -m "feat: add get_backlog_board API
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -1308,7 +1297,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 8: Calendar API — `get_upcoming_meetings`, `get_my_day`
 
 **Files:**
-- Modify: `upande_dev_tools/requests/utils.py`
+- Modify: `upande_dev_tools/api/requests.py`
 - Test: `upande_dev_tools/tests/test_requests_api.py` (extend)
 
 **Interfaces:**
@@ -1380,7 +1369,7 @@ Expected: FAIL — `get_upcoming_meetings`/`get_my_day` don't exist yet.
 
 - [ ] **Step 3: Implement**
 
-Append to `upande_dev_tools/requests/utils.py`:
+Append to `upande_dev_tools/api/requests.py`:
 
 ```python
 @frappe.whitelist()
@@ -1452,8 +1441,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-ruff format upande_dev_tools/requests/utils.py
-git add upande_dev_tools/requests/utils.py upande_dev_tools/tests/test_requests_api.py
+ruff format upande_dev_tools/api/requests.py
+git add upande_dev_tools/api/requests.py upande_dev_tools/tests/test_requests_api.py
 git commit -m "feat: add get_upcoming_meetings/get_my_day calendar API
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -1461,45 +1450,91 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 9: Requests workspace (desk usability)
+### Task 9: Requests shortcuts on the existing workspace (desk usability)
 
 **Files:**
-- Create: `upande_dev_tools/requests/workspace/requests/requests.json`
+- Modify: `upande_dev_tools/upande_dev_tools/workspace/upande_dev_tools/upande_dev_tools.json`
 
 **Interfaces:**
 - Consumes: `Request` doctype (Task 1).
-- Produces: a "Requests" entry in the desk sidebar with a shortcut into the `Request` list — nothing else depends on this file.
+- Produces: a "Requests" section and two new shortcuts (`Requests`, `Review Queue`) added to the app's existing desk workspace — no new workspace, no new module. Task 14 later adds a further "Deployments" section to this same file.
 
-- [ ] **Step 1: Write the workspace**
+- [ ] **Step 1: Add the shortcuts to the existing workspace**
 
-`upande_dev_tools/requests/workspace/requests/requests.json`:
+Replace the full contents of `upande_dev_tools/upande_dev_tools/workspace/upande_dev_tools/upande_dev_tools.json` with (this is the existing file's content plus one new paragraph label and two new shortcuts appended — nothing existing is removed or reordered):
 
 ```json
 {
+ "app": "upande_dev_tools",
  "charts": [],
- "content": "[{\"id\":\"reqs-header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Requests</b></span>\",\"col\":12}},{\"id\":\"reqs-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Requests\",\"col\":3}},{\"id\":\"reqs-queue-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Review Queue\",\"col\":3}}]",
- "creation": "2026-09-13 00:00:00.000000",
+ "content": "[{\"id\":\"1KzzpMLKXj\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Dashboard</b></span>\",\"col\":12}},{\"id\":\"TrTCzaOnW4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tools Dashboard\",\"col\":3}},{\"id\":\"35bltqrEUL\",\"type\":\"paragraph\",\"data\":{\"text\":\"Developer Tools\",\"col\":12}},{\"id\":\"C-rb4vY5re\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Backup Snapshots\",\"col\":3}},{\"id\":\"A_V0MPZhlQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Code Editor\",\"col\":3}},{\"id\":\"0b_zJLbNPB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Version Check\",\"col\":3}},{\"id\":\"udp5D3mb60\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Hooks Explorer\",\"col\":3}},{\"id\":\"DBAoTswlzI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Code Backup Settings\",\"col\":3}},{\"id\":\"reqSectionHd\",\"type\":\"paragraph\",\"data\":{\"text\":\"Requests\",\"col\":12}},{\"id\":\"reqShortcut1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Requests\",\"col\":3}},{\"id\":\"reqShortcut2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Review Queue\",\"col\":3}}]",
+ "creation": "2026-06-25 16:40:25.944780",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "hide_custom": 0,
  "idx": 0,
- "indicator_color": "blue",
+ "indicator_color": "green",
  "is_hidden": 0,
- "label": "Requests",
+ "label": "Upande Dev Tools",
  "link_type": "DocType",
  "links": [],
  "modified": "2026-09-13 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Requests",
- "name": "Requests",
+ "module": "Upande Dev Tools",
+ "name": "Upande Dev Tools",
  "number_cards": [],
  "owner": "Administrator",
  "public": 1,
  "quick_lists": [],
  "roles": [],
- "sequence_id": 1.0,
+ "sequence_id": 0.0,
  "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Backup Snapshots",
+   "link_to": "Code Backup Snapshot",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Code Editor",
+   "link_to": "code-editor",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Hooks Explorer",
+   "link_to": "hooks-explorer",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Code Backup Settings",
+   "link_to": "Code Backup Settings",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Tools Dashboard",
+   "link_to": "upande-dev-dashboard",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Version Check",
+   "link_to": "Module Version Check",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
   {
    "color": "Grey",
    "doc_view": "List",
@@ -1517,7 +1552,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
    "type": "DocType"
   }
  ],
- "title": "Requests",
+ "title": "Upande Dev Tools",
  "type": "Workspace"
 }
 ```
@@ -1526,57 +1561,45 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 Run: `bench --site <site> migrate`
 
-Verify by loading the desk (`/app/requests`) and confirming the "Requests" workspace appears with both shortcuts working — this is a visual/manual check, not a pytest, since a Workspace record has no behavior to unit test beyond "the JSON is valid and syncs," which `bench migrate` already proves by not erroring.
+Verify by loading the desk (`/app/upande-dev-tools`) and confirming the existing workspace still shows its original shortcuts plus the two new "Requests" ones — this is a visual/manual check, not a pytest, since a Workspace record has no behavior to unit test beyond "the JSON is valid and syncs," which `bench migrate` already proves by not erroring.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add upande_dev_tools/requests/workspace
-git commit -m "feat: add Requests workspace
+git add upande_dev_tools/upande_dev_tools/workspace/upande_dev_tools/upande_dev_tools.json
+git commit -m "feat: add Requests shortcuts to the Upande Dev Tools workspace
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 10: `Deployments` module scaffold — `Deployment Instance` and `Deployment App`
+### Task 10: `Deployment Instance` and `Deployment App`
 
 **Files:**
-- Modify: `upande_dev_tools/modules.txt`
-- Create: `upande_dev_tools/deployments/__init__.py`
-- Create: `upande_dev_tools/deployments/doctype/__init__.py`
-- Create: `upande_dev_tools/deployments/doctype/deployment_instance/__init__.py`
-- Create: `upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.json`
-- Create: `upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.py`
-- Test: `upande_dev_tools/deployments/doctype/deployment_instance/test_deployment_instance.py`
-- Create: `upande_dev_tools/deployments/doctype/deployment_app/__init__.py`
-- Create: `upande_dev_tools/deployments/doctype/deployment_app/deployment_app.json`
-- Create: `upande_dev_tools/deployments/doctype/deployment_app/deployment_app.py`
-- Test: `upande_dev_tools/deployments/doctype/deployment_app/test_deployment_app.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_instance/__init__.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_instance/deployment_instance.json`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_instance/deployment_instance.py`
+- Test: `upande_dev_tools/upande_dev_tools/doctype/deployment_instance/test_deployment_instance.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_app/__init__.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_app/deployment_app.json`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_app/deployment_app.py`
+- Test: `upande_dev_tools/upande_dev_tools/doctype/deployment_app/test_deployment_app.py`
 
 **Interfaces:**
 - Produces: `Deployment Instance` (fields `instance_name` (unique, is the doc name), `environment_type`, `site_url`, `notes`) and `Deployment App` (fields `app_name` (unique, is the doc name), `repository_url`, `default_branch`). Task 11's `Deployment Request` links to both by name.
 
-- [ ] **Step 1: Add the module**
+Both doctypes join the app's existing, single `Upande Dev Tools` module, exactly
+like `Request` (Task 1) — no module changes, just two new doctype folders.
 
-Append to `upande_dev_tools/modules.txt` so it reads:
+- [ ] **Step 1: Create the package files**
 
-```
-Upande Dev Tools
-Requests
-Deployments
-```
+`upande_dev_tools/upande_dev_tools/doctype/deployment_instance/__init__.py` — empty file.
+`upande_dev_tools/upande_dev_tools/doctype/deployment_app/__init__.py` — empty file.
 
-- [ ] **Step 2: Create the module package**
+- [ ] **Step 2: Write the failing tests**
 
-`upande_dev_tools/deployments/__init__.py` — empty file.
-`upande_dev_tools/deployments/doctype/__init__.py` — empty file.
-`upande_dev_tools/deployments/doctype/deployment_instance/__init__.py` — empty file.
-`upande_dev_tools/deployments/doctype/deployment_app/__init__.py` — empty file.
-
-- [ ] **Step 3: Write the failing tests**
-
-`upande_dev_tools/deployments/doctype/deployment_instance/test_deployment_instance.py`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_instance/test_deployment_instance.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and Contributors
@@ -1598,7 +1621,7 @@ class IntegrationTestDeploymentInstance(IntegrationTestCase):
 		self.assertEqual(doc.name, "Kaitet v16 Production")
 ```
 
-`upande_dev_tools/deployments/doctype/deployment_app/test_deployment_app.py`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_app/test_deployment_app.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and Contributors
@@ -1621,15 +1644,15 @@ class IntegrationTestDeploymentApp(IntegrationTestCase):
 		self.assertEqual(doc.default_branch, "main")
 ```
 
-- [ ] **Step 4: Run tests to verify they fail**
+- [ ] **Step 3: Run tests to verify they fail**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_instance.test_deployment_instance`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_app.test_deployment_app`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_instance.test_deployment_instance`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_app.test_deployment_app`
 Expected: both FAIL — neither DocType exists yet.
 
-- [ ] **Step 5: Write the schemas**
+- [ ] **Step 4: Write the schemas**
 
-`upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.json`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_instance/deployment_instance.json`:
 
 ```json
 {
@@ -1677,7 +1700,7 @@ Expected: both FAIL — neither DocType exists yet.
  "links": [],
  "modified": "2026-09-13 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Deployments",
+ "module": "Upande Dev Tools",
  "name": "Deployment Instance",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
@@ -1715,7 +1738,7 @@ Expected: both FAIL — neither DocType exists yet.
 }
 ```
 
-`upande_dev_tools/deployments/doctype/deployment_app/deployment_app.json`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_app/deployment_app.json`:
 
 ```json
 {
@@ -1757,7 +1780,7 @@ Expected: both FAIL — neither DocType exists yet.
  "links": [],
  "modified": "2026-09-13 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Deployments",
+ "module": "Upande Dev Tools",
  "name": "Deployment App",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
@@ -1795,9 +1818,9 @@ Expected: both FAIL — neither DocType exists yet.
 }
 ```
 
-- [ ] **Step 6: Write the minimal controllers**
+- [ ] **Step 5: Write the minimal controllers**
 
-`upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.py`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_instance/deployment_instance.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and contributors
@@ -1810,7 +1833,7 @@ class DeploymentInstance(Document):
 	pass
 ```
 
-`upande_dev_tools/deployments/doctype/deployment_app/deployment_app.py`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_app/deployment_app.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and contributors
@@ -1823,19 +1846,19 @@ class DeploymentApp(Document):
 	pass
 ```
 
-- [ ] **Step 7: Migrate and run tests**
+- [ ] **Step 6: Migrate and run tests**
 
 Run: `bench --site <site> migrate`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_instance.test_deployment_instance`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_app.test_deployment_app`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_instance.test_deployment_instance`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_app.test_deployment_app`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-ruff format upande_dev_tools/deployments/doctype/deployment_instance/deployment_instance.py upande_dev_tools/deployments/doctype/deployment_app/deployment_app.py
-git add upande_dev_tools/modules.txt upande_dev_tools/deployments
-git commit -m "feat: scaffold Deployments module with Instance/App master data
+ruff format upande_dev_tools/upande_dev_tools/doctype/deployment_instance/deployment_instance.py upande_dev_tools/upande_dev_tools/doctype/deployment_app/deployment_app.py
+git add upande_dev_tools/upande_dev_tools/doctype/deployment_instance upande_dev_tools/upande_dev_tools/doctype/deployment_app
+git commit -m "feat: add Deployment Instance and Deployment App doctypes
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
@@ -1845,10 +1868,10 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 11: `Deployment Request` doctype
 
 **Files:**
-- Create: `upande_dev_tools/deployments/doctype/deployment_request/__init__.py`
-- Create: `upande_dev_tools/deployments/doctype/deployment_request/deployment_request.json`
-- Create: `upande_dev_tools/deployments/doctype/deployment_request/deployment_request.py`
-- Test: `upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_request/__init__.py`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_request/deployment_request.json`
+- Create: `upande_dev_tools/upande_dev_tools/doctype/deployment_request/deployment_request.py`
+- Test: `upande_dev_tools/upande_dev_tools/doctype/deployment_request/test_deployment_request.py`
 
 **Interfaces:**
 - Consumes: `Deployment Instance`/`Deployment App` (Task 10); `Request` (Task 1, for the optional `linked_request` tie-back).
@@ -1856,11 +1879,11 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Create the package file**
 
-`upande_dev_tools/deployments/doctype/deployment_request/__init__.py` — empty file.
+`upande_dev_tools/upande_dev_tools/doctype/deployment_request/__init__.py` — empty file.
 
 - [ ] **Step 2: Write the failing tests**
 
-`upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_request/test_deployment_request.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and Contributors
@@ -1937,12 +1960,12 @@ Note: `test_defaults_to_requested_state` will fail until Task 12 ships the workf
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_request.test_deployment_request`
 Expected: FAIL — `Deployment Request` doesn't exist yet.
 
 - [ ] **Step 4: Write the schema**
 
-`upande_dev_tools/deployments/doctype/deployment_request/deployment_request.json`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_request/deployment_request.json`:
 
 ```json
 {
@@ -2075,7 +2098,7 @@ Expected: FAIL — `Deployment Request` doesn't exist yet.
  "links": [],
  "modified": "2026-09-13 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Deployments",
+ "module": "Upande Dev Tools",
  "name": "Deployment Request",
  "naming_rule": "Expression (old style)",
  "owner": "Administrator",
@@ -2116,7 +2139,7 @@ Expected: FAIL — `Deployment Request` doesn't exist yet.
 
 - [ ] **Step 5: Write the controller**
 
-`upande_dev_tools/deployments/doctype/deployment_request/deployment_request.py`:
+`upande_dev_tools/upande_dev_tools/doctype/deployment_request/deployment_request.py`:
 
 ```python
 # Copyright (c) 2026, shadrack@upande.com and contributors
@@ -2138,14 +2161,14 @@ class DeploymentRequest(Document):
 - [ ] **Step 6: Migrate and run tests**
 
 Run: `bench --site <site> migrate`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_request.test_deployment_request`
 Expected: `test_branch_defaults_from_app` and `test_requested_by_user_defaults_to_session_user` PASS; `test_defaults_to_requested_state` still FAILS (no workflow yet — expected, resolved in Task 12).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-ruff format upande_dev_tools/deployments/doctype/deployment_request/deployment_request.py
-git add upande_dev_tools/deployments/doctype/deployment_request
+ruff format upande_dev_tools/upande_dev_tools/doctype/deployment_request/deployment_request.py
+git add upande_dev_tools/upande_dev_tools/doctype/deployment_request
 git commit -m "feat: add Deployment Request doctype
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -2160,14 +2183,14 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Modify: `upande_dev_tools/fixtures/workflow_action_master.json`
 - Modify: `upande_dev_tools/fixtures/workflow.json`
 - Modify: `upande_dev_tools/hooks.py`
-- Test: `upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py` (the `test_defaults_to_requested_state` test from Task 11 starts passing)
+- Test: `upande_dev_tools/upande_dev_tools/doctype/deployment_request/test_deployment_request.py` (the `test_defaults_to_requested_state` test from Task 11 starts passing)
 
 **Interfaces:**
 - Produces: an active `Deployment Review` Workflow on `Deployment Request`, states `Requested` (default) / `In Progress` (reused from `Request Review`) / `Deployed` / `Failed`, actions `Start Deployment`/`Mark Deployed`/`Mark Failed`/`Retry`, all restricted to `Dev Team`. Task 13's `update_deployment_status` relies on these exact names.
 
 - [ ] **Step 1: Run the still-failing test to confirm the starting point**
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_request.test_deployment_request`
 Expected: `test_defaults_to_requested_state` FAILS (`workflow_state` is blank, no active Workflow yet).
 
 - [ ] **Step 2: Add the 3 new Workflow States**
@@ -2334,18 +2357,18 @@ fixtures = [
 - [ ] **Step 6: Migrate and run tests**
 
 Run: `bench --site <site> migrate`
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_request.test_deployment_request`
 Expected: PASS — `test_defaults_to_requested_state` now passes too.
 
 Also re-run Task 2's test to confirm the widened fixtures didn't disturb `Request Review`:
 
-Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request`
+Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request`
 Expected: PASS (unchanged).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add upande_dev_tools/fixtures upande_dev_tools/hooks.py upande_dev_tools/deployments/doctype/deployment_request/test_deployment_request.py
+git add upande_dev_tools/fixtures upande_dev_tools/hooks.py upande_dev_tools/upande_dev_tools/doctype/deployment_request/test_deployment_request.py
 git commit -m "feat: ship Deployment Request approval workflow
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -2356,25 +2379,25 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ### Task 13: Deployment API — `create_deployment_request`, `get_my_deployment_requests`, `get_deployment_queue`, `update_deployment_status`
 
 **Files:**
-- Create: `upande_dev_tools/deployments/utils.py`
+- Create: `upande_dev_tools/api/deployments.py`
 - Test: `upande_dev_tools/tests/test_deployments_api.py`
 
 **Interfaces:**
 - Consumes: `Deployment Request`/`Deployment Instance`/`Deployment App` (Tasks 10-11); Workflow transitions `Start Deployment`/`Mark Deployed`/`Mark Failed`/`Retry` (Task 12).
-- Produces: `create_deployment_request(app, instance, branch=None, description=None, linked_request=None) -> dict`, `get_my_deployment_requests(status=None) -> list[dict]`, `get_deployment_queue() -> list[dict]`, `update_deployment_status(name, action, commit_hash=None, errors=None, fix_notes=None) -> dict`. Phase 2/3 call these the same way they call `requests/utils.py`'s functions.
+- Produces: `create_deployment_request(app, instance, branch=None, description=None, linked_request=None) -> dict`, `get_my_deployment_requests(status=None) -> list[dict]`, `get_deployment_queue() -> list[dict]`, `update_deployment_status(name, action, commit_hash=None, errors=None, fix_notes=None) -> dict`. Phase 2/3 call these the same way they call `api/requests.py`'s functions.
 
 - [ ] **Step 1: Write the failing tests**
 
-`upande_dev_tools/tests/test_deployments_api.py`:
+`upande_dev_tools/tests/test_deployments_api.py` (same header convention as
+`upande_dev_tools/tests/test_customization_exporter.py` in this same folder):
 
 ```python
-# Copyright (c) 2026, shadrack@upande.com and Contributors
-# See license.txt
+# Copyright (c) 2026, Upande Limited
 
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from upande_dev_tools.deployments.utils import (
+from upande_dev_tools.api.deployments import (
 	create_deployment_request,
 	get_deployment_queue,
 	get_my_deployment_requests,
@@ -2491,16 +2514,13 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_deployments_api`
-Expected: FAIL — `upande_dev_tools.deployments.utils` doesn't exist yet.
+Expected: FAIL — `upande_dev_tools.api.deployments` doesn't exist yet.
 
 - [ ] **Step 3: Implement**
 
-`upande_dev_tools/deployments/utils.py`:
+`upande_dev_tools/api/deployments.py`:
 
 ```python
-# Copyright (c) 2026, shadrack@upande.com and contributors
-# For license information, please see license.txt
-
 import frappe
 from frappe import _
 
@@ -2593,8 +2613,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-ruff format upande_dev_tools/deployments/utils.py
-git add upande_dev_tools/deployments/utils.py upande_dev_tools/tests/test_deployments_api.py
+ruff format upande_dev_tools/api/deployments.py
+git add upande_dev_tools/api/deployments.py upande_dev_tools/tests/test_deployments_api.py
 git commit -m "feat: add deployment request API
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
@@ -2602,45 +2622,107 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 14: Deployments workspace (desk usability)
+### Task 14: Deployments shortcuts on the existing workspace (desk usability)
 
 **Files:**
-- Create: `upande_dev_tools/deployments/workspace/deployments/deployments.json`
+- Modify: `upande_dev_tools/upande_dev_tools/workspace/upande_dev_tools/upande_dev_tools.json`
 
 **Interfaces:**
 - Consumes: `Deployment Request`/`Deployment Instance`/`Deployment App` (Tasks 10-11).
-- Produces: a "Deployments" entry in the desk sidebar — nothing else depends on this file.
+- Produces: a "Deployments" section and four new shortcuts added to the same workspace Task 9 already extended — still no new workspace, no new module.
 
-- [ ] **Step 1: Write the workspace**
+- [ ] **Step 1: Add the shortcuts to the existing workspace**
 
-`upande_dev_tools/deployments/workspace/deployments/deployments.json`:
+Replace the full contents of `upande_dev_tools/upande_dev_tools/workspace/upande_dev_tools/upande_dev_tools.json` with (this is Task 9's version of the file plus one new paragraph label and four new shortcuts appended):
 
 ```json
 {
+ "app": "upande_dev_tools",
  "charts": [],
- "content": "[{\"id\":\"dep-header\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Deployments</b></span>\",\"col\":12}},{\"id\":\"dep-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Deployment Requests\",\"col\":3}},{\"id\":\"dep-queue-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Queue\",\"col\":3}},{\"id\":\"dep-instance-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Instances\",\"col\":3}},{\"id\":\"dep-app-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Apps\",\"col\":3}}]",
- "creation": "2026-09-13 00:00:00.000000",
+ "content": "[{\"id\":\"1KzzpMLKXj\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Dashboard</b></span>\",\"col\":12}},{\"id\":\"TrTCzaOnW4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tools Dashboard\",\"col\":3}},{\"id\":\"35bltqrEUL\",\"type\":\"paragraph\",\"data\":{\"text\":\"Developer Tools\",\"col\":12}},{\"id\":\"C-rb4vY5re\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Backup Snapshots\",\"col\":3}},{\"id\":\"A_V0MPZhlQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Code Editor\",\"col\":3}},{\"id\":\"0b_zJLbNPB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Version Check\",\"col\":3}},{\"id\":\"udp5D3mb60\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Hooks Explorer\",\"col\":3}},{\"id\":\"DBAoTswlzI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Code Backup Settings\",\"col\":3}},{\"id\":\"reqSectionHd\",\"type\":\"paragraph\",\"data\":{\"text\":\"Requests\",\"col\":12}},{\"id\":\"reqShortcut1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Requests\",\"col\":3}},{\"id\":\"reqShortcut2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Review Queue\",\"col\":3}},{\"id\":\"depSectionHd\",\"type\":\"paragraph\",\"data\":{\"text\":\"Deployments\",\"col\":12}},{\"id\":\"depShortcut1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Deployment Requests\",\"col\":3}},{\"id\":\"depShortcut2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Queue\",\"col\":3}},{\"id\":\"depShortcut3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Instances\",\"col\":3}},{\"id\":\"depShortcut4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Apps\",\"col\":3}}]",
+ "creation": "2026-06-25 16:40:25.944780",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
  "hide_custom": 0,
  "idx": 0,
- "indicator_color": "orange",
+ "indicator_color": "green",
  "is_hidden": 0,
- "label": "Deployments",
+ "label": "Upande Dev Tools",
  "link_type": "DocType",
  "links": [],
  "modified": "2026-09-13 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Deployments",
- "name": "Deployments",
+ "module": "Upande Dev Tools",
+ "name": "Upande Dev Tools",
  "number_cards": [],
  "owner": "Administrator",
  "public": 1,
  "quick_lists": [],
  "roles": [],
- "sequence_id": 2.0,
+ "sequence_id": 0.0,
  "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Backup Snapshots",
+   "link_to": "Code Backup Snapshot",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Code Editor",
+   "link_to": "code-editor",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Hooks Explorer",
+   "link_to": "hooks-explorer",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Code Backup Settings",
+   "link_to": "Code Backup Settings",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Tools Dashboard",
+   "link_to": "upande-dev-dashboard",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Version Check",
+   "link_to": "Module Version Check",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Requests",
+   "link_to": "Request",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Review Queue",
+   "link_to": "Request",
+   "stats_filter": "[[\"Request\", \"workflow_state\", \"=\", \"Under Review\"]]",
+   "type": "DocType"
+  },
   {
    "color": "Grey",
    "doc_view": "List",
@@ -2674,7 +2756,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
    "type": "DocType"
   }
  ],
- "title": "Deployments",
+ "title": "Upande Dev Tools",
  "type": "Workspace"
 }
 ```
@@ -2683,13 +2765,13 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 Run: `bench --site <site> migrate`
 
-Verify by loading the desk (`/app/deployments`) and confirming the "Deployments" workspace appears with all four shortcuts working.
+Verify by loading the desk (`/app/upande-dev-tools`) and confirming the workspace now shows the original shortcuts, the Task 9 "Requests" shortcuts, and these four new "Deployments" ones.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add upande_dev_tools/deployments/workspace
-git commit -m "feat: add Deployments workspace
+git add upande_dev_tools/upande_dev_tools/workspace/upande_dev_tools/upande_dev_tools.json
+git commit -m "feat: add Deployments shortcuts to the Upande Dev Tools workspace
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
@@ -2701,11 +2783,11 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 After Task 14, run every module touched by this plan to confirm nothing regressed. Run each module-scoped (not `--app upande_dev_tools` as a whole) — this bench has a pre-existing, unrelated site-wide issue where the whole-app run drags in ERPNext's own test bootstrapping and fails on a broken regional (India) company setup; that failure predates this plan and reproduces on `main`, so it is not a regression to chase here:
 
 ```bash
-bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.requests.doctype.request.test_request
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.request.test_request
 bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_requests_api
-bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_instance.test_deployment_instance
-bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_app.test_deployment_app
-bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.deployments.doctype.deployment_request.test_deployment_request
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_instance.test_deployment_instance
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_app.test_deployment_app
+bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.deployment_request.test_deployment_request
 bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_deployments_api
 bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.upande_dev_tools.doctype.module_version_check.test_module_version_check
 bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.tests.test_customization_exporter
@@ -2713,4 +2795,4 @@ bench --site <site> run-tests --app upande_dev_tools --module upande_dev_tools.t
 
 Expected: all pass.
 
-At this point: a Projects Manager can review and approve/reject/defer a request from the desk; a developer can raise a Note and self-promote it; approving+scheduling a request creates a linked Task; a developer can raise a deployment request against a mapped instance/app, work it through to Deployed or Failed→Retry, and optionally tie it back to the Request that needed it; and every capability — both `Request` and `Deployment Request` — is reachable headlessly via `upande_dev_tools.requests.utils.*` and `upande_dev_tools.deployments.utils.*` over `/api/method/...` — ready for Phase 2 (portal) and Phase 3 (mobile) to build on without touching this layer again.
+At this point: a Projects Manager can review and approve/reject/defer a request from the desk; a developer can raise a Note and self-promote it; approving+scheduling a request creates a linked Task; a developer can raise a deployment request against a mapped instance/app, work it through to Deployed or Failed→Retry, and optionally tie it back to the Request that needed it; and every capability — both `Request` and `Deployment Request` — is reachable headlessly via `upande_dev_tools.api.requests.*` and `upande_dev_tools.api.deployments.*` over `/api/method/...` — ready for Phase 2 (portal) and Phase 3 (mobile) to build on without touching this layer again.
