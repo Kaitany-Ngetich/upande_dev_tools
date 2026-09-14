@@ -10,13 +10,13 @@
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
- "label": "Upande Dev Tools",
+ "label": "Dev Tools",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-09-13 23:30:00.000000",
+ "modified": "2026-09-14 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Dev Tools",
- "name": "Upande Dev Tools",
+ "name": "Dev Tools",
  "number_cards": [],
  "owner": "Administrator",
  "public": 1,
@@ -97,6 +97,6 @@
    "type": "DocType"
   }
  ],
- "title": "Upande Dev Tools",
+ "title": "Dev Tools",
  "type": "Workspace"
 }

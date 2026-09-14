@@ -1,0 +1,23 @@
+{
+ "app": "upande_dev_tools",
+ "bg_color": "blue",
+ "creation": "2026-09-14 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "tool",
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "Dev Tools",
+ "link_to": "Dev Tools",
+ "link_type": "Workspace Sidebar",
+ "logo_url": "/assets/upande_dev_tools/images/upande_logo.ico",
+ "modified": "2026-09-14 00:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "Dev Tools",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "sidebar": "Dev Tools",
+ "standard": 1
+}

@@ -1,4 +1,4 @@
-# Copyright (c) 2026, shadrack@upande.com and contributors
+# Copyright (c) 2026, Upande LTD and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -40,10 +40,8 @@ class Request(Document):
 					"custom_request": self.name,
 				}
 			)
-			# A freshly created Task has no "Task Depends On" rows, so there is no cycle to
-			# detect — skip Task's own recursion check (an ERPNext-native flag, also used
-			# internally by erpnext/projects/doctype/task/task.py itself for the same reason)
-			# rather than run a query this bench's installed pypika can't execute.
+			# Skip Task's recursion check - a query this bench's pypika can't execute, and
+			# unnecessary on a freshly created Task anyway.
 			task.flags.ignore_recursion_check = True
 			task.insert(ignore_permissions=True)
 			self.db_set("linked_task", task.name, update_modified=False)

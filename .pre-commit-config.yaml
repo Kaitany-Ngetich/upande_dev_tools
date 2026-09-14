@@ -42,7 +42,9 @@ repos:
                 .*node_modules.*|
                 .*boilerplate.*|
                 upande_dev_tools/templates/includes/.*|
-                upande_dev_tools/public/js/lib/.*
+                upande_dev_tools/public/js/lib/.*|
+                upande_dev_tools/public/js/monaco/.*|
+                upande_dev_tools/public/js/vendor/.*
             )$
 
 
@@ -60,7 +62,9 @@ repos:
                 .*node_modules.*|
                 .*boilerplate.*|
                 upande_dev_tools/templates/includes/.*|
-                upande_dev_tools/public/js/lib/.*
+                upande_dev_tools/public/js/lib/.*|
+                upande_dev_tools/public/js/monaco/.*|
+                upande_dev_tools/public/js/vendor/.*
             )$
 
 ci:

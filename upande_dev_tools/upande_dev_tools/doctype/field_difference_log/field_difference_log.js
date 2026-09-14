@@ -1,4 +1,4 @@
-// Copyright (c) 2026, shadrack@upande.com and contributors
+// Copyright (c) 2026, Upande LTD and contributors
 // For license information, please see license.txt
 
 // frappe.ui.form.on("Field Difference Log", {

@@ -1,4 +1,5 @@
-# Copyright (c) 2026, Upande Limited
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
 # See license.txt
 
 import frappe

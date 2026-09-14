@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
 upande_dev_tools_portal.mount_hooks_explorer = function (root) {
@@ -112,7 +115,9 @@ upande_dev_tools_portal.mount_hooks_explorer = function (root) {
 			html += `
 				<div style="margin-bottom:20px;">
 					<h5>${escape_html(hook_type)}</h5>
-					<pre style="background:#f7f7f7;padding:12px;border-radius:6px;max-height:300px;overflow:auto;">${escape_html(hook_json)}</pre>
+					<pre style="background:#f7f7f7;padding:12px;border-radius:6px;max-height:300px;overflow:auto;">${escape_html(
+						hook_json
+					)}</pre>
 				</div>
 			`;
 		});

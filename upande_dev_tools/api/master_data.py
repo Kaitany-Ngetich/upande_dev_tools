@@ -1,12 +1,12 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+
 import frappe
 from frappe import _
 
 MASTER_DATA_ROLES = {"Dev Team", "Projects Manager"}
 
-# Never accept a raw doctype name from the caller - only these four keys are reachable here,
-# each mapped to its real doctype and the field that holds its name, whatever a request body
-# claims. Adding a fifth kind of master data later means adding one line here, not a new
-# endpoint.
+# Never accept a raw doctype name from the caller - only these keys are reachable here.
 MASTER_DATA_DOCTYPES: dict[str, tuple[str, str]] = {
 	"request_type": ("Request Type", "type_name"),
 	"priority_level": ("Priority Level", "level_name"),
@@ -28,9 +28,7 @@ def _resolve(key: str) -> tuple[str, str]:
 
 @frappe.whitelist()
 def get_master_data_kinds() -> list[dict]:
-	"""What this page can manage - drives the tab list client-side instead of hardcoding it in
-	the page's own JS, the same "don't hardcode what a doctype can already tell you" principle
-	the rest of this app follows."""
+	"""What this page can manage - drives the tab list client-side."""
 	_require_access()
 	return [
 		{"key": "request_type", "label": "Request Types", "has_sort_order": False},

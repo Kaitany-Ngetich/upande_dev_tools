@@ -1,11 +1,11 @@
-'use strict';
+"use strict";
 /*!-----------------------------------------------------------
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Version: 0.42.0-dev-20230906(e7d7a5b072e74702a912a4c855a3bda21a7757e7)
  * Released under the MIT license
  * https://github.com/microsoft/vscode/blob/main/LICENSE.txt
  *-----------------------------------------------------------*/ const _amdLoaderGlobal = this,
-	_commonjsGlobal = typeof global == 'object' ? global : {};
+	_commonjsGlobal = typeof global == "object" ? global : {};
 var AMDLoader;
 (function (u) {
 	u.global = _amdLoaderGlobal;
@@ -37,27 +37,27 @@ var AMDLoader;
 			this._detected ||
 				((this._detected = !0),
 				(this._isWindows = y._isWindows()),
-				(this._isNode = typeof module < 'u' && !!module.exports),
+				(this._isNode = typeof module < "u" && !!module.exports),
 				(this._isElectronRenderer =
-					typeof process < 'u' &&
-					typeof process.versions < 'u' &&
-					typeof process.versions.electron < 'u' &&
-					process.type === 'renderer'),
-				(this._isWebWorker = typeof u.global.importScripts == 'function'),
+					typeof process < "u" &&
+					typeof process.versions < "u" &&
+					typeof process.versions.electron < "u" &&
+					process.type === "renderer"),
+				(this._isWebWorker = typeof u.global.importScripts == "function"),
 				(this._isElectronNodeIntegrationWebWorker =
 					this._isWebWorker &&
-					typeof process < 'u' &&
-					typeof process.versions < 'u' &&
-					typeof process.versions.electron < 'u' &&
-					process.type === 'worker'));
+					typeof process < "u" &&
+					typeof process.versions < "u" &&
+					typeof process.versions.electron < "u" &&
+					process.type === "worker"));
 		}
 		static _isWindows() {
-			return typeof navigator < 'u' &&
+			return typeof navigator < "u" &&
 				navigator.userAgent &&
-				navigator.userAgent.indexOf('Windows') >= 0
+				navigator.userAgent.indexOf("Windows") >= 0
 				? !0
-				: typeof process < 'u'
-				? process.platform === 'win32'
+				: typeof process < "u"
+				? process.platform === "win32"
 				: !1;
 		}
 	}
@@ -73,7 +73,7 @@ var AMDLoader;
 	u.LoaderEvent = y;
 	class m {
 		constructor(r) {
-			this._events = [new y(1, '', r)];
+			this._events = [new y(1, "", r)];
 		}
 		record(r, c) {
 			this._events.push(new y(r, c, u.Utilities.getHighPerformanceTimestamp()));
@@ -95,7 +95,7 @@ var AMDLoader;
 (function (u) {
 	class y {
 		static fileUriToFilePath(p, h) {
-			if (((h = decodeURI(h).replace(/%23/g, '#')), p)) {
+			if (((h = decodeURI(h).replace(/%23/g, "#")), p)) {
 				if (/^file:\/\/\//.test(h)) return h.substr(8);
 				if (/^file:\/\//.test(h)) return h.substr(5);
 			} else if (/^file:\/\//.test(h)) return h.substr(7);
@@ -131,7 +131,7 @@ var AMDLoader;
 		static recursiveClone(p) {
 			if (
 				!p ||
-				typeof p != 'object' ||
+				typeof p != "object" ||
 				p instanceof RegExp ||
 				(!Array.isArray(p) && Object.getPrototypeOf(p) !== Object.prototype)
 			)
@@ -139,23 +139,23 @@ var AMDLoader;
 			let h = Array.isArray(p) ? [] : {};
 			return (
 				y.forEachProperty(p, (r, c) => {
-					c && typeof c == 'object' ? (h[r] = y.recursiveClone(c)) : (h[r] = c);
+					c && typeof c == "object" ? (h[r] = y.recursiveClone(c)) : (h[r] = c);
 				}),
 				h
 			);
 		}
 		static generateAnonymousModule() {
-			return '===anonymous' + y.NEXT_ANONYMOUS_ID++ + '===';
+			return "===anonymous" + y.NEXT_ANONYMOUS_ID++ + "===";
 		}
 		static isAnonymousModule(p) {
-			return y.startsWith(p, '===anonymous');
+			return y.startsWith(p, "===anonymous");
 		}
 		static getHighPerformanceTimestamp() {
 			return (
 				this.PERFORMANCE_NOW_PROBED ||
 					((this.PERFORMANCE_NOW_PROBED = !0),
 					(this.HAS_PERFORMANCE_NOW =
-						u.global.performance && typeof u.global.performance.now == 'function')),
+						u.global.performance && typeof u.global.performance.now == "function")),
 				this.HAS_PERFORMANCE_NOW ? u.global.performance.now() : Date.now()
 			);
 		}
@@ -169,51 +169,55 @@ var AMDLoader;
 (function (u) {
 	function y(h) {
 		if (h instanceof Error) return h;
-		const r = new Error(h.message || String(h) || 'Unknown Error');
+		const r = new Error(h.message || String(h) || "Unknown Error");
 		return h.stack && (r.stack = h.stack), r;
 	}
 	u.ensureError = y;
 	class m {
 		static validateConfigurationOptions(r) {
 			function c(a) {
-				if (a.phase === 'loading') {
+				if (a.phase === "loading") {
 					console.error('Loading "' + a.moduleId + '" failed'),
 						console.error(a),
-						console.error('Here are the modules that depend on it:'),
+						console.error("Here are the modules that depend on it:"),
 						console.error(a.neededBy);
 					return;
 				}
-				if (a.phase === 'factory') {
-					console.error('The factory function of "' + a.moduleId + '" has thrown an exception'),
+				if (a.phase === "factory") {
+					console.error(
+						'The factory function of "' + a.moduleId + '" has thrown an exception'
+					),
 						console.error(a),
-						console.error('Here are the modules that depend on it:'),
+						console.error("Here are the modules that depend on it:"),
 						console.error(a.neededBy);
 					return;
 				}
 			}
 			if (
 				((r = r || {}),
-				typeof r.baseUrl != 'string' && (r.baseUrl = ''),
-				typeof r.isBuild != 'boolean' && (r.isBuild = !1),
-				typeof r.paths != 'object' && (r.paths = {}),
-				typeof r.config != 'object' && (r.config = {}),
-				typeof r.catchError > 'u' && (r.catchError = !1),
-				typeof r.recordStats > 'u' && (r.recordStats = !1),
-				typeof r.urlArgs != 'string' && (r.urlArgs = ''),
-				typeof r.onError != 'function' && (r.onError = c),
+				typeof r.baseUrl != "string" && (r.baseUrl = ""),
+				typeof r.isBuild != "boolean" && (r.isBuild = !1),
+				typeof r.paths != "object" && (r.paths = {}),
+				typeof r.config != "object" && (r.config = {}),
+				typeof r.catchError > "u" && (r.catchError = !1),
+				typeof r.recordStats > "u" && (r.recordStats = !1),
+				typeof r.urlArgs != "string" && (r.urlArgs = ""),
+				typeof r.onError != "function" && (r.onError = c),
 				Array.isArray(r.ignoreDuplicateModules) || (r.ignoreDuplicateModules = []),
-				r.baseUrl.length > 0 && (u.Utilities.endsWith(r.baseUrl, '/') || (r.baseUrl += '/')),
-				typeof r.cspNonce != 'string' && (r.cspNonce = ''),
-				typeof r.preferScriptTags > 'u' && (r.preferScriptTags = !1),
+				r.baseUrl.length > 0 &&
+					(u.Utilities.endsWith(r.baseUrl, "/") || (r.baseUrl += "/")),
+				typeof r.cspNonce != "string" && (r.cspNonce = ""),
+				typeof r.preferScriptTags > "u" && (r.preferScriptTags = !1),
 				r.nodeCachedData &&
-					typeof r.nodeCachedData == 'object' &&
-					(typeof r.nodeCachedData.seed != 'string' && (r.nodeCachedData.seed = 'seed'),
-					(typeof r.nodeCachedData.writeDelay != 'number' || r.nodeCachedData.writeDelay < 0) &&
+					typeof r.nodeCachedData == "object" &&
+					(typeof r.nodeCachedData.seed != "string" && (r.nodeCachedData.seed = "seed"),
+					(typeof r.nodeCachedData.writeDelay != "number" ||
+						r.nodeCachedData.writeDelay < 0) &&
 						(r.nodeCachedData.writeDelay = 1e3 * 7),
-					!r.nodeCachedData.path || typeof r.nodeCachedData.path != 'string'))
+					!r.nodeCachedData.path || typeof r.nodeCachedData.path != "string"))
 			) {
 				const a = y(new Error("INVALID cached data configuration, 'path' MUST be set"));
-				(a.phase = 'configuration'), r.onError(a), (r.nodeCachedData = void 0);
+				(a.phase = "configuration"), r.onError(a), (r.nodeCachedData = void 0);
 			}
 			return r;
 		}
@@ -221,11 +225,11 @@ var AMDLoader;
 			let a = u.Utilities.recursiveClone(c || {});
 			return (
 				u.Utilities.forEachProperty(r, (t, e) => {
-					t === 'ignoreDuplicateModules' && typeof a.ignoreDuplicateModules < 'u'
+					t === "ignoreDuplicateModules" && typeof a.ignoreDuplicateModules < "u"
 						? (a.ignoreDuplicateModules = a.ignoreDuplicateModules.concat(e))
-						: t === 'paths' && typeof a.paths < 'u'
+						: t === "paths" && typeof a.paths < "u"
 						? u.Utilities.forEachProperty(e, (i, s) => (a.paths[i] = s))
-						: t === 'config' && typeof a.config < 'u'
+						: t === "config" && typeof a.config < "u"
 						? u.Utilities.forEachProperty(e, (i, s) => (a.config[i] = s))
 						: (a[t] = u.Utilities.recursiveClone(e));
 				}),
@@ -241,14 +245,14 @@ var AMDLoader;
 				(this.options = m.mergeConfigurationOptions(c)),
 				this._createIgnoreDuplicateModulesMap(),
 				this._createSortedPathsRules(),
-				this.options.baseUrl === '' &&
+				this.options.baseUrl === "" &&
 					this.options.nodeRequire &&
 					this.options.nodeRequire.main &&
 					this.options.nodeRequire.main.filename &&
 					this._env.isNode)
 			) {
 				let a = this.options.nodeRequire.main.filename,
-					t = Math.max(a.lastIndexOf('/'), a.lastIndexOf('\\'));
+					t = Math.max(a.lastIndexOf("/"), a.lastIndexOf("\\"));
 				this.options.baseUrl = a.substring(0, t + 1);
 			}
 		}
@@ -277,15 +281,16 @@ var AMDLoader;
 			for (let a = 0, t = this.sortedPathsRules.length; a < t; a++)
 				if (((c = this.sortedPathsRules[a]), u.Utilities.startsWith(r, c.from))) {
 					let e = [];
-					for (let i = 0, s = c.to.length; i < s; i++) e.push(c.to[i] + r.substr(c.from.length));
+					for (let i = 0, s = c.to.length; i < s; i++)
+						e.push(c.to[i] + r.substr(c.from.length));
 					return e;
 				}
 			return [r];
 		}
 		_addUrlArgsToUrl(r) {
 			return u.Utilities.containsQueryString(r)
-				? r + '&' + this.options.urlArgs
-				: r + '?' + this.options.urlArgs;
+				? r + "&" + this.options.urlArgs
+				: r + "?" + this.options.urlArgs;
 		}
 		_addUrlArgsIfNecessaryToUrl(r) {
 			return this.options.urlArgs ? this._addUrlArgsToUrl(r) : r;
@@ -301,19 +306,21 @@ var AMDLoader;
 				this.options.amdModulesPattern instanceof RegExp &&
 				!this.options.amdModulesPattern.test(r)
 			)
-				return this.isBuild() ? ['empty:'] : ['node|' + r];
+				return this.isBuild() ? ["empty:"] : ["node|" + r];
 			let c = r,
 				a;
-			if (!u.Utilities.endsWith(c, '.js') && !u.Utilities.isAbsolutePath(c)) {
+			if (!u.Utilities.endsWith(c, ".js") && !u.Utilities.isAbsolutePath(c)) {
 				a = this._applyPaths(c);
 				for (let t = 0, e = a.length; t < e; t++)
-					(this.isBuild() && a[t] === 'empty:') ||
+					(this.isBuild() && a[t] === "empty:") ||
 						(u.Utilities.isAbsolutePath(a[t]) || (a[t] = this.options.baseUrl + a[t]),
-						!u.Utilities.endsWith(a[t], '.js') &&
+						!u.Utilities.endsWith(a[t], ".js") &&
 							!u.Utilities.containsQueryString(a[t]) &&
-							(a[t] = a[t] + '.js'));
+							(a[t] = a[t] + ".js"));
 			} else
-				!u.Utilities.endsWith(c, '.js') && !u.Utilities.containsQueryString(c) && (c = c + '.js'),
+				!u.Utilities.endsWith(c, ".js") &&
+					!u.Utilities.containsQueryString(c) &&
+					(c = c + ".js"),
 					(a = [c]);
 			return this._addUrlArgsIfNecessaryToUrls(a);
 		}
@@ -397,7 +404,7 @@ var AMDLoader;
 	class m {
 		attachListeners(e, i, s) {
 			let n = () => {
-					e.removeEventListener('load', l), e.removeEventListener('error', d);
+					e.removeEventListener("load", l), e.removeEventListener("error", d);
 				},
 				l = (o) => {
 					n(), i();
@@ -405,13 +412,13 @@ var AMDLoader;
 				d = (o) => {
 					n(), s(o);
 				};
-			e.addEventListener('load', l), e.addEventListener('error', d);
+			e.addEventListener("load", l), e.addEventListener("error", d);
 		}
 		load(e, i, s, n) {
 			if (/^node\|/.test(i)) {
 				let l = e.getConfig().getOptionsLiteral(),
 					d = c(e.getRecorder(), l.nodeRequire || u.global.nodeRequire),
-					o = i.split('|'),
+					o = i.split("|"),
 					_ = null;
 				try {
 					_ = d(o[1]);
@@ -421,21 +428,24 @@ var AMDLoader;
 				}
 				e.enqueueDefineAnonymousModule([], () => _), s();
 			} else {
-				let l = document.createElement('script');
-				l.setAttribute('async', 'async'),
-					l.setAttribute('type', 'text/javascript'),
+				let l = document.createElement("script");
+				l.setAttribute("async", "async"),
+					l.setAttribute("type", "text/javascript"),
 					this.attachListeners(l, s, n);
 				const { trustedTypesPolicy: d } = e.getConfig().getOptionsLiteral();
-				d && (i = d.createScriptURL(i)), l.setAttribute('src', i);
+				d && (i = d.createScriptURL(i)), l.setAttribute("src", i);
 				const { cspNonce: o } = e.getConfig().getOptionsLiteral();
-				o && l.setAttribute('nonce', o), document.getElementsByTagName('head')[0].appendChild(l);
+				o && l.setAttribute("nonce", o),
+					document.getElementsByTagName("head")[0].appendChild(l);
 			}
 		}
 	}
 	function p(t) {
 		const { trustedTypesPolicy: e } = t.getConfig().getOptionsLiteral();
 		try {
-			return (e ? self.eval(e.createScript('', 'true')) : new Function('true')).call(self), !0;
+			return (
+				(e ? self.eval(e.createScript("", "true")) : new Function("true")).call(self), !0
+			);
 		} catch {
 			return !1;
 		}
@@ -446,14 +456,15 @@ var AMDLoader;
 		}
 		_canUseEval(e) {
 			return (
-				this._cachedCanUseEval === null && (this._cachedCanUseEval = p(e)), this._cachedCanUseEval
+				this._cachedCanUseEval === null && (this._cachedCanUseEval = p(e)),
+				this._cachedCanUseEval
 			);
 		}
 		load(e, i, s, n) {
 			if (/^node\|/.test(i)) {
 				const l = e.getConfig().getOptionsLiteral(),
 					d = c(e.getRecorder(), l.nodeRequire || u.global.nodeRequire),
-					o = i.split('|');
+					o = i.split("|");
 				let _ = null;
 				try {
 					_ = d(o[1]);
@@ -482,7 +493,9 @@ var AMDLoader;
 						.then((o) => {
 							(o = `${o}
 //# sourceURL=${i}`),
-								(l ? self.eval(l.createScript('', o)) : new Function(o)).call(self),
+								(l ? self.eval(l.createScript("", o)) : new Function(o)).call(
+									self
+								),
 								s();
 						})
 						.then(void 0, n);
@@ -503,17 +516,17 @@ var AMDLoader;
 		_init(e) {
 			this._didInitialize ||
 				((this._didInitialize = !0),
-				(this._fs = e('fs')),
-				(this._vm = e('vm')),
-				(this._path = e('path')),
-				(this._crypto = e('crypto')));
+				(this._fs = e("fs")),
+				(this._vm = e("vm")),
+				(this._path = e("path")),
+				(this._crypto = e("crypto")));
 		}
 		_initNodeRequire(e, i) {
 			const { nodeCachedData: s } = i.getConfig().getOptionsLiteral();
 			if (!s || this._didPatchNodeRequire) return;
 			this._didPatchNodeRequire = !0;
 			const n = this,
-				l = e('module');
+				l = e("module");
 			function d(o) {
 				const _ = o.constructor;
 				let f = function (v) {
@@ -536,7 +549,7 @@ var AMDLoader;
 				);
 			}
 			l.prototype._compile = function (o, _) {
-				const f = l.wrap(o.replace(/^#!.*/, '')),
+				const f = l.wrap(o.replace(/^#!.*/, "")),
 					g = i.getRecorder(),
 					v = n._getCachedDataPath(s, _),
 					E = { filename: _ };
@@ -554,7 +567,9 @@ var AMDLoader;
 					U = [this.exports, R, this, _, w, process, _commonjsGlobal, Buffer],
 					b = P.apply(this.exports, U);
 				return (
-					n._handleCachedData(C, f, v, !E.cachedData, i), n._verifyCachedData(C, f, v, I, i), b
+					n._handleCachedData(C, f, v, !E.cachedData, i),
+					n._verifyCachedData(C, f, v, I, i),
+					b
 				);
 			};
 		}
@@ -569,7 +584,7 @@ var AMDLoader;
 			this._init(d), this._initNodeRequire(d, e);
 			let _ = e.getRecorder();
 			if (/^node\|/.test(i)) {
-				let f = i.split('|'),
+				let f = i.split("|"),
 					g = null;
 				try {
 					g = d(f[1]);
@@ -596,7 +611,8 @@ var AMDLoader;
 						(R = o(R, f));
 					const U = { filename: g, cachedData: P },
 						b = this._createAndEvalScript(e, R, U, s, n);
-					this._handleCachedData(b, R, E, v && !P, e), this._verifyCachedData(b, R, E, w, e);
+					this._handleCachedData(b, R, E, v && !P, e),
+						this._verifyCachedData(b, R, E, w, e);
 				});
 			}
 		}
@@ -627,16 +643,18 @@ var AMDLoader;
 		_getElectronRendererScriptPathOrUri(e) {
 			if (!this._env.isElectronRenderer) return e;
 			let i = e.match(/^([a-z])\:(.*)/i);
-			return i ? `file:///${(i[1].toUpperCase() + ':' + i[2]).replace(/\\/g, '/')}` : `file://${e}`;
+			return i
+				? `file:///${(i[1].toUpperCase() + ":" + i[2]).replace(/\\/g, "/")}`
+				: `file://${e}`;
 		}
 		_getCachedDataPath(e, i) {
 			const s = this._crypto
-					.createHash('md5')
-					.update(i, 'utf8')
-					.update(e.seed, 'utf8')
-					.update(process.arch, '')
-					.digest('hex'),
-				n = this._path.basename(i).replace(/\.js$/, '');
+					.createHash("md5")
+					.update(i, "utf8")
+					.update(e.seed, "utf8")
+					.update(process.arch, "")
+					.digest("hex"),
+				n = this._path.basename(i).replace(/\.js$/, "");
 			return this._path.join(e.path, `${n}-${s}.code`);
 		}
 		_handleCachedData(e, i, s, n, l) {
@@ -650,14 +668,15 @@ var AMDLoader;
 		}
 		_createAndWriteCachedData(e, i, s, n) {
 			let l = Math.ceil(
-					n.getConfig().getOptionsLiteral().nodeCachedData.writeDelay * (1 + Math.random())
+					n.getConfig().getOptionsLiteral().nodeCachedData.writeDelay *
+						(1 + Math.random())
 				),
 				d = -1,
 				o = 0,
 				_;
 			const f = () => {
 				setTimeout(() => {
-					_ || (_ = this._crypto.createHash('md5').update(i, 'utf8').digest());
+					_ || (_ = this._crypto.createHash("md5").update(i, "utf8").digest());
 					const g = e.createCachedData();
 					if (!(g.length === 0 || g.length === d || o >= 5)) {
 						if (g.length < d) {
@@ -674,7 +693,7 @@ var AMDLoader;
 			f();
 		}
 		_readSourceAndCachedData(e, i, s, n) {
-			if (!i) this._fs.readFile(e, { encoding: 'utf8' }, n);
+			if (!i) this._fs.readFile(e, { encoding: "utf8" }, n);
 			else {
 				let l,
 					d,
@@ -683,7 +702,7 @@ var AMDLoader;
 				const f = (g) => {
 					g ? n(g) : --_ === 0 && n(void 0, l, d, o);
 				};
-				this._fs.readFile(e, { encoding: 'utf8' }, (g, v) => {
+				this._fs.readFile(e, { encoding: "utf8" }, (g, v) => {
 					(l = v), f(g);
 				}),
 					this._fs.readFile(i, (g, v) => {
@@ -698,7 +717,7 @@ var AMDLoader;
 			n &&
 				(e.cachedDataRejected ||
 					setTimeout(() => {
-						const d = this._crypto.createHash('md5').update(i, 'utf8').digest();
+						const d = this._crypto.createHash("md5").update(i, "utf8").digest();
 						n.equals(d) ||
 							(l
 								.getConfig()
@@ -714,7 +733,7 @@ var AMDLoader;
 		}
 	}
 	(r._BOM = 65279),
-		(r._PREFIX = '(function (require, define, __filename, __dirname) { '),
+		(r._PREFIX = "(function (require, define, __filename, __dirname) { "),
 		(r._SUFFIX = `
 });`);
 	function c(t, e) {
@@ -739,22 +758,25 @@ var AMDLoader;
 (function (u) {
 	class y {
 		constructor(t) {
-			let e = t.lastIndexOf('/');
-			e !== -1 ? (this.fromModulePath = t.substr(0, e + 1)) : (this.fromModulePath = '');
+			let e = t.lastIndexOf("/");
+			e !== -1 ? (this.fromModulePath = t.substr(0, e + 1)) : (this.fromModulePath = "");
 		}
 		static _normalizeModuleId(t) {
 			let e = t,
 				i;
-			for (i = /\/\.\//; i.test(e); ) e = e.replace(i, '/');
+			for (i = /\/\.\//; i.test(e); ) e = e.replace(i, "/");
 			for (
-				e = e.replace(/^\.\//g, ''),
+				e = e.replace(/^\.\//g, ""),
 					i = /\/(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//;
 				i.test(e);
 
 			)
-				e = e.replace(i, '/');
+				e = e.replace(i, "/");
 			return (
-				(e = e.replace(/^(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//, '')),
+				(e = e.replace(
+					/^(([^\/])|([^\/][^\/\.])|([^\/\.][^\/])|([^\/][^\/][^\/]+))\/\.\.\//,
+					""
+				)),
 				e
 			);
 		}
@@ -762,13 +784,13 @@ var AMDLoader;
 			let e = t;
 			return (
 				u.Utilities.isAbsolutePath(e) ||
-					((u.Utilities.startsWith(e, './') || u.Utilities.startsWith(e, '../')) &&
+					((u.Utilities.startsWith(e, "./") || u.Utilities.startsWith(e, "../")) &&
 						(e = y._normalizeModuleId(this.fromModulePath + e))),
 				e
 			);
 		}
 	}
-	(y.ROOT = new y('')), (u.ModuleIdResolver = y);
+	(y.ROOT = new y("")), (u.ModuleIdResolver = y);
 	class m {
 		constructor(t, e, i, s, n, l) {
 			(this.id = t),
@@ -801,19 +823,19 @@ var AMDLoader;
 			this._isComplete = !0;
 			let n = null;
 			if (this._callback)
-				if (typeof this._callback == 'function') {
+				if (typeof this._callback == "function") {
 					t.record(21, this.strId);
 					let l = m._invokeFactory(e, this.strId, this._callback, i);
 					(n = l.producedError),
 						t.record(22, this.strId),
 						!n &&
-							typeof l.returnedValue < 'u' &&
+							typeof l.returnedValue < "u" &&
 							(!this.exportsPassedIn || u.Utilities.isEmpty(this.exports)) &&
 							(this.exports = l.returnedValue);
 				} else this.exports = this._callback;
 			if (n) {
 				let l = u.ensureError(n);
-				(l.phase = 'factory'),
+				(l.phase = "factory"),
 					(l.moduleId = this.strId),
 					(l.neededBy = s(this.id)),
 					(this.error = l),
@@ -826,7 +848,9 @@ var AMDLoader;
 		}
 		onDependencyError(t) {
 			return (
-				(this._isComplete = !0), (this.error = t), this._errorback ? (this._errorback(t), !0) : !1
+				(this._isComplete = !0),
+				(this.error = t),
+				this._errorback ? (this._errorback(t), !0) : !1
 			);
 		}
 		isComplete() {
@@ -839,9 +863,9 @@ var AMDLoader;
 			(this._nextId = 0),
 				(this._strModuleIdToIntModuleId = new Map()),
 				(this._intModuleIdToStrModuleId = []),
-				this.getModuleId('exports'),
-				this.getModuleId('module'),
-				this.getModuleId('require');
+				this.getModuleId("exports"),
+				this.getModuleId("module"),
+				this.getModuleId("require");
 		}
 		getMaxModuleId() {
 			return this._nextId;
@@ -849,7 +873,7 @@ var AMDLoader;
 		getModuleId(t) {
 			let e = this._strModuleIdToIntModuleId.get(t);
 			return (
-				typeof e > 'u' &&
+				typeof e > "u" &&
 					((e = this._nextId++),
 					this._strModuleIdToIntModuleId.set(t, e),
 					(this._intModuleIdToStrModuleId[e] = t)),
@@ -865,7 +889,10 @@ var AMDLoader;
 			this.id = t;
 		}
 	}
-	(h.EXPORTS = new h(0)), (h.MODULE = new h(1)), (h.REQUIRE = new h(2)), (u.RegularDependency = h);
+	(h.EXPORTS = new h(0)),
+		(h.MODULE = new h(1)),
+		(h.REQUIRE = new h(2)),
+		(u.RegularDependency = h);
 	class r {
 		constructor(t, e, i) {
 			(this.id = t), (this.pluginId = e), (this.pluginParam = i);
@@ -909,7 +936,7 @@ var AMDLoader;
 			return this._requireFunc;
 		}
 		static _findRelevantLocationInStack(t, e) {
-			let i = (l) => l.replace(/\\/g, '/'),
+			let i = (l) => l.replace(/\\/g, "/"),
 				s = i(t),
 				n = e.split(/\n/);
 			for (let l = 0; l < n.length; l++) {
@@ -918,14 +945,14 @@ var AMDLoader;
 					let o = d[1],
 						_ = d[2],
 						f = d[3],
-						g = Math.max(o.lastIndexOf(' ') + 1, o.lastIndexOf('(') + 1);
+						g = Math.max(o.lastIndexOf(" ") + 1, o.lastIndexOf("(") + 1);
 					if (((o = o.substr(g)), (o = i(o)), o === s)) {
 						let v = { line: parseInt(_, 10), col: parseInt(f, 10) };
 						return v.line === 1 && (v.col -= 53), v;
 					}
 				}
 			}
-			throw new Error('Could not correlate define call site for needle ' + t);
+			throw new Error("Could not correlate define call site for needle " + t);
 		}
 		getBuildInfo() {
 			if (!this._config.isBuild()) return null;
@@ -943,7 +970,7 @@ var AMDLoader;
 					defineLocation: l && d ? c._findRelevantLocationInStack(l, d) : null,
 					dependencies: o,
 					shim: null,
-					exports: n.exports
+					exports: n.exports,
 				};
 			}
 			return t;
@@ -952,7 +979,9 @@ var AMDLoader;
 			return (
 				this._recorder ||
 					(this._config.shouldRecordStats()
-						? (this._recorder = new u.LoaderEventRecorder(this._loaderAvailableTimestamp))
+						? (this._recorder = new u.LoaderEventRecorder(
+								this._loaderAvailableTimestamp
+						  ))
 						: (this._recorder = u.NullLoaderEventRecorder.INSTANCE)),
 				this._recorder
 			);
@@ -962,9 +991,9 @@ var AMDLoader;
 		}
 		enqueueDefineAnonymousModule(t, e) {
 			if (this._currentAnonymousDefineCall !== null)
-				throw new Error('Can only have one anonymous define call per script file');
+				throw new Error("Can only have one anonymous define call per script file");
 			let i = null;
-			this._config.isBuild() && (i = new Error('StackLocation').stack || null),
+			this._config.isBuild() && (i = new Error("StackLocation").stack || null),
 				(this._currentAnonymousDefineCall = { stack: i, dependencies: t, callback: e });
 		}
 		defineModule(t, e, i, s, n, l = new y(t)) {
@@ -984,14 +1013,14 @@ var AMDLoader;
 				this._resolve(o);
 		}
 		_normalizeDependency(t, e) {
-			if (t === 'exports') return h.EXPORTS;
-			if (t === 'module') return h.MODULE;
-			if (t === 'require') return h.REQUIRE;
-			let i = t.indexOf('!');
+			if (t === "exports") return h.EXPORTS;
+			if (t === "module") return h.MODULE;
+			if (t === "require") return h.REQUIRE;
+			let i = t.indexOf("!");
 			if (i >= 0) {
 				let s = e.resolveModule(t.substr(0, i)),
 					n = e.resolveModule(t.substr(i + 1)),
-					l = this._moduleIdProvider.getModuleId(s + '!' + n),
+					l = this._moduleIdProvider.getModuleId(s + "!" + n),
 					d = this._moduleIdProvider.getModuleId(s);
 				return new r(l, d, n);
 			}
@@ -1004,7 +1033,7 @@ var AMDLoader;
 			return i;
 		}
 		_relativeRequire(t, e, i, s) {
-			if (typeof e == 'string') return this.synchronousRequire(e, t);
+			if (typeof e == "string") return this.synchronousRequire(e, t);
 			this.defineModule(u.Utilities.generateAnonymousModule(), e, i, s, null, t);
 		}
 		synchronousRequire(t, e = new y(t)) {
@@ -1054,7 +1083,7 @@ var AMDLoader;
 					this._moduleIdProvider.getStrModuleId(l)
 				);
 			const n = u.ensureError(e);
-			return (n.phase = 'loading'), (n.moduleId = i), (n.neededBy = s), n;
+			return (n.phase = "loading"), (n.moduleId = i), (n.neededBy = s), n;
 		}
 		_onLoadError(t, e) {
 			const i = this._createLoadError(t, e);
@@ -1133,16 +1162,22 @@ var AMDLoader;
 			let e = this._moduleIdProvider.getStrModuleId(t),
 				i = this._config.moduleIdToPaths(e),
 				s = /^@[^\/]+\/[^\/]+$/;
-			this._env.isNode && (e.indexOf('/') === -1 || s.test(e)) && i.push('node|' + e);
+			this._env.isNode && (e.indexOf("/") === -1 || s.test(e)) && i.push("node|" + e);
 			let n = -1,
 				l = (d) => {
 					if ((n++, n >= i.length)) this._onLoadError(t, d);
 					else {
 						let o = i[n],
 							_ = this.getRecorder();
-						if (this._config.isBuild() && o === 'empty:') {
+						if (this._config.isBuild() && o === "empty:") {
 							(this._buildInfoPath[t] = o),
-								this.defineModule(this._moduleIdProvider.getStrModuleId(t), [], null, null, null),
+								this.defineModule(
+									this._moduleIdProvider.getStrModuleId(t),
+									[],
+									null,
+									null,
+									null
+								),
 								this._onLoad(t);
 							return;
 						}
@@ -1172,7 +1207,12 @@ var AMDLoader;
 			(i.error = (s) => {
 				this._config.onError(this._createLoadError(e.id, s));
 			}),
-				t.load(e.pluginParam, this._createRequire(y.ROOT), i, this._config.getOptionsLiteral());
+				t.load(
+					e.pluginParam,
+					this._createRequire(y.ROOT),
+					i,
+					this._config.getOptionsLiteral()
+				);
 		}
 		_resolve(t) {
 			let e = t.dependencies;
@@ -1213,14 +1253,15 @@ var AMDLoader;
 						d.reverse(),
 							d.push(n.id),
 							console.warn(
-								d.map((o) => this._moduleIdProvider.getStrModuleId(o)).join(` => 
+								d.map((o) => this._moduleIdProvider.getStrModuleId(o)).join(` =>
 `)
 							),
 							t.unresolvedDependenciesCount--;
 						continue;
 					}
 					if (
-						((this._inverseDependencies2[n.id] = this._inverseDependencies2[n.id] || []),
+						((this._inverseDependencies2[n.id] =
+							this._inverseDependencies2[n.id] || []),
 						this._inverseDependencies2[n.id].push(t.id),
 						n instanceof r)
 					) {
@@ -1252,7 +1293,10 @@ var AMDLoader;
 						continue;
 					}
 					if (f === h.MODULE) {
-						s[o] = { id: t.strId, config: () => this._config.getConfigForModule(t.strId) };
+						s[o] = {
+							id: t.strId,
+							config: () => this._config.getConfigForModule(t.strId),
+						};
 						continue;
 					}
 					if (f === h.REQUIRE) {
@@ -1267,7 +1311,9 @@ var AMDLoader;
 					s[o] = null;
 				}
 			const n = (o) =>
-				(this._inverseDependencies2[o] || []).map((_) => this._moduleIdProvider.getStrModuleId(_));
+				(this._inverseDependencies2[o] || []).map((_) =>
+					this._moduleIdProvider.getStrModuleId(_)
+				);
 			t.complete(e, this._config, s, n);
 			let l = this._inverseDependencies2[t.id];
 			if (((this._inverseDependencies2[t.id] = null), l))
@@ -1280,7 +1326,8 @@ var AMDLoader;
 			let d = this._inversePluginDependencies2.get(t.id);
 			if (d) {
 				this._inversePluginDependencies2.delete(t.id);
-				for (let o = 0, _ = d.length; o < _; o++) this._loadPluginDependency(t.exports, d[o]);
+				for (let o = 0, _ = d.length; o < _; o++)
+					this._loadPluginDependency(t.exports, d[o]);
 			}
 		}
 	}
@@ -1291,9 +1338,9 @@ var define, AMDLoader;
 	const y = new u.Environment();
 	let m = null;
 	const p = function (a, t, e) {
-		typeof a != 'string' && ((e = t), (t = a), (a = null)),
-			(typeof t != 'object' || !Array.isArray(t)) && ((e = t), (t = null)),
-			t || (t = ['require', 'exports', 'module']),
+		typeof a != "string" && ((e = t), (t = a), (a = null)),
+			(typeof t != "object" || !Array.isArray(t)) && ((e = t), (t = null)),
+			t || (t = ["require", "exports", "module"]),
 			a ? m.defineModule(a, t, e, null, null) : m.enqueueDefineAnonymousModule(t, e);
 	};
 	p.amd = { jQuery: !0 };
@@ -1306,9 +1353,12 @@ var define, AMDLoader;
 					h(arguments[0]);
 					return;
 				}
-				if (typeof arguments[0] == 'string') return m.synchronousRequire(arguments[0]);
+				if (typeof arguments[0] == "string") return m.synchronousRequire(arguments[0]);
 			}
-			if ((arguments.length === 2 || arguments.length === 3) && Array.isArray(arguments[0])) {
+			if (
+				(arguments.length === 2 || arguments.length === 3) &&
+				Array.isArray(arguments[0])
+			) {
 				m.defineModule(
 					u.Utilities.generateAnonymousModule(),
 					arguments[0],
@@ -1318,7 +1368,7 @@ var define, AMDLoader;
 				);
 				return;
 			}
-			throw new Error('Unrecognized require call');
+			throw new Error("Unrecognized require call");
 		};
 	(r.config = h),
 		(r.getConfig = function () {
@@ -1335,9 +1385,9 @@ var define, AMDLoader;
 		}),
 		(r.define = p);
 	function c() {
-		if (typeof u.global.require < 'u' || typeof require < 'u') {
+		if (typeof u.global.require < "u" || typeof require < "u") {
 			const a = u.global.require || require;
-			if (typeof a == 'function' && typeof a.resolve == 'function') {
+			if (typeof a == "function" && typeof a.resolve == "function") {
 				const t = u.ensureRecordedNodeRequire(m.getRecorder(), a);
 				(u.global.nodeRequire = t), (r.nodeRequire = t), (r.__$__nodeRequire = t);
 			}
@@ -1347,7 +1397,7 @@ var define, AMDLoader;
 			: (y.isElectronRenderer || (u.global.define = p), (u.global.require = r));
 	}
 	(u.init = c),
-		(typeof u.global.define != 'function' || !u.global.define.amd) &&
+		(typeof u.global.define != "function" || !u.global.define.amd) &&
 			((m = new u.ModuleManager(
 				y,
 				u.createScriptLoader(y),
@@ -1355,14 +1405,14 @@ var define, AMDLoader;
 				r,
 				u.Utilities.getHighPerformanceTimestamp()
 			)),
-			typeof u.global.require < 'u' &&
-				typeof u.global.require != 'function' &&
+			typeof u.global.require < "u" &&
+				typeof u.global.require != "function" &&
 				r.config(u.global.require),
 			(define = function () {
 				return p.apply(null, arguments);
 			}),
 			(define.amd = p.amd),
-			typeof doNotInitLoader > 'u' && c());
+			typeof doNotInitLoader > "u" && c());
 })(AMDLoader || (AMDLoader = {}));
 
 //# sourceMappingURL=../../min-maps/vs/loader.js.map

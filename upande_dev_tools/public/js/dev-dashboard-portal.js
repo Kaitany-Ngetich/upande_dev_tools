@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
 upande_dev_tools_portal.mount_dev_dashboard = function (root) {
@@ -205,7 +208,7 @@ upande_dev_tools_portal.mount_dev_dashboard = function (root) {
 
 		<div class="udt-dashboard">
 			<div class="udt-title">
-				<h2>Upande Dev Tools Dashboard</h2>
+				<h2>Dev Tools Dashboard</h2>
 				<p>Monitor code health, backups, hooks and site differences</p>
 			</div>
 
@@ -406,7 +409,7 @@ function udt_load_dashboard() {
 			udt_render_system_health(health);
 		},
 		error: function () {
-			frappe.msgprint("Failed to load dashboard data.");
+			frappe.msgprint(__("Failed to load dashboard data."));
 		},
 	});
 }
@@ -420,7 +423,7 @@ function udt_normalize_hooks_summary(summary) {
 		return [];
 	}
 
-	return Object.keys(summary).map(key => {
+	return Object.keys(summary).map((key) => {
 		const value = summary[key];
 
 		let count = 0;
@@ -428,11 +431,15 @@ function udt_normalize_hooks_summary(summary) {
 
 		if (Array.isArray(value)) {
 			count = value.length;
-			preview = value.slice(0, 3).map(item => {
-				if (typeof item === "string") return item;
-				if (item && typeof item === "object") return item.name || item.method || item.doctype || JSON.stringify(item);
-				return String(item);
-			}).join(", ");
+			preview = value
+				.slice(0, 3)
+				.map((item) => {
+					if (typeof item === "string") return item;
+					if (item && typeof item === "object")
+						return item.name || item.method || item.doctype || JSON.stringify(item);
+					return String(item);
+				})
+				.join(", ");
 		} else if (value && typeof value === "object") {
 			count = Object.keys(value).length;
 			preview = Object.keys(value).slice(0, 3).join(", ");
@@ -448,7 +455,7 @@ function udt_normalize_hooks_summary(summary) {
 			hook_type: key,
 			count: count,
 			preview: preview,
-			value: value
+			value: value,
 		};
 	});
 }
@@ -466,21 +473,25 @@ function udt_render_version_table(rows) {
 	const tbody = $("#version-table");
 
 	if (!rows.length) {
-		tbody.html(`<tr><td colspan="9" class="text-muted text-center">No version records found</td></tr>`);
+		tbody.html(
+			`<tr><td colspan="9" class="text-muted text-center">No version records found</td></tr>`
+		);
 		return;
 	}
 
-	tbody.html(rows.map(row => {
-		const name = row.module_name || "";
-		const branch = row.current_branch || "";
-		const remote = row.upstream_branch || "";
-		const ahead = row.commits_ahead || 0;
-		const behind = row.commits_behind || 0;
-		const dirty = row.has_uncommitted_changes ? "Yes" : "No";
-		const risk = row.risk_level || row.status || "";
-		const checked = row.last_checked_at || "";
+	tbody.html(
+		rows
+			.map((row) => {
+				const name = row.module_name || "";
+				const branch = row.current_branch || "";
+				const remote = row.upstream_branch || "";
+				const ahead = row.commits_ahead || 0;
+				const behind = row.commits_behind || 0;
+				const dirty = row.has_uncommitted_changes ? "Yes" : "No";
+				const risk = row.risk_level || row.status || "";
+				const checked = row.last_checked_at || "";
 
-		return `
+				return `
 			<tr>
 				<td>${udt_escape(name)}</td>
 				<td>${udt_escape(branch)}</td>
@@ -491,30 +502,38 @@ function udt_render_version_table(rows) {
 				<td>${udt_escape(risk)}</td>
 				<td>${udt_escape(checked)}</td>
 				<td>
-					<button class="btn btn-xs btn-default" onclick="udt_open_doc('Module Version Check', '${udt_escape_attr(name)}')">View</button>
+					<button class="btn btn-xs btn-default" onclick="udt_open_doc('Module Version Check', '${udt_escape_attr(
+						name
+					)}')">View</button>
 				</td>
 			</tr>
 		`;
-	}).join(""));
+			})
+			.join("")
+	);
 }
 
 function udt_render_backup_table(rows) {
 	const tbody = $("#backup-table");
 
 	if (!rows.length) {
-		tbody.html(`<tr><td colspan="6" class="text-muted text-center">No backup snapshots found</td></tr>`);
+		tbody.html(
+			`<tr><td colspan="6" class="text-muted text-center">No backup snapshots found</td></tr>`
+		);
 		return;
 	}
 
-	tbody.html(rows.map(row => {
-		const name = row.name || "";
-		const time = row.snapshot_time_display || row.snapshot_time || "";
-		const source_type = row.source_type || "";
-		const document_name = row.document_name || "";
-		const app_module = row.app_module || row.app || row.module || "";
-		const changed = row.changed_since_last_backup ? "Yes" : "No";
+	tbody.html(
+		rows
+			.map((row) => {
+				const name = row.name || "";
+				const time = row.snapshot_time_display || row.snapshot_time || "";
+				const source_type = row.source_type || "";
+				const document_name = row.document_name || "";
+				const app_module = row.app_module || row.app || row.module || "";
+				const changed = row.changed_since_last_backup ? "Yes" : "No";
 
-		return `
+				return `
 			<tr>
 				<td>${udt_escape(time)}</td>
 				<td>${udt_escape(source_type)}</td>
@@ -522,11 +541,15 @@ function udt_render_backup_table(rows) {
 				<td>${udt_escape(app_module)}</td>
 				<td>${udt_escape(changed)}</td>
 				<td>
-					<button class="btn btn-xs btn-default" onclick="udt_open_doc('Code Backup Snapshot', '${udt_escape_attr(name)}')">View</button>
+					<button class="btn btn-xs btn-default" onclick="udt_open_doc('Code Backup Snapshot', '${udt_escape_attr(
+						name
+					)}')">View</button>
 				</td>
 			</tr>
 		`;
-	}).join(""));
+			})
+			.join("")
+	);
 }
 
 function udt_render_field_differences(rows) {
@@ -537,26 +560,36 @@ function udt_render_field_differences(rows) {
 		return;
 	}
 
-	target.html(rows.map(row => {
-		const name = row.name || "";
-		const title = `${row.doctype_name || "Unknown DocType"} → ${row.field_name || "Unknown Field"}`;
-		const meta = [
-			row.issue_type,
-			row.status,
-			row.live_value ? `Live: ${row.live_value}` : null,
-			row.local_value ? `Local: ${row.local_value}` : null
-		].filter(Boolean).join(" · ");
+	target.html(
+		rows
+			.map((row) => {
+				const name = row.name || "";
+				const title = `${row.doctype_name || "Unknown DocType"} → ${
+					row.field_name || "Unknown Field"
+				}`;
+				const meta = [
+					row.issue_type,
+					row.status,
+					row.live_value ? `Live: ${row.live_value}` : null,
+					row.local_value ? `Local: ${row.local_value}` : null,
+				]
+					.filter(Boolean)
+					.join(" · ");
 
-		return `
+				return `
 			<div class="udt-list-item">
 				<div class="udt-list-title">${udt_escape(title)}</div>
 				<div class="udt-list-meta">${udt_escape(meta)}</div>
 				<div style="margin-top: 6px;">
-					<button class="btn btn-xs btn-default" onclick="udt_open_doc('Field Difference Log', '${udt_escape_attr(name)}')">View</button>
+					<button class="btn btn-xs btn-default" onclick="udt_open_doc('Field Difference Log', '${udt_escape_attr(
+						name
+					)}')">View</button>
 				</div>
 			</div>
 		`;
-	}).join(""));
+			})
+			.join("")
+	);
 }
 
 function udt_render_hooks_summary(rows) {
@@ -567,21 +600,25 @@ function udt_render_hooks_summary(rows) {
 		return;
 	}
 
-	target.html(rows.map(row => {
-		const title = row.hook_type || "Hook";
-		const meta_parts = [`Count: ${row.count || 0}`];
+	target.html(
+		rows
+			.map((row) => {
+				const title = row.hook_type || "Hook";
+				const meta_parts = [`Count: ${row.count || 0}`];
 
-		if (row.preview) {
-			meta_parts.push(row.preview);
-		}
+				if (row.preview) {
+					meta_parts.push(row.preview);
+				}
 
-		return `
+				return `
 			<div class="udt-list-item">
 				<div class="udt-list-title">${udt_escape(title)}</div>
 				<div class="udt-list-meta">${udt_escape(meta_parts.join(" · "))}</div>
 			</div>
 		`;
-	}).join(""));
+			})
+			.join("")
+	);
 }
 
 function udt_render_activity(rows) {
@@ -592,22 +629,23 @@ function udt_render_activity(rows) {
 		return;
 	}
 
-	target.html(rows.map(row => {
-		const title = row.title || row.activity_type || "Developer Activity";
-		const meta = [
-			row.activity_type,
-			row.status,
-			row.source,
-			row.activity_time_display
-		].filter(Boolean).join(" · ");
+	target.html(
+		rows
+			.map((row) => {
+				const title = row.title || row.activity_type || "Developer Activity";
+				const meta = [row.activity_type, row.status, row.source, row.activity_time_display]
+					.filter(Boolean)
+					.join(" · ");
 
-		return `
+				return `
 			<div class="udt-list-item">
 				<div class="udt-list-title">${udt_escape(title)}</div>
 				<div class="udt-list-meta">${udt_escape(meta)}</div>
 			</div>
 		`;
-	}).join(""));
+			})
+			.join("")
+	);
 }
 
 function udt_render_system_health(health) {

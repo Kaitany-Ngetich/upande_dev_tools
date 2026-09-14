@@ -138,7 +138,6 @@
    "read_only": 1
   },
   {
-   "description": "The client this request is for. Filled from the linked Project's Customer when one isn't already set - covers requests bulk-imported from a client's own backlog, where no single named individual is on record as the requester.",
    "fetch_from": "project.customer",
    "fetch_if_empty": 1,
    "fieldname": "raised_by_customer",

@@ -1,4 +1,5 @@
-# Copyright (c) 2026, Upande Limited
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
 
 from unittest.mock import patch
 
@@ -121,8 +122,7 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.local.flags.redirect_location = None
 
 	def test_enforce_page_access_sends_guest_to_login_with_redirect_param(self) -> None:
-		# The Guest check runs before any page lookup, so this route need not exist —
-		# self-contained, not dependent on another test method having created a page.
+		# Guest check runs before page lookup.
 		frappe.set_user("Guest")
 		try:
 			with self.assertRaises(frappe.Redirect):
@@ -172,7 +172,6 @@ class IntegrationTestPortal(IntegrationTestCase):
 		doc = frappe.get_doc("Dev Portal Page", "portal-register-test")
 		self.assertEqual([row.role for row in doc.allowed_roles], ["Dev Team"])
 
-		# An admin's later edit (e.g. via the settings screen) must survive re-registration.
 		doc.allowed_roles = []
 		doc.append("allowed_roles", {"role": "System Manager"})
 		doc.save(ignore_permissions=True)
@@ -324,10 +323,6 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.local.flags.redirect_location = None
 
 	def test_resolve_home_route_for_dev_team_is_now_reachable(self) -> None:
-		# Closes the gap Sub-project 1's final review flagged: /dev-dashboard is now a real,
-		# registered, permitted page for Dev Team, so enforce_page_access on it must NOT hit
-		# the loop-guard's /app fallback (that fallback only fires when the resolved home route
-		# is itself denied or unregistered).
 		dev = self._make_user("dev-dashboard-home-route@example.test", ["Dev Team"])
 		self.assertEqual(resolve_home_route(dev), "/dev-dashboard")
 		frappe.set_user(dev)
@@ -432,9 +427,6 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.icon, "trello")
 		self.assertEqual(doc.nav_group, "Developer")
 		self.assertEqual(doc.sort_order, 50)
-		# Projects Manager was added (final-review fix wave) so PM Dashboard's drill-down link
-		# to /backlog-board?project=<name> works for Projects Manager users too; the underlying
-		# get_backlog_board API already independently permission-checks project-scoped reads.
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager"})
 
 	def test_master_data_permits_dev_team_and_projects_manager_and_denies_others(self) -> None:
@@ -553,8 +545,6 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Projects Manager"})
 
 	def test_resolve_home_route_for_projects_manager_is_now_reachable(self) -> None:
-		# Closes the same gap Sub-project 2's Task 2 closed for Dev Team/dev-dashboard:
-		# /pm-dashboard is now a real, registered, permitted page for Projects Manager.
 		pm = self._make_user("pm-dashboard-home-route@example.test", ["Projects Manager"])
 		self.assertEqual(resolve_home_route(pm), "/pm-dashboard")
 		frappe.set_user(pm)
@@ -601,20 +591,14 @@ class IntegrationTestPortal(IntegrationTestCase):
 		pm_only = self._make_user("nav-scope-pm-only@example.test", ["Projects Manager"])
 		both = self._make_user("nav-scope-both@example.test", ["Dev Team", "Projects Manager"])
 
-		# Scoped to the real "Developer"/"Management" nav groups only: other tests in this class
-		# register their own throwaway Dev Portal Page rows (nav_group "Test"/"Group A") that are
-		# never torn down mid-run (IntegrationTestCase only rolls back at class teardown), so an
-		# unfiltered set comparison here would be flaky depending on test execution order.
+		# Other tests register pages in nav_group "Test"/"Group A" that persist for the run.
 		known_groups = {"Developer", "Management"}
 		dev_groups = {item["nav_group"] for item in get_nav_items(dev_only)} & known_groups
 		pm_groups = {item["nav_group"] for item in get_nav_items(pm_only)} & known_groups
 		both_groups = {item["nav_group"] for item in get_nav_items(both)} & known_groups
 
 		self.assertEqual(dev_groups, {"Developer"})
-		# Projects Manager now also sees "Developer" via backlog-board (final-review fix wave,
-		# Fix 1): the PM Dashboard's drill-down link only works once Projects Manager is added
-		# to backlog-board's allowed roles, so a Projects-Manager-only user legitimately sees
-		# both nav groups now.
+		# Projects Manager also sees "Developer" via backlog-board's allowed roles.
 		self.assertEqual(pm_groups, {"Developer", "Management"})
 		self.assertEqual(both_groups, {"Developer", "Management"})
 
