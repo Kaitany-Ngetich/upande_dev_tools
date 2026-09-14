@@ -39,13 +39,21 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	load() {
 		const args = this.project ? { project: this.project } : {};
-		frappe.call({ method: "upande_dev_tools.api.board.get_board", args }).then((r) => {
-			const data = r.message || { items: [], stages: [], total: 0 };
-			this.items = data.items;
-			this.stages = data.stages;
-			this.total = data.total;
-			this.render();
-		});
+		frappe
+			.xcall("upande_dev_tools.api.board.get_board", args)
+			.then((data) => {
+				this.items = data.items;
+				this.stages = data.stages;
+				this.total = data.total;
+				this.render();
+			})
+			.catch((e) => this.fail(e));
+	}
+
+	fail(e) {
+		$(this.wrapper)
+			.find(".bb-stage")
+			.html(blank("Could not load the board", String(e && e.message ? e.message : e) || "Reload the page to try again."));
 	}
 
 	render_shell() {
@@ -264,12 +272,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.render();
 
 		frappe
-			.call({
-				method: "upande_dev_tools.api.board.set_stage",
-				args: { doctype: item.doctype, name: item.name, stage },
+			.xcall("upande_dev_tools.api.board.set_stage", {
+				doctype: item.doctype,
+				name: item.name,
+				stage,
 			})
 			.then((r) => {
-				item.status = r.message.status;
+				item.status = r.status;
 				this.render();
 			})
 			.catch(() => {
@@ -380,13 +389,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		else item[field] = value;
 		if (field === "priority") item.rank = RANK[value] || 0;
 
-		const call =
+		const [method, args] =
 			field === "stage"
-				? { method: "upande_dev_tools.api.board.set_stage", args: { doctype: item.doctype, name: item.name, stage: value } }
-				: { method: "upande_dev_tools.api.board.set_field", args: { doctype: item.doctype, name: item.name, field, value } };
+				? ["set_stage", { doctype: item.doctype, name: item.name, stage: value }]
+				: ["set_field", { doctype: item.doctype, name: item.name, field, value }];
 
 		frappe
-			.call(call)
+			.xcall(`upande_dev_tools.api.board.${method}`, args)
 			.then(() => this.load())
 			.catch(() => {
 				Object.assign(item, previous);

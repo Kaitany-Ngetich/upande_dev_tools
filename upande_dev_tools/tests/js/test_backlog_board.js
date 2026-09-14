@@ -54,9 +54,17 @@ function boot() {
 	);
 
 	window.frappe = {
-		call(opts) {
-			calls.push(opts);
-			return Promise.resolve({ message: { items: ITEMS, total: 9, stages: ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"] } });
+		// website.js gives portal pages xcall (a real promise resolving to the
+		// message). frappe.call there is a jqXHR posting to "/" and is not usable.
+		xcall(method, args) {
+			calls.push({ method, args });
+			if (method.endsWith("get_board"))
+				return Promise.resolve({
+					items: ITEMS,
+					total: 9,
+					stages: ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"],
+				});
+			return Promise.resolve({ name: args.name, status: "Working", stage: args.stage });
 		},
 		show_alert() {},
 		utils: { escape_html: (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") },
@@ -73,6 +81,7 @@ function boot() {
 	const board = new window.upande_dev_tools.BacklogBoard(root, null);
 
 	assert.strictEqual(calls[0].method, "upande_dev_tools.api.board.get_board");
+	assert.ok(!window.frappe.call, "the board must not use frappe.call, which portal pages do not provide");
 	await Promise.resolve();
 	await new Promise((r) => setTimeout(r, 0));
 
