@@ -5,8 +5,7 @@ import os
 import subprocess
 
 import frappe
-import requests
-from frappe.utils import get_bench_path
+from frappe.utils import get_bench_path, now_datetime
 
 
 class GitCommandError(Exception):
@@ -51,11 +50,23 @@ def get_repo_path(app_name):
 
 
 def get_current_branch(repo_path):
-	return run_git_command(
+	# `branch --show-current` prints nothing on a detached HEAD, which is how CI
+	# checkouts and tag-based deploys sit. Same DETACHED- shape the Module Version
+	# Check controller reports.
+	branch = run_git_command(
 		repo_path,
 		["branch", "--show-current"],
 		timeout=10,
 	)
+	if branch:
+		return branch
+
+	commit = run_git_command(
+		repo_path,
+		["rev-parse", "--short", "HEAD"],
+		timeout=10,
+	)
+	return f"DETACHED-{commit}"
 
 
 def get_upstream_branch(repo_path):
@@ -147,6 +158,105 @@ def analyse_repository(app_name: str):
 	return {
 		"status": status,
 		"branch": current_branch,
+		"upstream": upstream,
+		"ahead": ahead,
+		"behind": behind,
+		"dirty": dirty,
+	}
+
+
+RISK_BY_STATUS = {
+	"CLEAN": "Low",
+	"AHEAD": "Medium",
+	"STALE": "Medium",
+	"DIRTY": "High",
+	"ERROR": "Critical",
+}
+
+MESSAGE_BY_STATUS = {
+	"CLEAN": "Fully synced with {upstream}",
+	"AHEAD": "{ahead} commit(s) not pushed to {upstream}",
+	"STALE": "{behind} commit(s) behind {upstream}",
+	"DIRTY": "Uncommitted changes in the working tree",
+}
+
+
+@frappe.whitelist()
+def scan_bench(fetch: int = 0) -> dict:
+	"""Read every installed app's git state and record it, which is what the
+	dashboard reads. Nothing wrote these rows before, so the page had nothing
+	to show however healthy the bench was.
+
+	Fetching from every remote is slow and needs the network, so it is off by
+	default - the comparison then runs against the last fetched remote.
+	"""
+	checked = 0
+	failed = []
+
+	for app_name in frappe.get_installed_apps():
+		try:
+			result = _analyse(app_name, bool(int(fetch)))
+		except Exception:
+			failed.append(app_name)
+			continue
+
+		doc = (
+			frappe.get_doc("Module Version Check", app_name)
+			if frappe.db.exists("Module Version Check", app_name)
+			else frappe.new_doc("Module Version Check")
+		)
+		doc.module_name = app_name
+		doc.app_folder = app_name
+		doc.environment = "Local Machine"
+		doc.current_branch = result.get("branch")
+		doc.upstream_branch = result.get("upstream")
+		doc.commits_ahead = result.get("ahead") or 0
+		doc.commits_behind = result.get("behind") or 0
+		doc.has_uncommitted_changes = 1 if result.get("dirty") else 0
+		doc.status = (result.get("status") or "").title() or "Clean"
+		doc.risk_level = RISK_BY_STATUS.get(result.get("status"), "Medium")
+		doc.safe_to_deploy = 1 if result.get("status") == "CLEAN" else 0
+		doc.last_checked_at = now_datetime()
+		doc.last_checked_by = frappe.session.user
+		doc.status_message = result.get("message") or MESSAGE_BY_STATUS.get(result.get("status"), "").format(
+			upstream=result.get("upstream") or "remote",
+			ahead=result.get("ahead") or 0,
+			behind=result.get("behind") or 0,
+		)
+		doc.flags.ignore_permissions = True
+		doc.save()
+		checked += 1
+
+	# nosemgrep: frappe-manual-commit - whitelisted endpoint; the checked rows must persist before the result is returned.
+	frappe.db.commit()
+	return {"checked": checked, "failed": failed}
+
+
+def _analyse(app_name: str, fetch: bool) -> dict:
+	repo_path = get_repo_path(app_name)
+	if fetch:
+		run_git_command(repo_path, ["fetch", "--all", "--prune"], timeout=45)
+
+	branch = get_current_branch(repo_path)
+	upstream = get_upstream_branch(repo_path)
+	dirty = bool(get_working_tree_status(repo_path))
+
+	if not upstream:
+		return {
+			"status": "DIRTY" if dirty else "CLEAN",
+			"branch": branch,
+			"upstream": None,
+			"ahead": 0,
+			"behind": 0,
+			"dirty": dirty,
+			"message": f"Branch '{branch}' tracks no remote",
+		}
+
+	ahead, behind = get_ahead_behind(repo_path, upstream)
+	status = "STALE" if behind else "DIRTY" if dirty else "AHEAD" if ahead else "CLEAN"
+	return {
+		"status": status,
+		"branch": branch,
 		"upstream": upstream,
 		"ahead": ahead,
 		"behind": behind,

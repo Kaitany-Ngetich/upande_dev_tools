@@ -112,6 +112,55 @@ def triage_request(
 
 
 @frappe.whitelist()
+def get_assignable_users() -> list[dict]:
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	members = frappe.get_all("Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent")
+	if not members:
+		return []
+	return frappe.get_all(
+		"User",
+		filters={"name": ["in", members], "enabled": 1},
+		fields=["name", "full_name"],
+		order_by="full_name asc",
+	)
+
+
+@frappe.whitelist()
+def accept_request(name: str, project: str, priority: str, assign_to: str | None = None) -> dict:
+	"""Approve a request and schedule it in one step, which is what creates the Task,
+	then hand that Task to whoever will do the work."""
+	from frappe.desk.form.assign_to import add as add_assignment
+	from frappe.model.workflow import apply_workflow
+
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	if not (project and priority):
+		frappe.throw(_("Set a project and a priority before accepting."), frappe.ValidationError)
+
+	doc = frappe.get_doc("Request", name)
+	doc.project = project
+	doc.priority = priority
+	doc.save()
+
+	doc = apply_workflow(doc, "Approve")
+	doc = apply_workflow(doc, "Schedule")
+	doc.reload()
+
+	if assign_to and doc.linked_task:
+		add_assignment({"doctype": "Task", "name": doc.linked_task, "assign_to": [assign_to], "notify": 0})
+
+	return {
+		"name": doc.name,
+		"workflow_state": doc.workflow_state,
+		"task": doc.linked_task,
+		"assigned_to": assign_to,
+	}
+
+
+@frappe.whitelist()
 def promote_to_task(name: str) -> dict:
 	from frappe.model.workflow import apply_workflow
 
@@ -167,7 +216,9 @@ def get_backlog_board(project: str | None = None) -> dict:
 		ignore_permissions=True,
 	)
 
-	# _assign is a JSON-encoded list of user emails; resolve to full names in bulk.
+	# Backlog Board's whole point is to read like the source spreadsheet did - owner and
+	# requester visible on every card, not just title/priority. _assign is a JSON-encoded
+	# list of user emails; resolve to full names once in bulk rather than per-row.
 	assignee_emails: set[str] = set()
 	for task in tasks:
 		task["_assign"] = json.loads(task["_assign"]) if task.get("_assign") else []
@@ -193,6 +244,9 @@ def get_backlog_board(project: str | None = None) -> dict:
 		elif req.get("raised_by_contact"):
 			req["requested_by"] = req["raised_by_contact"]
 		elif req.get("raised_by_customer"):
+			# No single named individual on record - true for every request bulk-imported from
+			# a client's own backlog spreadsheet, where only the client's identity, not a
+			# specific person's, is known.
 			req["requested_by"] = req["raised_by_customer"]
 		else:
 			req["requested_by"] = None
@@ -238,7 +292,15 @@ def get_upcoming_meetings(
 			["starts_on", ">=", now],
 			["starts_on", "<=", end],
 		],
-		fields=["name", "subject", "starts_on", "ends_on", "event_category", "location"],
+		fields=[
+			"name",
+			"subject",
+			"starts_on",
+			"ends_on",
+			"event_category",
+			"location",
+			"google_meet_link",
+		],
 		order_by="starts_on asc",
 		ignore_permissions=True,
 	)

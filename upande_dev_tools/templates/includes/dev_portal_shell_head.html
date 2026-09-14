@@ -1,5 +1,16 @@
-{# Include from a `head_include` block override (block defined in templates/base.html), not the page body. #}
-<link href="/assets/upande_dev_tools/css/dev-portal.css" rel="stylesheet">
+{# Every dev portal page should include this from inside a `head_include` block override, not
+   from the page body: `templates/base.html` (which `templates/web.html` extends) defines a
+   real `head_include` block, so a page can do:
+
+     {% block head_include %}
+     	{{ super() }}
+     	{% include "templates/includes/dev_portal_shell_head.html" %}
+     {% endblock %}
+
+   That puts the stylesheet and font <link> tags in the actual document <head> (so preconnect
+   hints do what they're for, and the stylesheet is requested as early as possible) instead of
+   mid-<body>, where they still work but not as intended. #}
+<link href="/assets/upande_dev_tools/css/dev-portal.css?v={{ asset_version('css/dev-portal.css') }}" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">

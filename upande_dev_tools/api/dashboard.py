@@ -25,20 +25,21 @@ def get_dashboard_data():
 
 	clean = stale = dirty = 0
 
+	# Read the recorded state rather than guessing it from the message text,
+	# which reported a clean app by its risk level - "low" instead of "clean" -
+	# whenever the wording did not happen to contain the word.
 	for row in version_rows:
-		message = (row.status_message or "").lower()
-
 		if row.has_uncommitted_changes:
 			row["status"] = "Dirty"
 			dirty += 1
 		elif row.commits_behind and row.commits_behind > 0:
 			row["status"] = "Stale"
 			stale += 1
-		elif "clean" in message or "fully synced" in message:
+		elif row.commits_ahead and row.commits_ahead > 0:
+			row["status"] = "Ahead"
+		else:
 			row["status"] = "Clean"
 			clean += 1
-		else:
-			row["status"] = row.risk_level or "Unknown"
 	hooks_summary = get_hooks_summary()
 
 	return {

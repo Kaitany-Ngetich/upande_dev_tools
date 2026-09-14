@@ -4,7 +4,9 @@
 <div class="dpx">
 	<aside class="dpx-side">
 		<a class="brand" href="{{ resolve_home_route() }}">
-			<span class="name">Dev Tools<small>Dev Portal</small></span>
+			<img class="mark" src="/assets/upande_dev_tools/images/upande-mark.png?v={{ asset_version('images/upande-mark.png') }}"
+				alt="Upande" width="26" height="26">
+			<span class="name">Upande<small>Dev Portal</small></span>
 		</a>
 		<nav class="nav">
 			{% set nav_items = get_nav_items() %}
@@ -14,8 +16,10 @@
 					<span class="group-lbl">{{ item.nav_group | e }}</span>
 					{% set ns.last_group = item.nav_group %}
 				{% endif %}
-				<a class="nav-item{% if item.route == active_route %} active{% endif %}" href="/{{ item.route | e }}">
-					<span>{{ item.title | e }}</span>
+				<a class="nav-item{% if item.route == active_route %} active{% endif %}"
+					href="/{{ item.route | e }}" title="{{ item.title | e }}">
+					<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">{{ nav_icon(item.icon) }}</svg>
+					<span class="lbl">{{ item.title | e }}</span>
 				</a>
 			{% endfor %}
 		</nav>
@@ -29,6 +33,9 @@
 	</aside>
 	<main class="dpx-main">
 		<div class="dpx-topbar">
+			<button class="dpx-rail-toggle" type="button" aria-label="Collapse sidebar" aria-pressed="false">
+				<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">{{ nav_icon("panel-left") }}</svg>
+			</button>
 			<h1>{{ page_title }}</h1>
 		</div>
 		<div class="dpx-content">
@@ -36,4 +43,5 @@
 		</div>
 	</main>
 </div>
+<script src="/assets/upande_dev_tools/js/dev-portal-shell.js?v={{ asset_version('js/dev-portal-shell.js') }}"></script>
 {% endmacro %}

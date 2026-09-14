@@ -6,70 +6,12 @@
 {% block page_content %}
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
-<div class="dpx-page-hd">
-	<div class="eyebrow">Developer</div>
-	<div class="ttl">My Day</div>
-	<div class="sub">Today's assigned tasks and meetings.</div>
-</div>
-<div class="dpx-kpis" id="my-day-meta"></div>
-<div class="dpx-card">
-	<div class="dpx-card-hd"><div class="ttl">Today's Tasks</div></div>
-	<div class="dpx-card-body">
-		<table id="my-day-tasks">
-			<thead><tr><th>Task</th><th>Project</th><th>Priority</th><th>Status</th></tr></thead>
-			<tbody></tbody>
-		</table>
-	</div>
-</div>
-<div class="dpx-card" style="margin-top: 18px;">
-	<div class="dpx-card-hd"><div class="ttl">Today's Meetings</div></div>
-	<div class="dpx-card-body">
-		<table id="my-day-meetings">
-			<thead><tr><th>Subject</th><th>Starts</th><th>Ends</th><th>Location</th></tr></thead>
-			<tbody></tbody>
-		</table>
-	</div>
-</div>
+<div id="udt-my-day"></div>
+<script src="/assets/upande_dev_tools/js/work-preview.js?v={{ asset_version('js/work-preview.js') }}"></script>
+<script src="/assets/upande_dev_tools/js/my-day.js?v={{ asset_version('js/my-day.js') }}"></script>
 <script>
 frappe.ready(function() {
-	frappe.call({method: "upande_dev_tools.api.requests.get_my_day"}).then(function(r) {
-		var data = r.message || {tasks: [], meetings: []};
-
-		var metaEl = document.querySelector("#my-day-meta");
-		var kpi = document.createElement("div");
-		kpi.className = "dpx-kpi";
-		var lbl = document.createElement("div");
-		lbl.className = "lbl";
-		lbl.textContent = "Date";
-		var val = document.createElement("div");
-		val.className = "v";
-		val.textContent = data.date || "";
-		kpi.appendChild(lbl);
-		kpi.appendChild(val);
-		metaEl.appendChild(kpi);
-
-		var taskBody = document.querySelector("#my-day-tasks tbody");
-		(data.tasks || []).forEach(function(task) {
-			var tr = document.createElement("tr");
-			["subject", "project", "priority", "status"].forEach(function(field) {
-				var td = document.createElement("td");
-				td.textContent = task[field] || "";
-				tr.appendChild(td);
-			});
-			taskBody.appendChild(tr);
-		});
-
-		var meetingBody = document.querySelector("#my-day-meetings tbody");
-		(data.meetings || []).forEach(function(meeting) {
-			var tr = document.createElement("tr");
-			[meeting.subject, meeting.starts_on, meeting.ends_on, meeting.location].forEach(function(v) {
-				var td = document.createElement("td");
-				td.textContent = v || "";
-				tr.appendChild(td);
-			});
-			meetingBody.appendChild(tr);
-		});
-	});
+	new upande_dev_tools.MyDay(document.getElementById("udt-my-day"));
 });
 </script>
 {% endcall %}
