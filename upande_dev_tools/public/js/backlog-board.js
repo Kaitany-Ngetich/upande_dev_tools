@@ -5,6 +5,7 @@ const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const ZOOM = { weeks: 13, months: 4 };
 const PAGE = 60;
+const COLUMN_CAP = 25;
 const SHEET_FIELDS = { 4: "stage", 5: "priority", 6: "start", 7: "end" };
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 const HINTS = {
@@ -53,7 +54,7 @@ function paint_cell(cell, x, item) {
 	if (x === 1) cell.classList.add("bb-mono");
 	if (x === 2 || x === 6 || x === 7) cell.classList.add("bb-mono");
 	if (x === 7 && item.late) cell.classList.add("bb-late");
-	if (!item.movable && x >= 4 && x <= 7) cell.classList.add("bb-locked");
+	if (x >= 4 && x <= 7) cell.classList.add(item.movable ? "bb-edit" : "bb-locked");
 }
 
 function ico(name, size) {
@@ -74,6 +75,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.group_by = "stage";
 		this.zoom = "weeks";
 		this.shut = new Set();
+		this.caps = {};
 		this.limit = PAGE;
 		this.filters = { q: "", source: "", assignee: "", priority: "", hide_done: false };
 		this.render_shell();
@@ -108,8 +110,6 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<div class="dpx-bb-tb-row">
 								<span class="dpx-bb-mark">${ico("trello", 14)}</span>
 								<h2>Backlog</h2>
-								<span class="dpx-bb-badge bb-total">0 items</span>
-								<span class="dpx-bb-badge late bb-late" hidden></span>
 							</div>
 							<div class="dpx-bb-tb-sub">Tasks, issues and requests in one pipeline</div>
 						</div>
@@ -156,6 +156,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					</div>
 				</div>
 				<div class="bb-stage"></div>
+				<div class="dpx-bb-status"></div>
 			</div>
 		`);
 
@@ -173,7 +174,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const el = $(e.currentTarget);
 			this.filters[el.data("f")] = el.val();
 			this.limit = PAGE;
-			this.render();
+			this.caps = {};
+			clearTimeout(this.typing);
+			this.typing = setTimeout(() => this.render(), e.type === "input" ? 180 : 0);
 		});
 		root.on("change", ".bb-extra", (e) => {
 			const value = $(e.currentTarget).val();
@@ -254,14 +257,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	render_count(rows) {
 		const late = rows.filter((item) => item.late).length;
 		const done = rows.filter((item) => item.stage === "Done").length;
-		const root = $(this.wrapper);
-		root.find(".bb-total").text(`${rows.length} items · ${rows.length - done} open`);
-		root.find(".bb-late").text(`${late} late`).prop("hidden", !late);
-		root.find(".dpx-bb-hint").text(
-			this.total > this.items.length
-				? `Showing ${this.items.length} of ${this.total}`
-				: HINTS[this.view] || ""
-		);
+		const parts = [
+			`<b>${rows.length}</b> items`,
+			`<b>${rows.length - done}</b> open`,
+			`<b>${done}</b> done`,
+		];
+		if (late) parts.push(`<span class="late">${late} late</span>`);
+		if (this.total > this.items.length)
+			parts.push(`<span class="sp">${this.items.length} of ${this.total} loaded</span>`);
+
+		$(this.wrapper).find(".dpx-bb-status").html(parts.join("<span>·</span>"));
+		$(this.wrapper).find(".dpx-bb-hint").text(HINTS[this.view] || "");
 	}
 
 	group(rows) {
@@ -302,18 +308,29 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 		const groups = this.group(rows);
 		stage.html(`<div class="dpx-bb-cols">${groups
-			.map(
-				([key, items]) => `
+			.map(([key, items]) => {
+				const cap = this.caps[key] || COLUMN_CAP;
+				const shown = items.slice(0, cap);
+				return `
 			<div class="dpx-bb-col">
 				<div class="dpx-bb-col-hd"><span>${esc(key)}</span><span class="n">${items.length}</span></div>
 				<div class="dpx-bb-drop" data-stage="${esc(key)}">
 					${items.length
-						? items.map((item) => card(item)).join("")
+						? shown.map((item) => card(item)).join("")
 						: '<div class="dpx-bb-col-blank">Nothing in this stage</div>'}
+					${items.length > shown.length
+						? `<button class="dpx-bb-colmore" data-col="${esc(key)}">${items.length - shown.length} more</button>`
+						: ""}
 				</div>
-			</div>`
-			)
+			</div>`;
+			})
 			.join("")}</div>`);
+
+		stage.find(".dpx-bb-colmore").on("click", (e) => {
+			const key = $(e.currentTarget).data("col");
+			this.caps[key] = (this.caps[key] || COLUMN_CAP) + COLUMN_CAP * 4;
+			this.render();
+		});
 
 		if (this.group_by === "stage") this.bind_drag(stage);
 	}
@@ -451,7 +468,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			columnSorting: true,
 			columnDrag: false,
 			tableOverflow: true,
-			tableHeight: "calc(100vh - 300px)",
+			tableHeight: "calc(100vh - 292px)",
+			tableWidth: "100%",
+			lazyLoading: true,
+			loadingSpin: true,
 			freezeColumns: 4,
 			search: false,
 			pagination: false,
@@ -460,10 +480,26 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			allowDeleteRow: false,
 			allowDeleteColumn: false,
 			contextMenu: () => false,
+			onselection: (_el, x1, y1, x2, y2) => this.cell_selected(Number(x1), Number(y1), Number(x2), Number(y2)),
 			onbeforechange: (_el, cell, x, y, value) => this.guard_cell(y, value),
 			onchange: (_el, _cell, x, y, value) => this.sheet_changed(Number(x), Number(y), value),
 			updateTable: (_el, cell, x, y) => paint_cell(cell, Number(x), order[Number(y)]),
 		});
+	}
+
+	cell_selected(x1, y1, x2, y2) {
+		// Google Sheets opens a picker on one click; jspreadsheet waits for a
+		// second. Only for the editable columns, and never for a dragged range.
+		if (x1 !== x2 || y1 !== y2 || !SHEET_FIELDS[x1]) return;
+
+		const item = this.sheet_rows[y1];
+		if (!item || !item.movable) return;
+
+		clearTimeout(this.opening);
+		this.opening = setTimeout(() => {
+			const cell = this.sheet.getCellFromCoords(x1, y1);
+			if (cell && !cell.classList.contains("editor")) this.sheet.openEditor(cell);
+		}, 0);
 	}
 
 	guard_cell(y, value) {

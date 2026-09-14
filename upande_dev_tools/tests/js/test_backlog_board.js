@@ -111,6 +111,8 @@ function boot() {
 	return { window, $, calls };
 }
 
+const settle = () => new Promise((r) => setTimeout(r, 260));
+
 (async () => {
 	assert_no_layout_collisions();
 
@@ -136,19 +138,25 @@ function boot() {
 		"urgent reads as a filled dot, not a left rule"
 	);
 	assert.ok($(root).find('.dpx-bb-card[data-id="Issue:ISS-02"] .d').hasClass("late"));
-	assert.ok($(root).find(".dpx-bb-hint").text().includes("4 of 9"), "load cap is stated");
-	assert.ok($(root).find(".bb-total").text().includes("4 items"));
-	assert.strictEqual($(root).find(".bb-late").prop("hidden"), false, "a late badge shows when work has slipped");
+	const status = $(root).find(".dpx-bb-status").text();
+	assert.ok(status.includes("4 items"), "counts live in the status bar, not the header");
+	assert.ok(status.includes("1 late"));
+	assert.ok(status.includes("4 of 9 loaded"), "load cap is stated");
+	assert.strictEqual($(root).find(".dpx-bb-tb-hd .dpx-bb-badge").length, 0, "the header carries no counts");
 
 	// ── Search ──
 	$(root).find('[data-f="q"]').val("label").trigger("input");
+	await settle();
 	assert.strictEqual($(root).find(".dpx-bb-card").length, 1);
 	$(root).find('[data-f="q"]').val("").trigger("input");
+	await settle();
 
 	// ── Source filter ──
 	$(root).find('[data-f="source"]').val("Issue").trigger("change");
+	await settle();
 	assert.strictEqual($(root).find(".dpx-bb-card").length, 1);
 	$(root).find('[data-f="source"]').val("").trigger("change");
+	await settle();
 
 	// ── List view ──
 	$(root).find('.dpx-bb-views button[data-view="list"]').trigger("click");
@@ -167,6 +175,7 @@ function boot() {
 	assert.strictEqual(sheet.config.data.length, 4);
 	assert.strictEqual(sheet.config.freezeColumns, 4, "identity columns stay pinned while you scroll");
 	assert.ok(sheet.config.columnSorting, "columns sort");
+	assert.ok(sheet.config.lazyLoading, "only the visible rows render");
 
 	const editable = sheet.config.columns
 		.map((c, i) => (c.readOnly ? null : i))
@@ -206,10 +215,12 @@ function boot() {
 
 	// ── Empty state when the filter excludes everything ──
 	$(root).find('[data-f="q"]').val("zzzz").trigger("input");
+	await settle();
 	assert.ok($(root).find(".dpx-bb-blank h3").text().length > 0);
 
 	// ── Drag moves an item optimistically ──
 	$(root).find('[data-f="q"]').val("").trigger("input");
+	await settle();
 	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
 	board.move("Task:TASK-01", "Blocked");
 	assert.strictEqual(board.items.find((i) => i.name === "TASK-01").stage, "Blocked");
