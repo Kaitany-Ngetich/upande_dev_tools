@@ -679,7 +679,7 @@ def update_current_customizations(
 		try:
 			data = json.loads(file_path.read_text(encoding="utf-8"))
 		except (json.JSONDecodeError, OSError) as exc:
-			frappe.throw(_("Could not read customization file {0}: {1}").format(file_path, exc))
+			frappe.throw(_("Could not read customization file {0}: {1}").format(file_path, str(exc)))
 		if not isinstance(data, dict):
 			continue
 
@@ -898,7 +898,7 @@ def _prune_field_from_file(file_path: Path, doctype: str, fieldname: str) -> dic
 	try:
 		data = json.loads(file_path.read_text(encoding="utf-8"))
 	except (json.JSONDecodeError, OSError) as exc:
-		frappe.throw(_("Could not read customization file {0}: {1}").format(file_path, exc))
+		frappe.throw(_("Could not read customization file {0}: {1}").format(file_path, str(exc)))
 	if not isinstance(data, dict):
 		return None
 
@@ -1017,7 +1017,7 @@ def _load_existing_customization_file(
 		frappe.throw(
 			_("Existing customization file contains invalid JSON: {0}. Error: {1}").format(
 				file_path,
-				exc,
+				str(exc),
 			)
 		)
 
@@ -1025,7 +1025,7 @@ def _load_existing_customization_file(
 		frappe.throw(
 			_("Could not read existing customization file {0}: {1}").format(
 				file_path,
-				exc,
+				str(exc),
 			)
 		)
 

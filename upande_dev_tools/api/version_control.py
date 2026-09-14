@@ -103,7 +103,7 @@ def get_ahead_behind(repo_path, upstream):
 
 
 @frappe.whitelist()
-def analyse_repository(app_name):
+def analyse_repository(app_name: str):
 	"""
 	Main API callable from Desk, DocTypes, Pages.
 	"""

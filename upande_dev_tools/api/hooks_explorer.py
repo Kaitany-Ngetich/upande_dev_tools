@@ -4,13 +4,14 @@
 import importlib
 
 import frappe
+from frappe import _
 
 DEV_TOOLS_ROLES = {"Dev Team"}
 
 
 def _require_dev_team():
 	if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
-		frappe.throw("Not permitted", frappe.PermissionError)
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
 HOOK_KEYS = [

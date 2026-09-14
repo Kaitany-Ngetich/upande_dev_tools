@@ -4,6 +4,7 @@
 import json
 
 import frappe
+from frappe import _
 from frappe.utils import getdate, today
 
 PM_ROLES = {"Projects Manager"}
@@ -14,7 +15,7 @@ INCOMING_REQUEST_STATES = ["Scheduled", "In Progress"]
 
 def _require_projects_manager():
 	if not PM_ROLES & set(frappe.get_roles()):
-		frappe.throw("Not permitted", frappe.PermissionError)
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
 def _resolve_user_display_names(emails: set[str]) -> dict[str, str]:
@@ -31,7 +32,7 @@ def get_project_health(scope: str | None = None) -> dict:
 	filters: dict = {"status": ["!=", "Cancelled"]}
 	if scope:
 		if scope not in ("Internal", "External"):
-			frappe.throw("scope must be 'Internal' or 'External'.", frappe.ValidationError)
+			frappe.throw(_("scope must be 'Internal' or 'External'."), frappe.ValidationError)
 		filters["custom_project_scope"] = scope
 
 	projects = frappe.get_all(

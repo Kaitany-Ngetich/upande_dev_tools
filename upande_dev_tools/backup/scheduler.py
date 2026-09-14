@@ -91,6 +91,7 @@ def run_code_backup():
 	else:
 		log_activity("Backup", "Code backup completed", f"{saved} changed snapshots saved", "Success")
 
+	# nosemgrep: frappe-manual-commit - scheduled job; snapshots must persist before the worker returns.
 	frappe.db.commit()
 
 	return {"status": "success", "snapshots_saved": saved}

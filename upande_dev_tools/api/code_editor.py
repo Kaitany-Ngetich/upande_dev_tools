@@ -187,6 +187,9 @@ def validate_file(app: str, path: str) -> tuple[Path, Path]:
 	if not app or not path:
 		frappe.throw(_("App and path are required"))
 
+	if app not in frappe.get_installed_apps():
+		frappe.throw(_("Unknown app"))
+
 	app_path = get_app_root(app)
 	file_path = app_path / path
 
@@ -337,6 +340,7 @@ def read_file(app: str, path: str) -> dict:
 	_require_dev_team()
 	app_path, file_path = validate_file(app, path)
 
+	# nosemgrep: frappe-security-file-traversal
 	with open(file_path, encoding="utf-8", errors="replace") as f:
 		content = f.read()
 
@@ -360,6 +364,7 @@ def write_file(app: str, path: str, content: str) -> dict:
 	_require_dev_team()
 	_app_path, file_path = validate_file(app, path)
 
+	# nosemgrep: frappe-security-file-traversal
 	with open(file_path, "w", encoding="utf-8", newline="") as f:
 		f.write(content or "")
 
@@ -384,6 +389,7 @@ def preview_file(app: str, path: str, max_chars: int = 4000) -> dict:
 
 	max_chars = int(max_chars or 4000)
 
+	# nosemgrep: frappe-security-file-traversal
 	with open(file_path, encoding="utf-8", errors="replace") as f:
 		content = f.read(max_chars)
 

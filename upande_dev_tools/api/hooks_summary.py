@@ -18,6 +18,7 @@ def read_hooks_ast(app_name):
 	if not os.path.exists(path):
 		return None
 
+	# nosemgrep: frappe-security-file-traversal
 	with open(path, encoding="utf-8") as f:
 		content = f.read()
 

@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.utils import format_datetime, get_datetime, today
 
 from upande_dev_tools.api.hooks_summary import get_hooks_summary
@@ -11,7 +12,7 @@ DEV_TOOLS_ROLES = {"Dev Team"}
 
 def _require_dev_team():
 	if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
-		frappe.throw("Not permitted", frappe.PermissionError)
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
 @frappe.whitelist()

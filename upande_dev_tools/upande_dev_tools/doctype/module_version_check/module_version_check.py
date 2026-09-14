@@ -21,6 +21,7 @@ class ModuleVersionCheck(Document):
 		result = analyse_local_repo(get_doc_app_folder(self), fetch=False)
 		update_check_doc(self, result)
 		self.save(ignore_permissions=True)
+		# nosemgrep: frappe-manual-commit - whitelisted method; the check result must persist before it is returned.
 		frappe.db.commit()
 		return self.as_dict()
 
@@ -29,6 +30,7 @@ class ModuleVersionCheck(Document):
 		result = analyse_local_repo(get_doc_app_folder(self), fetch=True)
 		update_check_doc(self, result)
 		self.save(ignore_permissions=True)
+		# nosemgrep: frappe-manual-commit - whitelisted method; the check result must persist before it is returned.
 		frappe.db.commit()
 		return self.as_dict()
 
@@ -350,6 +352,7 @@ def run_freshness_check(docname: str) -> dict:
 		set_field_if_exists(doc, "last_checked_by", frappe.session.user)
 
 	doc.save(ignore_permissions=True)
+	# nosemgrep: frappe-manual-commit - whitelisted endpoint; the result must persist before it is returned.
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -370,6 +373,7 @@ def run_freshness_check_with_fetch(docname: str) -> dict:
 		set_field_if_exists(doc, "last_checked_by", frappe.session.user)
 
 	doc.save(ignore_permissions=True)
+	# nosemgrep: frappe-manual-commit - whitelisted endpoint; the result must persist before it is returned.
 	frappe.db.commit()
 	return doc.as_dict()
 
@@ -413,6 +417,7 @@ def scan_installed_apps() -> dict:
 			skipped += 1
 			errors.append(f"{app}: {e}")
 
+	# nosemgrep: frappe-manual-commit - whitelisted endpoint; the result must persist before it is returned.
 	frappe.db.commit()
 	return {"created": created, "updated": updated, "skipped": skipped, "total": len(apps), "errors": errors}
 

@@ -158,7 +158,7 @@ def log_activity(title, description, status="Success"):
 
 
 @frappe.whitelist()
-def run_compare_for_doctype(doctype_name):
+def run_compare_for_doctype(doctype_name: str):
 	differences = compare_latest_snapshot(doctype_name)
 	save_differences(differences, doctype_name)
 
@@ -166,6 +166,7 @@ def run_compare_for_doctype(doctype_name):
 		f"Field comparison completed for {doctype_name}", f"{len(differences)} differences found", "Success"
 	)
 
+	# nosemgrep: frappe-manual-commit - whitelisted endpoint; differences must persist before they are returned.
 	frappe.db.commit()
 
 	return {"doctype": doctype_name, "differences_found": len(differences), "differences": differences}

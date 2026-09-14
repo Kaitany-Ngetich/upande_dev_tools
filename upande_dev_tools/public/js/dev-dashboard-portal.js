@@ -409,7 +409,7 @@ function udt_load_dashboard() {
 			udt_render_system_health(health);
 		},
 		error: function () {
-			frappe.msgprint("Failed to load dashboard data.");
+			frappe.msgprint(__("Failed to load dashboard data."));
 		},
 	});
 }
