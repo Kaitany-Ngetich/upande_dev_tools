@@ -159,6 +159,7 @@ def get_backlog_board(project: str | None = None) -> dict:
 			"raised_by_user",
 			"raised_by_employee",
 			"raised_by_contact",
+			"raised_by_customer",
 		],
 		ignore_permissions=True,
 	)
@@ -190,6 +191,11 @@ def get_backlog_board(project: str | None = None) -> dict:
 			req["requested_by"] = requester_names.get(req["raised_by_user"], req["raised_by_user"])
 		elif req.get("raised_by_contact"):
 			req["requested_by"] = req["raised_by_contact"]
+		elif req.get("raised_by_customer"):
+			# No single named individual on record - true for every request bulk-imported from
+			# a client's own backlog spreadsheet, where only the client's identity, not a
+			# specific person's, is known.
+			req["requested_by"] = req["raised_by_customer"]
 		else:
 			req["requested_by"] = None
 

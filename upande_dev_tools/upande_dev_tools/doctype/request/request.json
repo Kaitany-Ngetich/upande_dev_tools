@@ -22,6 +22,7 @@
   "raised_by_employee",
   "column_break_submitter2",
   "raised_by_contact",
+  "raised_by_customer",
   "source",
   "section_break_resolution",
   "resolution_notes"
@@ -125,6 +126,16 @@
    "fieldtype": "Link",
    "label": "Raised By (Contact)",
    "options": "Contact",
+   "read_only": 1
+  },
+  {
+   "description": "The client this request is for. Filled from the linked Project's Customer when one isn't already set - covers requests bulk-imported from a client's own backlog, where no single named individual is on record as the requester.",
+   "fetch_from": "project.customer",
+   "fetch_if_empty": 1,
+   "fieldname": "raised_by_customer",
+   "fieldtype": "Link",
+   "label": "Raised By (Customer)",
+   "options": "Customer",
    "read_only": 1
   },
   {

@@ -1,9 +1,10 @@
 # Copyright (c) 2026, Upande Limited
 
 import frappe
+from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests import IntegrationTestCase
 
-from upande_dev_tools.api.project_health import get_project_health
+from upande_dev_tools.api.project_health import get_project_health, get_team_workload
 
 
 class IntegrationTestProjectHealthApi(IntegrationTestCase):
@@ -16,6 +17,27 @@ class IntegrationTestProjectHealthApi(IntegrationTestCase):
 		if roles:
 			user.add_roles(*roles)
 		return email
+
+	def _make_project(self, scope: str = "Internal") -> str:
+		name = f"Team Workload Test Project ({scope})"
+		existing = frappe.db.exists("Project", {"project_name": name})
+		if existing:
+			return existing
+		company = frappe.db.get_value("Company", {}, "name")
+		if not company:
+			self.skipTest("No Company exists on this site to attach a test Project to.")
+		return (
+			frappe.get_doc(
+				{
+					"doctype": "Project",
+					"project_name": name,
+					"company": company,
+					"custom_project_scope": scope,
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
 
 	def test_get_project_health_denies_users_without_projects_manager_role(self) -> None:
 		other = self._make_user("project-health-noperm@example.test", ["Dev Team"])
@@ -49,3 +71,69 @@ class IntegrationTestProjectHealthApi(IntegrationTestCase):
 				"open_requests",
 			):
 				self.assertIn(key, row)
+
+	def test_get_project_health_filters_by_scope(self) -> None:
+		pm = self._make_user("project-health-scope-pm@example.test", ["Projects Manager"])
+		internal = self._make_project("Internal")
+		external = self._make_project("External")
+
+		frappe.set_user(pm)
+		try:
+			result = get_project_health(scope="External")
+		finally:
+			frappe.set_user("Administrator")
+
+		names = [p["name"] for p in result["projects"]]
+		self.assertIn(external, names)
+		self.assertNotIn(internal, names)
+
+	def test_get_project_health_rejects_an_invalid_scope(self) -> None:
+		pm = self._make_user("project-health-badscope-pm@example.test", ["Projects Manager"])
+		frappe.set_user(pm)
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				get_project_health(scope="Nonsense")
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_team_workload_denies_users_without_projects_manager_role(self) -> None:
+		other = self._make_user("team-workload-noperm@example.test", ["Dev Team"])
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_team_workload()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_team_workload_counts_open_tasks_and_incoming_requests_per_dev(self) -> None:
+		from upande_dev_tools.api.requests import create_request, promote_to_task, triage_request
+
+		dev = self._make_user("team-workload-dev@example.test", ["Dev Team", "Projects User"])
+		pm = self._make_user("team-workload-pm@example.test", ["Projects Manager"])
+		project = self._make_project("External")
+
+		frappe.set_user(dev)
+		created = create_request(title="Workload test request", request_type="Bug", project=project)
+
+		frappe.set_user(pm)
+		triage_request(created["name"], "Approve", priority="High")
+		promote_to_task(created["name"])
+		req_doc = frappe.get_doc("Request", created["name"])
+
+		# add_assignment (like every other use of it in this suite) runs as Administrator -
+		# "Projects Manager" has no DocPerm read access to Task on this bench, and assigning
+		# a task is a real Dev Team/admin action in production, not something this test needs
+		# the PM persona itself to be able to do.
+		frappe.set_user("Administrator")
+		add_assignment({"doctype": "Task", "name": req_doc.linked_task, "assign_to": [dev]})
+
+		frappe.set_user(pm)
+		result = get_team_workload(project=project)
+		frappe.set_user("Administrator")
+
+		dev_row = next(d for d in result["developers"] if d["user"] == dev)
+		self.assertGreaterEqual(dev_row["open_tasks"], 1)
+		self.assertGreaterEqual(dev_row["incoming_requests"], 1)
+		self.assertEqual(dev_row["full_name"], frappe.db.get_value("User", dev, "full_name"))
+		self.assertIn("open_tasks", result)
+		self.assertIn("closed_tasks", result)
