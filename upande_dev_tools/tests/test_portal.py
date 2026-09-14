@@ -16,6 +16,7 @@ from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_
 from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
 from upande_dev_tools.www.my_day import get_context as my_day_get_context
+from upande_dev_tools.www.pm_dashboard import get_context as pm_dashboard_get_context
 
 
 class IntegrationTestPortal(IntegrationTestCase):
@@ -276,10 +277,12 @@ class IntegrationTestPortal(IntegrationTestCase):
 			)
 
 	def test_enforce_page_access_terminates_loop_when_home_route_is_unregistered(self) -> None:
-		# Uses Projects Manager/"pm-dashboard" rather than Dev Team/"dev-dashboard": the latter
-		# is now a real, permanently self-registered page (the Tools Dashboard port), so it can
-		# no longer stand in for "a role-priority home route with no page registered yet" —
-		# "pm-dashboard" (not yet built) still can.
+		# Both role-priority home routes (dev-dashboard, pm-dashboard) are now real, permanently
+		# self-registered pages (see setup.py), so neither can stand in for "a role-priority home
+		# route with no page registered yet" anymore. Temporarily unregister pm-dashboard to
+		# exercise that branch, then restore it so later tests see the same state migrate would
+		# have left them in, regardless of test execution order.
+		frappe.delete_doc("Dev Portal Page", "pm-dashboard", ignore_permissions=True, force=True)
 		pm = self._make_user("loop-guard-unregistered@example.test", ["Projects Manager"])
 		frappe.set_user(pm)
 		try:
@@ -289,6 +292,14 @@ class IntegrationTestPortal(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
+			register_dev_portal_page(
+				route="pm-dashboard",
+				title="Dashboard",
+				icon="home",
+				nav_group="Management",
+				sort_order=10,
+				roles=["Projects Manager"],
+			)
 
 	def test_hooks_explorer_permits_dev_team_and_denies_others(self) -> None:
 		dev = self._make_user("hooks-explorer-dev@example.test", ["Dev Team"])
@@ -511,3 +522,41 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.nav_group, "Developer")
 		self.assertEqual(doc.sort_order, 70)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
+
+	def test_pm_dashboard_permits_projects_manager_and_denies_others(self) -> None:
+		pm = self._make_user("pm-dashboard-pm@example.test", ["Projects Manager"])
+		other = self._make_user("pm-dashboard-other@example.test", [])
+
+		frappe.set_user(pm)
+		try:
+			pm_dashboard_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				pm_dashboard_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_pm_dashboard_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "pm-dashboard")
+		self.assertEqual(doc.title, "Dashboard")
+		self.assertEqual(doc.icon, "home")
+		self.assertEqual(doc.nav_group, "Management")
+		self.assertEqual(doc.sort_order, 10)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Projects Manager"})
+
+	def test_resolve_home_route_for_projects_manager_is_now_reachable(self) -> None:
+		# Closes the same gap Sub-project 2's Task 2 closed for Dev Team/dev-dashboard:
+		# /pm-dashboard is now a real, registered, permitted page for Projects Manager.
+		pm = self._make_user("pm-dashboard-home-route@example.test", ["Projects Manager"])
+		self.assertEqual(resolve_home_route(pm), "/pm-dashboard")
+		frappe.set_user(pm)
+		try:
+			enforce_page_access("pm-dashboard")  # must not raise
+		finally:
+			frappe.set_user("Administrator")

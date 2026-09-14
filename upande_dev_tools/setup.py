@@ -119,6 +119,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=70,
 		roles=["Dev Team"],
 	)
+	register_dev_portal_page(
+		route="pm-dashboard",
+		title="Dashboard",
+		icon="home",
+		nav_group="Management",
+		sort_order=10,
+		roles=["Projects Manager"],
+	)
 
 
 def run_setup() -> None:
