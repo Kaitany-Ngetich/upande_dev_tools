@@ -81,6 +81,95 @@ def backfill_project_scope() -> None:
 	)
 
 
+# request_type/priority/product_area values seeded here are exactly the strings already
+# stored on the 1179 real imported Request rows (confirmed directly against the live
+# database before writing this list) - since each field kept the same column, converting it
+# from Select to Link needed no data migration at all, as long as a master record exists
+# under that exact name. "Chore" and "Question" have no existing rows yet but are added so
+# they're pickable without a developer touching code, matching what the source backlog sheet
+# itself already distinguished (Feature/Issue/Master Data/Chore - "Issue" was mapped to "Bug"
+# during the original import, kept as-is here for continuity with the live data).
+REQUEST_TYPES = ["Feature", "Bug", "Master Data", "Question", "Note", "Chore"]
+
+# (name, sort_order) - lower sorts first.
+PRIORITY_LEVELS = [("Low", 0), ("Medium", 1), ("High", 2), ("Urgent", 3)]
+
+# Every distinct product_area value already live on real Request rows, plus a handful the
+# source backlog sheet used that hadn't reached a real row yet. "Seucity" (a typo in the
+# source data for one row) is deliberately NOT seeded here - see fix_product_area_typo().
+PRODUCT_AREAS = [
+	"HR",
+	"Roses-Sprays",
+	"Roses-Standard",
+	"Sales",
+	"Scouting & Crop Protection",
+	"Stores",
+	"CRM",
+	"livestock management",
+	"Payroll",
+	"Agric Production",
+	"Agric Forecasting",
+	"Accounting",
+	"Asset Maintenance",
+	"Asset Management",
+	"QC",
+	"Procurement",
+	"Dairy",
+	"Yoghurt",
+	"Shopify",
+	"IoT Integration",
+	"Security",
+	"All",
+	"Poultry",
+	"Coffee",
+	"Coffee Production",
+	"Whatsapp integration",
+	"Material Request",
+	"Mpesa Integration",
+	"Loans",
+	"Clinic",
+	"Fillers",
+]
+
+# Recovered from the source backlog sheet's own "Priority" column, which actually held a mix
+# of the real priority level (Urgent - already covered by PRIORITY_LEVELS) and free-text tags
+# that never had anywhere to go, so were silently dropped during the original import. ",Critial
+# Path" (178 rows) and "Critical Path" (56 rows) are the same tag with a typo - normalized to
+# one here.
+REQUEST_TAGS = ["Critical Path", "Good to have", "Important (post-go live)", "Important (post-migration)"]
+
+
+def register_master_data() -> None:
+	for type_name in REQUEST_TYPES:
+		if not frappe.db.exists("Request Type", type_name):
+			frappe.get_doc({"doctype": "Request Type", "type_name": type_name}).insert(
+				ignore_permissions=True
+			)
+
+	for level_name, sort_order in PRIORITY_LEVELS:
+		if not frappe.db.exists("Priority Level", level_name):
+			frappe.get_doc(
+				{"doctype": "Priority Level", "level_name": level_name, "sort_order": sort_order}
+			).insert(ignore_permissions=True)
+
+	for area_name in PRODUCT_AREAS:
+		if not frappe.db.exists("Product Area", area_name):
+			frappe.get_doc({"doctype": "Product Area", "area_name": area_name}).insert(
+				ignore_permissions=True
+			)
+
+	for tag_name in REQUEST_TAGS:
+		if not frappe.db.exists("Request Tag", tag_name):
+			frappe.get_doc({"doctype": "Request Tag", "tag_name": tag_name}).insert(ignore_permissions=True)
+
+
+def fix_product_area_typo() -> None:
+	"""One row in the real imported data has product_area='Seucity' (a typo in the source
+	backlog sheet for 'Security', which is already a real Product Area). Runs every migrate
+	but is a no-op once fixed - only touches rows still holding the exact typo."""
+	frappe.db.sql("update `tabRequest` set product_area = 'Security' where product_area = 'Seucity'")
+
+
 def register_installed_apps_as_deployment_apps() -> None:
 	"""Seeds one Deployment App per app currently installed on this bench, so choosing what to
 	deploy starts as a dropdown of what's actually here - not a blank list you have to type
@@ -217,11 +306,21 @@ def register_dev_portal_pages() -> None:
 		sort_order=10,
 		roles=["All"],
 	)
+	register_dev_portal_page(
+		route="master-data",
+		title="Master Data",
+		icon="database",
+		nav_group="Admin",
+		sort_order=90,
+		roles=["Dev Team", "Projects Manager"],
+	)
 
 
 def run_setup() -> None:
 	create_task_custom_fields()
 	create_project_custom_fields()
 	backfill_project_scope()
+	register_master_data()
+	fix_product_area_typo()
 	register_dev_portal_pages()
 	register_installed_apps_as_deployment_apps()
