@@ -91,7 +91,10 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		)
 
 	def test_triage_and_promote_normal_request(self) -> None:
-		dev = self._make_user("dev-triage@example.test", ["Dev Team"])
+		# Also needs "Projects User" now that create_request checks read permission on a
+		# caller-supplied project (final-review fix, Sub-project 5) — a real Dev Team member
+		# raising a request against a real project needs the same access in production.
+		dev = self._make_user("dev-triage@example.test", ["Dev Team", "Projects User"])
 		pm = self._make_user("pm-triage@example.test", ["Projects Manager"])
 		project = self._make_project()
 
