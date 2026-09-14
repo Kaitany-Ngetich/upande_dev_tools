@@ -4,7 +4,7 @@
   "description": "Internal developer tools for Upande workflows",
   "main": "index.js",
   "scripts": {
-    "test": "node upande_dev_tools/tests/js/test_backlog_board.js"
+    "test": "node upande_dev_tools/tests/js/test_backlog_board.js && node upande_dev_tools/tests/js/test_review_queue.js"
   },
   "keywords": [],
   "author": "",

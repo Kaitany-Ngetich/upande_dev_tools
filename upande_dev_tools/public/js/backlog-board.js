@@ -3,10 +3,12 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 const DAY = 86400000;
 const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const ZOOM = { weeks: 13, months: 4 };
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const ZOOM = { weeks: 15, months: 5 };
 const PAGE = 60;
 const COLUMN_CAP = 25;
-const SHEET_FIELDS = { 4: "stage", 5: "priority", 6: "start", 7: "end" };
+const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
+const SHEET_FIELDS = { 2: "stage", 3: "priority", 5: "end", 6: "start" };
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 const HINTS = {
 	board: "Drag a card between stages to move it",
@@ -50,13 +52,41 @@ function load_jspreadsheet() {
 
 function paint_cell(cell, x, item) {
 	if (!item) return;
-	cell.classList.toggle("bb-done", item.stage === "Done");
-	if (x === 1 || x === 2 || x === 6 || x === 7) cell.classList.add("bb-mono");
-	if (x === 7 && item.late) cell.classList.add("bb-late");
-	if (x >= 4 && x <= 7) cell.classList.add(item.movable ? "bb-pick" : "bb-locked");
-	if (x === 4) cell.classList.add("bb-fill", `st-${slug(item.stage)}`);
-	if (x === 5 && item.priority) cell.classList.add("bb-fill", `pr-${slug(item.priority)}`);
-	if (x === 10) cell.classList.add("bb-quiet");
+	if (item.stage === "Done") cell.classList.add("bb-done");
+	if (SHEET_FIELDS[x]) cell.classList.add(item.movable ? "bb-pick" : "bb-locked");
+
+	if (x === 1) {
+		cell.classList.add("bb-title");
+		cell.innerHTML = `<span class="cellwrap"><span class="dpx-bb-pri p${item.rank - 1}"
+			title="${esc(item.priority || "No priority")}"></span><span class="dpx-bb-src">${
+			SOURCES[item.doctype]
+		}</span><span class="txt">${esc(item.title)}</span></span>`;
+	} else if (x === 2) {
+		cell.innerHTML = `<span class="cellwrap"><span class="dpx-bb-chip st-${slug(
+			item.stage
+		)}">${esc(item.stage)}</span></span>`;
+	} else if (x === 3) {
+		cell.innerHTML = item.priority
+			? `<span class="cellwrap"><span class="dpx-bb-chip pr-${slug(item.priority)}">${esc(
+					item.priority
+				)}</span></span>`
+			: "";
+	} else if (x === 4) {
+		cell.innerHTML = item.assignees.length
+			? `<span class="cellwrap"><span class="dpx-bb-av">${esc(
+					initials(item.assignees[0])
+				)}</span><span class="txt">${esc(item.assignees[0])}${
+					item.assignees.length > 1 ? ` +${item.assignees.length - 1}` : ""
+				}</span></span>`
+			: '<span class="cellwrap" style="color:var(--ink-faint)">Unassigned</span>';
+	} else if (x === 5 || x === 6) {
+		cell.classList.add("bb-mono");
+		if (x === 5 && item.late) cell.classList.add("bb-late");
+	} else if (x === 7 || x === 8) {
+		cell.classList.add("bb-quiet");
+	} else if (x === 9) {
+		cell.classList.add("bb-mono");
+	}
 }
 
 function ico(name, size) {
@@ -86,6 +116,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	load() {
 		const args = this.project ? { project: this.project } : {};
+		const icon = $(this.wrapper).find(".bb-reload").addClass("spin");
+		if (!this.items.length) this.skeleton();
 		frappe
 			.xcall("upande_dev_tools.api.board.get_board", args)
 			.then((data) => {
@@ -93,8 +125,23 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				this.stages = data.stages;
 				this.total = data.total;
 				this.render();
+				icon.removeClass("spin");
 			})
-			.catch((e) => this.fail(e));
+			.catch((e) => {
+				icon.removeClass("spin");
+				this.fail(e);
+			});
+	}
+
+	skeleton() {
+		const bar = (w) => `<i style="width:${w}%"></i>`;
+		$(this.wrapper)
+			.find(".bb-stage")
+			.html(
+				`<div class="dpx-card"><div class="dpx-bb-skel">${[96, 72, 88, 60, 80, 68, 92, 54]
+					.map(bar)
+					.join("")}</div></div>`
+			);
 	}
 
 	fail(e) {
@@ -154,7 +201,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<span class="dpx-bb-grp-lbl bb-extra-lbl">Group</span>
 							<select class="dpx-bb-field bb-extra" aria-label="Group by"></select>
 						</div>
-						<span class="dpx-bb-hint"></span>
+						<span class="dpx-bb-hint">
+							<span class="bb-hint-txt"></span>
+							<span class="dpx-bb-kbd">/</span><span>search</span>
+							<span class="dpx-bb-kbd">1</span><span>–</span><span class="dpx-bb-kbd">4</span><span>views</span>
+						</span>
 					</div>
 				</div>
 				<div class="bb-stage"></div>
@@ -194,6 +245,31 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.on("click", ".dpx-bb-more", () => {
 			this.limit += PAGE * 4;
 			this.render();
+		});
+
+		this.bind_keys(root);
+	}
+
+	bind_keys(root) {
+		const search = root.find(".dpx-bb-search");
+		document.addEventListener("keydown", (e) => {
+			const typing = /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "");
+			if (e.key === "Escape" && typing) return e.target.blur();
+			if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+
+			if (e.key === "/") {
+				e.preventDefault();
+				return search.trigger("focus").trigger("select");
+			}
+			const view = VIEW_KEYS[e.key];
+			if (view) {
+				e.preventDefault();
+				root.find(`.dpx-bb-views button[data-view="${view}"]`).trigger("click");
+			}
+			if (e.key === "r") {
+				e.preventDefault();
+				this.load();
+			}
 		});
 	}
 
@@ -269,7 +345,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			parts.push(`<span class="sp">${this.items.length} of ${this.total} loaded</span>`);
 
 		$(this.wrapper).find(".dpx-bb-status").html(parts.join("<span>·</span>"));
-		$(this.wrapper).find(".dpx-bb-hint").text(HINTS[this.view] || "");
+		$(this.wrapper).find(".bb-hint-txt").text(HINTS[this.view] || "");
 	}
 
 	group(rows) {
@@ -435,19 +511,20 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 		const order = rows.slice();
 		this.sheet_rows = order;
+		// What a person needs to read first sits first: what the work is, where
+		// it stands, how urgent, who has it, when it is due. Identifiers are
+		// reference material and go to the far right.
 		const data = order.map((item) => [
 			`${item.doctype}:${item.name}`,
-			SOURCES[item.doctype],
-			item.name,
 			item.title,
 			item.stage,
 			item.priority || "",
-			item.start || "",
-			item.end || "",
 			item.assignees.join(", "),
-			item.project || "",
+			item.end || "",
+			item.start || "",
 			item.status,
-			item.late ? "Late" : "",
+			item.project || "",
+			item.name,
 		]);
 
 		const locked = { readOnly: true };
@@ -455,27 +532,25 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			data,
 			columns: [
 				{ type: "hidden", title: "id" },
-				{ type: "text", title: "Type", width: 62, ...locked },
-				{ type: "text", title: "ID", width: 132, ...locked },
-				{ type: "text", title: "Work item", width: 380, ...locked },
-				{ type: "dropdown", title: "Stage", width: 118, source: this.stages },
-				{ type: "dropdown", title: "Priority", width: 96, source: ["", "Low", "Medium", "High", "Urgent"] },
-				{ type: "calendar", title: "Start", width: 104, options: { format: "YYYY-MM-DD" } },
-				{ type: "calendar", title: "Due", width: 104, options: { format: "YYYY-MM-DD" } },
-				{ type: "text", title: "Assigned to", width: 170, ...locked },
-				{ type: "text", title: "Project", width: 130, ...locked },
-				{ type: "text", title: "Status", width: 118, ...locked },
-				{ type: "text", title: "Flag", width: 64, ...locked },
+				{ type: "text", title: "Work item", width: 372, ...locked },
+				{ type: "dropdown", title: "Stage", width: 124, source: this.stages },
+				{ type: "dropdown", title: "Priority", width: 104, source: ["", "Low", "Medium", "High", "Urgent"] },
+				{ type: "text", title: "Assignee", width: 150, ...locked },
+				{ type: "calendar", title: "Due", width: 102, options: { format: "YYYY-MM-DD" } },
+				{ type: "calendar", title: "Start", width: 102, options: { format: "YYYY-MM-DD" } },
+				{ type: "text", title: "Status", width: 106, ...locked },
+				{ type: "text", title: "Project", width: 104, ...locked },
+				{ type: "text", title: "ID", width: 122, ...locked },
 			],
 			defaultColAlign: "left",
 			columnSorting: true,
 			columnDrag: false,
 			tableOverflow: true,
-			tableHeight: "calc(100vh - 292px)",
+			tableHeight: "calc(100vh - 268px)",
 			tableWidth: "100%",
 			lazyLoading: true,
 			loadingSpin: true,
-			freezeColumns: 4,
+			freezeColumns: 2,
 			search: false,
 			pagination: false,
 			allowInsertRow: false,
@@ -568,7 +643,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			return stage.html(
 				blank(
 					"No dates to plot",
-					"Tasks show here once they have a planned or due date, and issues once they have a resolution date. Set one on a work item and it lands on this timeline."
+					"Tasks appear here once they have a planned or due date, and issues once they have a resolution date. Set one on a work item and it lands on this timeline."
 				)
 			);
 		}
@@ -579,57 +654,82 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const end = date_of(item.end || item.start);
 			return { item, start, end: end < start ? start : end };
 		});
-		spans.sort((a, b) => a.start - b.start);
+		spans.sort((a, b) => a.start - b.start || a.end - b.end);
 
-		const first = new Date(Math.min(...spans.map((s) => s.start)) - 3 * DAY);
-		const last = new Date(Math.max(...spans.map((s) => s.end)) + 4 * DAY);
+		const first = week_start(new Date(Math.min(...spans.map((s) => s.start)) - 4 * DAY));
+		const last = new Date(Math.max(...spans.map((s) => s.end)) + 6 * DAY);
 		const days = Math.round((last - first) / DAY);
 		const width = days * day_w;
 		const x = (d) => Math.round(((d - first) / DAY) * day_w);
 
+		const months = [];
 		const ticks = [];
 		const rules = [];
-		const months = [];
 		for (let i = 0; i <= days; i++) {
 			const d = new Date(first.getTime() + i * DAY);
+			const at = i * day_w;
 			if (d.getUTCDate() === 1) {
 				months.push(
-					`<div class="dpx-bb-mo" style="left:${i * day_w}px">${MONTHS[d.getUTCMonth()]} ${String(
-						d.getUTCFullYear()
-					).slice(2)}</div>`
+					`<div class="dpx-bb-mo" style="left:${at}px">${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}</div>`
 				);
-				rules.push(`<div class="mo" style="left:${i * day_w}px"></div>`);
+				rules.push(`<div class="mo" style="left:${at}px"></div>`);
 			} else if (d.getUTCDay() === 1) {
-				rules.push(`<div class="wk" style="left:${i * day_w}px"></div>`);
-				if (day_w >= 9)
-					ticks.push(`<div class="dpx-bb-tk" style="left:${i * day_w}px">${d.getUTCDate()}</div>`);
+				rules.push(`<div class="wk" style="left:${at}px"></div>`);
+				ticks.push(`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`);
 			}
+			if (d.getUTCDay() === 6) rules.push(`<div class="we" style="left:${at}px;width:${day_w * 2}px"></div>`);
 		}
 
 		const now = date_of(today());
-		const today_line =
-			now >= first && now <= last
-				? `<div class="dpx-bb-today" style="left:${x(now)}px"></div>`
-				: "";
+		const inside = now >= first && now <= last;
+		const marker = inside
+			? `<div class="dpx-bb-today" style="left:${x(now)}px"></div>`
+			: "";
+		const tag = inside
+			? `<div class="dpx-bb-todaytag" style="left:${x(now)}px">Today</div>`
+			: "";
+
+		const lanes = this.group_by === "stage" ? null : this.group(dated.map((s) => s));
+		const body = lanes
+			? lanes
+					.filter(([, items]) => items.length)
+					.map(([key, items]) => {
+						const own = spans.filter((s) => items.includes(s.item));
+						if (!own.length) return "";
+						return (
+							`<div class="dpx-bb-tl-lane">${esc(key)}<span class="n">${own.length}</span></div>` +
+							own.map((span) => tl_row(span, x, width)).join("")
+						);
+					})
+					.join("")
+			: spans.map((span) => tl_row(span, x, width)).join("");
 
 		stage.html(`
 			<div class="dpx-bb-tl"><div class="dpx-bb-tl-scroll"><div class="dpx-bb-tl-inner">
 				<div class="dpx-bb-tl-hd">
 					<div class="corner">${spans.length} scheduled</div>
-					<div class="band" style="width:${width}px">${months.join("")}${ticks.join("")}</div>
+					<div class="band" style="width:${width}px">${months.join("")}${ticks.join("")}${tag}</div>
 				</div>
 				<div class="dpx-bb-tl-body">
-					<div class="dpx-bb-grid" style="width:${width}px">${rules.join("")}${today_line}</div>
-					${spans.map((span) => tl_row(span, x, width)).join("")}
+					<div class="dpx-bb-grid" style="width:${width}px">${rules.join("")}${marker}</div>
+					${body}
 				</div>
 			</div></div>
 			<div class="dpx-bb-legend">
-				<span><i></i>In flight</span>
-				<span><i class="done"></i>Done</span>
+				<span><i class="prog"></i>In progress</span>
+				<span><i class="rev"></i>In review</span>
+				<span><i></i>Queued</span>
 				<span><i class="late"></i>Past due</span>
+				<span><i class="done"></i>Done</span>
 				<span><i class="today"></i>Today</span>
+				<span class="sp">${spans.length} of ${rows.length} items have dates</span>
 			</div></div>
 		`);
+
+		if (inside) {
+			const scroll = stage.find(".dpx-bb-tl-scroll")[0];
+			if (scroll) scroll.scrollLeft = Math.max(0, x(now) - scroll.clientWidth / 2);
+		}
 	}
 };
 
@@ -664,20 +764,42 @@ function list_row(item) {
 
 function tl_row({ item, start, end }, x, width) {
 	const left = x(start);
-	const bar_w = Math.max(x(end) - left + 4, 5);
+	const bar_w = Math.max(x(end) - left + 4, 6);
 	const done = item.stage === "Done";
-	const cls = done ? "done" : item.late ? "late" : "";
+	const cls = done ? "done" : item.late ? "late" : `st-${slug(item.stage)}`;
 	const label = start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
+	const days = Math.round((end - start) / DAY) + 1;
+	// The bar carries its own name once it is wide enough to hold one, so the
+	// eye reads the schedule without travelling back to the gutter.
+	const inside = bar_w > 70 ? `<span class="lb">${esc(item.title)}</span>` : "";
+	const outside = bar_w > 70 ? "" : `<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>`;
+
 	return `
 		<div class="dpx-bb-tl-row${done ? " done" : ""}">
-			<div class="name"><span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
-				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a></div>
+			<div class="name">
+				<span class="dpx-bb-pri p${item.rank - 1}" title="${esc(item.priority || "No priority")}"></span>
+				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a>
+				${
+					item.assignees.length
+						? `<span class="dpx-bb-av" title="${esc(item.assignees.join(", "))}">${esc(
+								initials(item.assignees[0])
+							)}</span>`
+						: ""
+				}
+			</div>
 			<div class="track" style="width:${width}px">
 				<div class="dpx-bb-tlbar ${cls}" style="left:${left}px;width:${bar_w}px"
-					title="${esc(item.title)} · ${label}"></div>
-				<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>
+					title="${esc(item.title)} · ${label} · ${days} day${days === 1 ? "" : "s"} · ${esc(item.stage)}">${inside}</div>
+				${outside}
 			</div>
 		</div>`;
+}
+
+function week_start(date) {
+	const d = new Date(date.getTime());
+	const shift = (d.getUTCDay() + 6) % 7;
+	d.setUTCDate(d.getUTCDate() - shift);
+	return d;
 }
 
 function pri(item) {

@@ -173,57 +173,66 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const sheet = window.__sheet;
 	assert.ok(sheet, "sheet view hands its rows to jspreadsheet");
 	assert.strictEqual(sheet.config.data.length, 4);
-	assert.strictEqual(sheet.config.freezeColumns, 4, "identity columns stay pinned while you scroll");
+	assert.strictEqual(sheet.config.freezeColumns, 2, "work item and stage stay pinned while you scroll");
 	assert.ok(sheet.config.columnSorting, "columns sort");
 	assert.ok(sheet.config.lazyLoading, "only the visible rows render");
+	assert.strictEqual(sheet.config.defaultColAlign, "left", "cells read left aligned, not centred");
 	assert.ok(
 		window.document.body.classList.contains("dpx-menu-skin"),
 		"jsuites appends its menus to body, so body carries the class that styles them"
 	);
 
-	// an editable cell advertises itself; a locked one does not
-	const td = (cls) => {
-		const el = window.document.createElement("td");
-		el.className = cls || "";
-		return el;
-	};
-	const open = td();
-	sheet.config.updateTable(null, open, 5, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
-	assert.ok(open.classList.contains("bb-pick"), "editable cells show a picker chevron");
-	assert.strictEqual(sheet.config.defaultColAlign, "left", "cells read left aligned, not centred");
-
-	// stage and priority carry a fill so a column reads at a glance
-	const stageCell = td();
-	sheet.config.updateTable(null, stageCell, 4, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
-	assert.ok(stageCell.classList.contains("bb-fill"));
-	assert.ok(stageCell.classList.contains("st-in-progress"), "stage cell is tinted by stage");
-	const priCell = td();
-	sheet.config.updateTable(null, priCell, 5, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
-	assert.ok(priCell.classList.contains("pr-urgent"), "priority cell is tinted by priority");
-	const shut = td();
-	sheet.config.updateTable(null, shut, 5, sheet.config.data.findIndex((r) => r[0] === "Request:REQ-03"));
-	assert.ok(shut.classList.contains("bb-locked"));
-
+	// What the work is comes first; identifiers are reference material and go last.
+	assert.strictEqual(
+		sheet.config.columns.map((c) => c.title).join(),
+		"id,Work item,Stage,Priority,Assignee,Due,Start,Status,Project,ID"
+	);
 	const editable = sheet.config.columns
 		.map((c, i) => (c.readOnly ? null : i))
 		.filter((i) => i !== null && i > 0);
-	// arrays built inside the jsdom realm have a different Array.prototype, so
-	// compare by value rather than with deepStrictEqual
+	assert.strictEqual(editable.join(), "2,3,5,6", "stage, priority, due and start take an edit");
 	assert.strictEqual(
-		editable.join(),
-		"4,5,6,7",
-		`stage, priority, start and due are the editable cells (got ${JSON.stringify(editable)})`
-	);
-	assert.strictEqual(
-		sheet.config.columns[4].source.join(),
+		sheet.config.columns[2].source.join(),
 		"Triage,Todo,In Progress,In Review,Blocked,Done"
 	);
 
+	// Cells render their own content: chips for stage and priority, a titled
+	// first column carrying the priority dot and source tag.
+	const td = () => window.document.createElement("td");
+	const rowOf = (id) => sheet.config.data.findIndex((r) => r[0] === id);
+
+	const titleCell = td();
+	sheet.config.updateTable(null, titleCell, 1, rowOf("Task:TASK-01"));
+	assert.ok(titleCell.classList.contains("bb-title"));
+	assert.strictEqual(titleCell.querySelectorAll(".dpx-bb-pri.p3").length, 1, "urgent dot rides the title");
+	assert.ok(titleCell.textContent.includes("Bucket reject"));
+
+	const stageCell = td();
+	sheet.config.updateTable(null, stageCell, 2, rowOf("Task:TASK-01"));
+	assert.strictEqual(
+		stageCell.querySelectorAll(".dpx-bb-chip.st-in-progress").length,
+		1,
+		"stage reads as a chip, not a filled cell"
+	);
+	assert.ok(stageCell.classList.contains("bb-pick"), "editable cells show a picker chevron");
+
+	const priCell = td();
+	sheet.config.updateTable(null, priCell, 3, rowOf("Task:TASK-01"));
+	assert.strictEqual(priCell.querySelectorAll(".dpx-bb-chip.pr-urgent").length, 1);
+
+	const whoCell = td();
+	sheet.config.updateTable(null, whoCell, 4, rowOf("Task:TASK-01"));
+	assert.ok(whoCell.querySelector(".dpx-bb-av"), "assignee shows an avatar");
+
+	const lockedCell = td();
+	sheet.config.updateTable(null, lockedCell, 2, rowOf("Request:REQ-03"));
+	assert.ok(lockedCell.classList.contains("bb-locked"));
+
 	// a request is workflow governed, so its cells refuse the edit
 	const requestRow = sheet.config.data.findIndex((r) => r[0] === "Request:REQ-03");
-	assert.strictEqual(sheet.config.onbeforechange(null, null, 4, requestRow, "Done"), false);
+	assert.strictEqual(sheet.config.onbeforechange(null, null, 2, requestRow, "Done"), false);
 	const taskRow = sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01");
-	assert.strictEqual(sheet.config.onbeforechange(null, null, 4, taskRow, "Done"), "Done");
+	assert.strictEqual(sheet.config.onbeforechange(null, null, 2, taskRow, "Done"), "Done");
 
 	// ── Timeline ──
 	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
@@ -258,14 +267,14 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	await new Promise((r) => setTimeout(r, 30));
 	const cfg = window.__sheet.config;
 	const row = cfg.data.findIndex((r) => r[0] === "Task:TASK-04");
-	cfg.onchange(null, null, 5, row, "Low");
+	cfg.onchange(null, null, 3, row, "Low");
 	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_field");
 	assert.strictEqual(calls[calls.length - 1].args.field, "priority");
 	assert.strictEqual(calls[calls.length - 1].args.value, "Low");
 
 	// an unchanged value must not fire a save
 	const before = calls.length;
-	cfg.onchange(null, null, 4, row, cfg.data[row][4]);
+	cfg.onchange(null, null, 2, row, cfg.data[row][2]);
 	assert.strictEqual(calls.length, before, "re-entering the same value saves nothing");
 
 	console.log("backlog-board: all checks passed");
