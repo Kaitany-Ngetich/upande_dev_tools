@@ -60,7 +60,16 @@ def get_review_queue() -> list[dict]:
 	return frappe.get_all(
 		"Request",
 		filters={"workflow_state": "Under Review"},
-		fields=["name", "title", "request_type", "product_area", "project", "raised_by_user", "creation"],
+		fields=[
+			"name",
+			"title",
+			"request_type",
+			"product_area",
+			"project",
+			"priority",
+			"raised_by_user",
+			"creation",
+		],
 		order_by="creation asc",
 		ignore_permissions=True,
 	)

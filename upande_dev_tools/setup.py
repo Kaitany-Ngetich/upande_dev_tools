@@ -101,7 +101,7 @@ def register_dev_portal_pages() -> None:
 		icon="trello",
 		nav_group="Developer",
 		sort_order=50,
-		roles=["Dev Team"],
+		roles=["Dev Team", "Projects Manager"],
 	)
 	register_dev_portal_page(
 		route="code-snapshots",

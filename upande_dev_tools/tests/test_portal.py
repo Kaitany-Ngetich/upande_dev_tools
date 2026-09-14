@@ -1,8 +1,11 @@
 # Copyright (c) 2026, Upande Limited
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests import IntegrationTestCase
 
+from upande_dev_tools import portal
 from upande_dev_tools.api.code_editor import get_installed_apps as code_editor_get_installed_apps
 from upande_dev_tools.api.dashboard import get_dashboard_data
 from upande_dev_tools.api.hooks_explorer import get_installed_apps as hooks_explorer_get_installed_apps
@@ -200,23 +203,10 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.local.flags.redirect_location = None
 
 	def test_resolve_home_route_skips_role_priority_route_that_denies_user(self) -> None:
-		self._make_page("dev-dashboard", [])  # registered but denies everyone (empty allowed_roles)
+		self._make_page("portal-test-home-route-skip", [])  # registered but denies everyone
 		dev = self._make_user("home-route-skip@example.test", ["Dev Team"])
-		try:
+		with patch.object(portal, "HOME_ROUTE_BY_ROLE", (("Dev Team", "/portal-test-home-route-skip"),)):
 			self.assertEqual(resolve_home_route(dev), "/requests-portal")
-		finally:
-			frappe.delete_doc("Dev Portal Page", "dev-dashboard", ignore_permissions=True, force=True)
-			# "dev-dashboard" is a real, permanently self-registered page (see setup.py) as of
-			# the Tools Dashboard port — restore it so later tests see the same state migrate
-			# would have left them in, regardless of test execution order.
-			register_dev_portal_page(
-				route="dev-dashboard",
-				title="Dashboard",
-				icon="home",
-				nav_group="Developer",
-				sort_order=10,
-				roles=["Dev Team"],
-			)
 
 	def test_enforce_page_access_permits_user_holding_every_required_role(self) -> None:
 		self._make_page("portal-test-dual-allow", ["Dev Team", "System Manager"], require_all_roles=True)
@@ -247,60 +237,31 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.local.flags.redirect_location = None
 
 	def test_enforce_page_access_terminates_loop_when_home_route_is_itself_denied(self) -> None:
-		self._make_page("dev-dashboard", [])  # registered but denies everyone
+		self._make_page("portal-test-loop-registered", [])  # registered but denies everyone
 		dev = self._make_user("loop-guard-registered@example.test", ["Dev Team"])
 		frappe.set_user(dev)
 		try:
-			with self.assertRaises(frappe.Redirect):
-				enforce_page_access("dev-dashboard")
-			# _route_permits already agrees with enforce_page_access's own denial for a
-			# *registered* page (both run the identical _is_permitted check), so
-			# resolve_home_route already skips this denied route on its own and lands on
-			# the next fallback (here, the unregistered default "/requests-portal") without
-			# ever needing the new same-route guard below to fire. That guard's registered-page
-			# arm exists for defense in depth (see enforce_page_access), not because this
-			# scenario can currently loop.
-			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+			with patch.object(portal, "HOME_ROUTE_BY_ROLE", (("Dev Team", "/portal-test-loop-registered"),)):
+				with self.assertRaises(frappe.Redirect):
+					enforce_page_access("portal-test-loop-registered")
+				self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
-			frappe.delete_doc("Dev Portal Page", "dev-dashboard", ignore_permissions=True, force=True)
-			# "dev-dashboard" is a real, permanently self-registered page (see setup.py) as of
-			# the Tools Dashboard port — restore it so later tests see the same state migrate
-			# would have left them in, regardless of test execution order.
-			register_dev_portal_page(
-				route="dev-dashboard",
-				title="Dashboard",
-				icon="home",
-				nav_group="Developer",
-				sort_order=10,
-				roles=["Dev Team"],
-			)
 
 	def test_enforce_page_access_terminates_loop_when_home_route_is_unregistered(self) -> None:
-		# Both role-priority home routes (dev-dashboard, pm-dashboard) are now real, permanently
-		# self-registered pages (see setup.py), so neither can stand in for "a role-priority home
-		# route with no page registered yet" anymore. Temporarily unregister pm-dashboard to
-		# exercise that branch, then restore it so later tests see the same state migrate would
-		# have left them in, regardless of test execution order.
-		frappe.delete_doc("Dev Portal Page", "pm-dashboard", ignore_permissions=True, force=True)
 		pm = self._make_user("loop-guard-unregistered@example.test", ["Projects Manager"])
 		frappe.set_user(pm)
 		try:
-			with self.assertRaises(frappe.Redirect):
-				enforce_page_access("pm-dashboard")
-			self.assertEqual(frappe.local.flags.redirect_location, "/app")
+			with patch.object(
+				portal, "HOME_ROUTE_BY_ROLE", (("Projects Manager", "/portal-test-never-registered"),)
+			):
+				with self.assertRaises(frappe.Redirect):
+					enforce_page_access("portal-test-never-registered")
+				self.assertEqual(frappe.local.flags.redirect_location, "/app")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
-			register_dev_portal_page(
-				route="pm-dashboard",
-				title="Dashboard",
-				icon="home",
-				nav_group="Management",
-				sort_order=10,
-				roles=["Projects Manager"],
-			)
 
 	def test_hooks_explorer_permits_dev_team_and_denies_others(self) -> None:
 		dev = self._make_user("hooks-explorer-dev@example.test", ["Dev Team"])
@@ -468,7 +429,10 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.icon, "trello")
 		self.assertEqual(doc.nav_group, "Developer")
 		self.assertEqual(doc.sort_order, 50)
-		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team"})
+		# Projects Manager was added (final-review fix wave) so PM Dashboard's drill-down link
+		# to /backlog-board?project=<name> works for Projects Manager users too; the underlying
+		# get_backlog_board API already independently permission-checks project-scoped reads.
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager"})
 
 	def test_code_snapshots_permits_dev_team_and_denies_others(self) -> None:
 		dev = self._make_user("code-snapshots-dev@example.test", ["Dev Team"])
@@ -594,3 +558,25 @@ class IntegrationTestPortal(IntegrationTestCase):
 		items = get_nav_items(pm)
 		management_routes = [item["route"] for item in items if item["nav_group"] == "Management"]
 		self.assertEqual(management_routes, ["pm-dashboard", "review-queue"])
+
+	def test_nav_groups_are_scoped_to_each_users_own_roles(self) -> None:
+		dev_only = self._make_user("nav-scope-dev-only@example.test", ["Dev Team"])
+		pm_only = self._make_user("nav-scope-pm-only@example.test", ["Projects Manager"])
+		both = self._make_user("nav-scope-both@example.test", ["Dev Team", "Projects Manager"])
+
+		# Scoped to the real "Developer"/"Management" nav groups only: other tests in this class
+		# register their own throwaway Dev Portal Page rows (nav_group "Test"/"Group A") that are
+		# never torn down mid-run (IntegrationTestCase only rolls back at class teardown), so an
+		# unfiltered set comparison here would be flaky depending on test execution order.
+		known_groups = {"Developer", "Management"}
+		dev_groups = {item["nav_group"] for item in get_nav_items(dev_only)} & known_groups
+		pm_groups = {item["nav_group"] for item in get_nav_items(pm_only)} & known_groups
+		both_groups = {item["nav_group"] for item in get_nav_items(both)} & known_groups
+
+		self.assertEqual(dev_groups, {"Developer"})
+		# Projects Manager now also sees "Developer" via backlog-board (final-review fix wave,
+		# Fix 1): the PM Dashboard's drill-down link only works once Projects Manager is added
+		# to backlog-board's allowed roles, so a Projects-Manager-only user legitimately sees
+		# both nav groups now.
+		self.assertEqual(pm_groups, {"Developer", "Management"})
+		self.assertEqual(both_groups, {"Developer", "Management"})
