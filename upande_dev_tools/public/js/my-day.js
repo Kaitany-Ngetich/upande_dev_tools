@@ -73,6 +73,7 @@ upande_dev_tools.MyDay = class MyDay {
 		const root = $(this.wrapper);
 		root.on("click", ".md-reload", () => this.load());
 		root.on("click", ".md-check", (e) => this.advance($(e.currentTarget)));
+		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
 		document.addEventListener("keydown", (e) => {
 			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
 			this.load();
@@ -196,7 +197,7 @@ upande_dev_tools.MyDay = class MyDay {
 function md_task(t) {
 	const done = t.status === "Completed";
 	return `
-		<div class="md-task${done ? " done" : ""}" data-name="${md_esc(t.name)}">
+		<div class="md-task${done ? " done" : ""}" data-name="${md_esc(t.name)}" data-id="Task:${md_esc(t.name)}">
 			<button class="md-check" type="button" title="${done ? "Done" : "Move to the next stage"}"
 				aria-label="Advance ${md_esc(t.subject)}">${done ? md_ico("check", 11) : ""}</button>
 			<a class="t" href="/app/task/${encodeURIComponent(t.name)}">${md_esc(t.subject)}</a>
@@ -248,7 +249,7 @@ const MEET_MARK = `<svg viewBox="0 0 87 72" width="15" height="13" aria-hidden="
 
 function md_small(t) {
 	return `
-		<a class="md-small" href="/app/task/${encodeURIComponent(t.name)}">
+		<a class="md-small" href="/app/task/${encodeURIComponent(t.name)}" data-id="Task:${md_esc(t.name)}">
 			<span class="dpx-bb-dot st-${md_slug(t.status)}"></span>
 			<span class="t">${md_esc(t.subject)}</span>
 			${t.exp_end_date ? `<span class="d">${md_esc(String(t.exp_end_date).slice(0, 10))}</span>` : ""}

@@ -297,3 +297,105 @@ def _coerce(fieldtype: str, value: str | None):
 @frappe.whitelist()
 def get_modules() -> list[str]:
 	return frappe.get_all("Product Area", pluck="name", order_by="name asc")
+
+
+PREVIEW_LIMIT = 280
+IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif")
+
+
+@frappe.whitelist()
+def get_preview(doctype: str, name: str) -> dict:
+	"""Enough of a work item to decide whether to open it: what it is, where it
+	stands, the first part of what was written, and the screenshot if one came
+	with it - which, for an issue raised from the app, it usually did."""
+	if doctype not in ("Task", "Issue", "Request"):
+		frappe.throw(_("Unknown work item."), frappe.ValidationError)
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	fields = {
+		"Task": ["subject", "status", "priority", "project", "description", "custom_module", "_assign"],
+		"Issue": ["subject", "status", "priority", "project", "description", "custom_module", "_assign", "raised_by"],
+		"Request": ["title", "workflow_state", "priority", "project", "description", "product_area", "raised_by_user"],
+	}[doctype]
+
+	doc = frappe.db.get_value(doctype, name, fields, as_dict=True)
+	if not doc:
+		frappe.throw(_("That work item is gone."), frappe.DoesNotExistError)
+
+	assigned = json.loads(doc.get("_assign")) if doc.get("_assign") else []
+	names = _resolve_names(set(assigned))
+
+	return {
+		"doctype": doctype,
+		"name": name,
+		"title": doc.get("subject") or doc.get("title"),
+		"status": doc.get("status") or doc.get("workflow_state") or "Open",
+		"priority": doc.get("priority"),
+		"project": doc.get("project"),
+		"module": doc.get("custom_module") or doc.get("product_area"),
+		"by": doc.get("raised_by") or doc.get("raised_by_user"),
+		"assignees": [names.get(who, who) for who in assigned],
+		"summary": _summarise(doc.get("description")),
+		# Served through this app rather than linked directly: an attachment on an
+		# issue is private, and reading the board does not grant read on the file.
+		"image": (
+			f"/api/method/upande_dev_tools.api.board.preview_image"
+			f"?doctype={doctype}&name={frappe.utils.quoted(name)}"
+			if _first_image(doctype, name)
+			else None
+		),
+	}
+
+
+@frappe.whitelist()
+def preview_image(doctype: str, name: str):
+	if doctype not in ("Task", "Issue", "Request"):
+		frappe.throw(_("Unknown work item."), frappe.ValidationError)
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		raise frappe.PermissionError
+
+	url = _first_image(doctype, name)
+	if not url:
+		raise frappe.DoesNotExistError
+
+	row = frappe.db.get_value("File", {"file_url": url}, ["name", "file_name"], as_dict=True)
+	content = frappe.get_doc("File", row.name).get_content()
+
+	frappe.response.filename = row.file_name
+	frappe.response.filecontent = content
+	frappe.response.type = "download"
+	frappe.response.display_content_as = "inline"
+
+
+def _summarise(html: str | None) -> str:
+	if not html:
+		return ""
+	text = " ".join(frappe.utils.strip_html(html).split())
+	if len(text) <= PREVIEW_LIMIT:
+		return text
+	# cut on a word so the trail reads as a sentence breaking off, not a slice
+	return text[:PREVIEW_LIMIT].rsplit(" ", 1)[0] + "…"
+
+
+def _first_image(doctype: str, name: str) -> str | None:
+	files = frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": doctype, "attached_to_name": name},
+		fields=["file_url", "file_name"],
+		order_by="creation asc",
+		ignore_permissions=True,
+	)
+	images = [f for f in files if (f.file_url or "").lower().endswith(IMAGE_TYPES)]
+	if not images:
+		return None
+	# a file the reporter called a screenshot beats an incidental photo
+	shots = [f for f in images if "screenshot" in (f.file_name or "").lower()]
+	return (shots or images)[0].file_url
+
+
+def _resolve_names(emails: set[str]) -> dict[str, str]:
+	if not emails:
+		return {}
+	rows = frappe.get_all("User", filters={"name": ["in", list(emails)]}, fields=["name", "full_name"])
+	return {row.name: row.full_name or row.name for row in rows}

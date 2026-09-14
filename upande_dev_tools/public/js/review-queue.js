@@ -120,6 +120,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 			this.typing = setTimeout(() => this.render(), 180);
 		});
 		root.on("click", ".rq-act", (e) => this.act($(e.currentTarget)));
+		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
 	}
 
 	visible() {
@@ -203,7 +204,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				.join("");
 
 		return `
-			<tr class="dpx-bb-row" data-name="${rq_esc(r.name)}">
+			<tr class="dpx-bb-row" data-name="${rq_esc(r.name)}" data-id="Request:${rq_esc(r.name)}">
 				<td><div class="rq-subj">
 					<a href="/app/request/${encodeURIComponent(r.name)}">${rq_esc(r.title)}</a>
 					<div class="rq-meta"><span class="dpx-bb-src">${rq_esc(r.request_type || "REQ")}</span>
