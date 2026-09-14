@@ -1,0 +1,129 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Admin</div>
+	<div class="ttl">Master Data</div>
+	<div class="sub">Add or retire the categories used across Requests - no code changes needed.</div>
+</div>
+<div class="dpx-tabs" id="md-tabs"></div>
+<div class="dpx-card">
+	<div class="dpx-card-hd"><div class="ttl" id="md-active-label"></div></div>
+	<div class="dpx-card-body">
+		<form id="md-add-form" style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center;">
+			<input type="text" id="md-add-value" placeholder="New value"
+				style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);min-width:220px;">
+			<input type="number" id="md-add-sort" placeholder="Sort order" hidden
+				style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);width:110px;">
+			<button type="submit" class="pill" style="cursor:pointer;border:1px solid var(--hairline);background:none;">Add</button>
+			<span id="md-add-error" style="color:#c4302b;"></span>
+		</form>
+		<table id="md-table">
+			<thead><tr><th>Value</th><th>Disabled</th></tr></thead>
+			<tbody></tbody>
+		</table>
+	</div>
+</div>
+<div class="dpx-card" style="margin-top: 18px;">
+	<div class="dpx-card-hd"><div class="ttl">Already Configurable Elsewhere</div></div>
+	<div class="dpx-card-body">
+		<p style="color:var(--ink-mute);font-size:13px;margin-top:0;">
+			These are real, existing doctypes already used as the linkable master data for their fields -
+			no need to duplicate them here.
+		</p>
+		<div class="tilegrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
+			<a class="tile" style="background:var(--surface-2);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-card);text-decoration:none;color:inherit;" href="/app/deployment-instance">Deployment Instances</a>
+			<a class="tile" style="background:var(--surface-2);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-card);text-decoration:none;color:inherit;" href="/app/deployment-app">Deployment Apps</a>
+			<a class="tile" style="background:var(--surface-2);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-card);text-decoration:none;color:inherit;" href="/app/role">Roles</a>
+			<a class="tile" style="background:var(--surface-2);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-card);text-decoration:none;color:inherit;" href="/app/workflow/Request Review">Request Workflow States</a>
+			<a class="tile" style="background:var(--surface-2);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-card);text-decoration:none;color:inherit;" href="/app/workflow/Deployment Review">Deployment Workflow States</a>
+		</div>
+	</div>
+</div>
+<script>
+frappe.ready(function() {
+	var kinds = [];
+	var active = null;
+
+	function renderTabs() {
+		var root = document.querySelector("#md-tabs");
+		root.innerHTML = "";
+		kinds.forEach(function(kind) {
+			var btn = document.createElement("button");
+			btn.className = "dpx-tab" + (kind.key === active.key ? " on" : "");
+			btn.textContent = kind.label;
+			btn.addEventListener("click", function() {
+				active = kind;
+				renderTabs();
+				loadRows();
+			});
+			root.appendChild(btn);
+		});
+	}
+
+	function loadRows() {
+		document.querySelector("#md-active-label").textContent = active.label;
+		document.querySelector("#md-add-sort").hidden = !active.has_sort_order;
+		document.querySelector("#md-add-value").value = "";
+		document.querySelector("#md-add-sort").value = "";
+		document.querySelector("#md-add-error").textContent = "";
+
+		frappe.call({method: "upande_dev_tools.api.master_data.get_master_data", args: {key: active.key}}).then(function(r) {
+			var tbody = document.querySelector("#md-table tbody");
+			tbody.innerHTML = "";
+			(r.message || []).forEach(function(row) {
+				var tr = document.createElement("tr");
+				var nameTd = document.createElement("td");
+				nameTd.textContent = row.name;
+				tr.appendChild(nameTd);
+
+				var disabledTd = document.createElement("td");
+				var checkbox = document.createElement("input");
+				checkbox.type = "checkbox";
+				checkbox.checked = !!row.disabled;
+				checkbox.addEventListener("change", function() {
+					frappe.call({
+						method: "upande_dev_tools.api.master_data.set_master_data_disabled",
+						args: {key: active.key, name: row.name, disabled: checkbox.checked ? 1 : 0}
+					});
+				});
+				disabledTd.appendChild(checkbox);
+				tr.appendChild(disabledTd);
+
+				tbody.appendChild(tr);
+			});
+		});
+	}
+
+	document.querySelector("#md-add-form").addEventListener("submit", function(e) {
+		e.preventDefault();
+		var errorEl = document.querySelector("#md-add-error");
+		errorEl.textContent = "";
+		var value = document.querySelector("#md-add-value").value;
+		var sortOrder = document.querySelector("#md-add-sort").value;
+		frappe.call({
+			method: "upande_dev_tools.api.master_data.add_master_data",
+			args: {key: active.key, value: value, sort_order: sortOrder ? parseInt(sortOrder, 10) : 0}
+		}).then(function() {
+			loadRows();
+		}).catch(function() {
+			errorEl.textContent = "Couldn't add that - it may already exist.";
+		});
+	});
+
+	frappe.call({method: "upande_dev_tools.api.master_data.get_master_data_kinds"}).then(function(r) {
+		kinds = r.message || [];
+		if (!kinds.length) return;
+		active = kinds[0];
+		renderTabs();
+		loadRows();
+	});
+});
+</script>
+{% endcall %}
+{% endblock %}

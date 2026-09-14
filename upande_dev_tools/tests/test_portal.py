@@ -19,6 +19,7 @@ from upande_dev_tools.www.code_snapshots import get_context as code_snapshots_ge
 from upande_dev_tools.www.dev_dashboard import get_context as dev_dashboard_get_context
 from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
+from upande_dev_tools.www.master_data import get_context as master_data_get_context
 from upande_dev_tools.www.my_day import get_context as my_day_get_context
 from upande_dev_tools.www.pm_dashboard import get_context as pm_dashboard_get_context
 from upande_dev_tools.www.requests_portal import get_context as requests_portal_get_context
@@ -434,6 +435,40 @@ class IntegrationTestPortal(IntegrationTestCase):
 		# Projects Manager was added (final-review fix wave) so PM Dashboard's drill-down link
 		# to /backlog-board?project=<name> works for Projects Manager users too; the underlying
 		# get_backlog_board API already independently permission-checks project-scoped reads.
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager"})
+
+	def test_master_data_permits_dev_team_and_projects_manager_and_denies_others(self) -> None:
+		dev = self._make_user("master-data-dev@example.test", ["Dev Team"])
+		pm = self._make_user("master-data-pm@example.test", ["Projects Manager"])
+		other = self._make_user("master-data-other@example.test", [])
+
+		frappe.set_user(dev)
+		try:
+			master_data_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(pm)
+		try:
+			master_data_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				master_data_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_master_data_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "master-data")
+		self.assertEqual(doc.title, "Master Data")
+		self.assertEqual(doc.icon, "database")
+		self.assertEqual(doc.nav_group, "Admin")
+		self.assertEqual(doc.sort_order, 90)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager"})
 
 	def test_code_snapshots_permits_dev_team_and_denies_others(self) -> None:

@@ -129,3 +129,36 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-devrow-detail .task-row:last-child{border-bottom:none}
 .dpx .dpx-devrow-detail .task-row .muted{color:var(--ink-mute)}
 .dpx .dpx-empty{color:var(--ink-mute);font:500 12.5px var(--sans);padding:8px 0}
+
+/* ══ TABS — mirrors the Mona design's pill tab-strip (ufd-modern-1-mona.html .tabs/.tab) ══ */
+.dpx .dpx-tabs{display:inline-flex;gap:4px;margin-bottom:24px;background:rgba(10,10,10,0.04);padding:5px;border-radius:999px;max-width:100%;overflow-x:auto}
+.dpx .dpx-tab{background:transparent;border:0;font:500 13px var(--sans);color:var(--ink-4);padding:10px 18px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:all .2s}
+.dpx .dpx-tab:hover{color:var(--ink)}
+.dpx .dpx-tab.on{background:var(--grad-ink);color:#fafaf6;box-shadow:0 4px 14px rgba(10,10,10,0.20)}
+
+/* ══ VIEW TOGGLE — Mona's .pillgroup (List / Kanban / Gantt, etc.) ══ */
+.dpx .dpx-viewtoggle{display:inline-flex;background:rgba(10,10,10,0.04);border-radius:999px;padding:4px;gap:2px;margin-bottom:20px}
+.dpx .dpx-viewtoggle button{border:0;background:transparent;font:500 12px var(--sans);color:var(--ink-4);padding:8px 16px;cursor:pointer;border-radius:999px;transition:all .2s}
+.dpx .dpx-viewtoggle button.on{background:var(--ink);color:#fafaf6;box-shadow:0 2px 8px rgba(10,10,10,0.15)}
+
+/* ══ KANBAN ══ */
+.dpx .dpx-kanban{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px}
+.dpx .dpx-kanban-col{min-width:260px;flex:1}
+.dpx .dpx-kanban-col-hd{font:600 12px var(--sans);text-transform:uppercase;letter-spacing:1px;color:var(--ink-mute);margin-bottom:10px;padding:0 4px}
+.dpx .dpx-kanban-dropzone{background:rgba(10,10,10,0.02);border-radius:14px;padding:8px;min-height:60px;transition:background .15s}
+.dpx .dpx-kanban-dropzone.drag-over{background:rgba(34,136,131,0.10)}
+.dpx .dpx-kanban-card{background:var(--surface-2);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-card);margin-bottom:8px;cursor:grab;font:500 12.5px var(--sans);color:var(--ink-2)}
+.dpx .dpx-kanban-card:active{cursor:grabbing}
+.dpx .dpx-kanban-card .meta{font:500 11px var(--sans);color:var(--ink-mute);margin-top:6px}
+
+/* ══ GANTT (lightweight custom timeline - no external library) ══ */
+.dpx .dpx-gantt{overflow-x:auto}
+.dpx .dpx-gantt-row{display:grid;grid-template-columns:200px 1fr;align-items:center;gap:14px;padding:8px 0;border-bottom:1px solid var(--hairline)}
+.dpx .dpx-gantt-row:last-child{border-bottom:none}
+.dpx .dpx-gantt-name{font:500 12.5px var(--sans);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpx .dpx-gantt-track{position:relative;height:22px;background:rgba(10,10,10,0.03);border-radius:6px;min-width:480px}
+.dpx .dpx-gantt-bar{position:absolute;top:3px;height:16px;border-radius:999px;background:var(--grad-ink)}
+.dpx .dpx-gantt-bar.done{background:linear-gradient(90deg,#1a8a3a,#22c55e)}
+.dpx .dpx-gantt-bar.overdue{background:linear-gradient(90deg,#7a2218,#c4302b)}
+.dpx .dpx-gantt-axis{display:grid;grid-template-columns:200px 1fr;gap:14px;margin-bottom:6px}
+.dpx .dpx-gantt-axis-labels{display:flex;justify-content:space-between;font:500 10.5px var(--sans);color:var(--ink-mute);min-width:480px}
