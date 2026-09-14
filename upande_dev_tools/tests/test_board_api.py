@@ -83,6 +83,16 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		self.assertTrue(late["Slipping"])
 		self.assertFalse(late["Shipped"])
 
+	def test_dates_come_back_as_plain_iso_dates(self) -> None:
+		project = self._project()
+		self._task(project, exp_start_date=today(), exp_end_date=add_days(today(), 3))
+		self._issue(project, opening_date=today(), sla_resolution_by=f"{add_days(today(), 3)} 17:00:00")
+
+		for item in get_board(project=project)["items"]:
+			for field in ("start", "end"):
+				if item[field]:
+					self.assertRegex(item[field], r"^\d{4}-\d{2}-\d{2}$")
+
 	def test_board_reports_total_beyond_the_limit(self) -> None:
 		project = self._project()
 		for index in range(3):

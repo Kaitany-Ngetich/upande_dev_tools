@@ -82,6 +82,10 @@ def get_board(project: str | None = None, limit: int = BOARD_LIMIT) -> dict:
 	return {"items": items[:limit], "total": len(items), "stages": STAGES}
 
 
+def _date(value) -> str:
+	return str(getdate(value)) if value else ""
+
+
 def _tasks(filters: dict) -> list[dict]:
 	rows = frappe.get_all(
 		"Task",
@@ -110,8 +114,8 @@ def _tasks(filters: dict) -> list[dict]:
 			"rank": PRIORITY_RANK.get(row.priority, 0),
 			"priority": row.priority,
 			"project": row.project,
-			"start": str(row.exp_start_date or row.custom_planned_for or ""),
-			"end": str(row.exp_end_date or row.custom_planned_for or ""),
+			"start": _date(row.exp_start_date or row.custom_planned_for),
+			"end": _date(row.exp_end_date or row.custom_planned_for),
 			"movable": True,
 			"_assign": row._assign,
 		}
@@ -145,8 +149,8 @@ def _issues(filters: dict) -> list[dict]:
 			"rank": PRIORITY_RANK.get(row.priority, 0),
 			"priority": row.priority,
 			"project": row.project,
-			"start": str(row.opening_date or ""),
-			"end": str(getdate(row.sla_resolution_by) if row.sla_resolution_by else ""),
+			"start": _date(row.opening_date),
+			"end": _date(row.sla_resolution_by),
 			"movable": True,
 			"_assign": row._assign,
 		}
