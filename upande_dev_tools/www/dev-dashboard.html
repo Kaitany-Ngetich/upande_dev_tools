@@ -6,11 +6,11 @@
 {% block page_content %}
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
-<div id="udt-dev-dashboard-root"></div>
-<script src="/assets/upande_dev_tools/js/dev-dashboard-portal.js"></script>
+<div id="udt-dev-dashboard"></div>
+<script src="/assets/upande_dev_tools/js/dev-dashboard.js?v={{ asset_version('js/dev-dashboard.js') }}"></script>
 <script>
 frappe.ready(function() {
-	upande_dev_tools_portal.mount_dev_dashboard(document.getElementById("udt-dev-dashboard-root"));
+	new upande_dev_tools.DevDashboard(document.getElementById("udt-dev-dashboard"));
 });
 </script>
 {% endcall %}

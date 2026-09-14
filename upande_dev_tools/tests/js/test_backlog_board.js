@@ -295,6 +295,35 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	assert.strictEqual(board.items.find((i) => i.name === "TASK-01").stage, "Blocked");
 	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_stage");
 
+	// ── Dragging a bar reschedules it ──
+	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
+	await settle();
+	const bar = $(root).find('.dpx-bb-tlbar[data-id="Task:TASK-01"]');
+	assert.strictEqual(bar.length, 1);
+	assert.ok(bar.attr("data-movable") !== undefined, "task bars can be moved");
+	assert.strictEqual(
+		$(root).find('.dpx-bb-tlbar[data-id="Request:REQ-03"]').attr("data-movable"),
+		undefined,
+		"requests are not dragged around the plan"
+	);
+
+	// grab the middle of the bar and push it four days right
+	const held = bar[0];
+	held.getBoundingClientRect = () => ({ left: 100, right: 200, top: 0, bottom: 17 });
+	Object.defineProperty(held, "offsetLeft", { value: 100, configurable: true });
+	Object.defineProperty(held, "offsetWidth", { value: 100, configurable: true });
+	const ZOOM_W = 15;
+	bar.trigger($.Event("pointerdown", { button: 0, clientX: 150 }));
+	const move = new window.MouseEvent("pointermove", { clientX: 150 + 4 * ZOOM_W });
+	window.document.dispatchEvent(move);
+	window.document.dispatchEvent(new window.MouseEvent("pointerup"));
+	await settle();
+
+	const moved = calls.filter((c) => c.method.endsWith("set_field") && ["start", "end"].includes(c.args.field));
+	assert.strictEqual(moved.length, 2, "moving a bar writes both dates");
+	assert.strictEqual(moved[0].args.value, "2026-09-11", "start shifts by the days dragged");
+	assert.strictEqual(moved[1].args.value, "2026-09-23", "and so does due, by the same amount");
+
 	// ── Editing a sheet cell saves (mutates state, so it runs last) ──
 	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
 	await new Promise((r) => setTimeout(r, 30));

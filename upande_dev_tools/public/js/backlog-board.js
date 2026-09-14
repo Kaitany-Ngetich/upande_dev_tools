@@ -219,8 +219,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						</div>
 						<span class="dpx-bb-sep"></span>
 						<div class="dpx-bb-grp">
-							<span class="dpx-bb-grp-lbl bb-extra-lbl">Group</span>
+							<span class="dpx-bb-grp-lbl">Group</span>
 							<select class="dpx-bb-field bb-extra" aria-label="Group by"></select>
+						</div>
+						<div class="dpx-bb-grp bb-zoom-grp" hidden>
+							<span class="dpx-bb-grp-lbl">Zoom</span>
+							<select class="dpx-bb-field bb-zoom" aria-label="Zoom">
+								<option value="days">Days</option>
+								<option value="weeks">Weeks</option>
+								<option value="months">Months</option>
+							</select>
 						</div>
 						<span class="dpx-bb-sep bb-tools-sep" hidden></span>
 						<div class="dpx-bb-grp bb-tools"></div>
@@ -255,9 +263,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			this.typing = setTimeout(() => this.render(), e.type === "input" ? 180 : 0);
 		});
 		root.on("change", ".bb-extra", (e) => {
-			const value = $(e.currentTarget).val();
-			if (this.view === "timeline") this.zoom = value;
-			else this.group_by = value;
+			this.group_by = $(e.currentTarget).val();
+			this.render();
+		});
+		root.on("change", ".bb-zoom", (e) => {
+			this.zoom = $(e.currentTarget).val();
 			this.render();
 		});
 		root.on("click", ".dpx-bb-ghd button", (e) => {
@@ -421,22 +431,20 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	render_extra() {
-		const select = $(this.wrapper).find(".bb-extra");
-		$(this.wrapper)
-			.find(".bb-extra-lbl")
-			.text(this.view === "timeline" ? "Zoom" : "Group");
-		if (this.view === "timeline") {
-			select.html(
-				`<option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>`
-			).val(this.zoom);
-		} else {
-			select.html(
-				`<option value="stage">Group by stage</option>
-				 <option value="assignee">Group by assignee</option>
-				 <option value="priority">Group by priority</option>
-				 <option value="project">Group by project</option>`
-			).val(this.group_by);
+		const root = $(this.wrapper);
+		const group = root.find(".bb-extra");
+		if (!group.children().length) {
+			group.html(
+				`<option value="stage">Stage</option>
+				 <option value="assignee">Assignee</option>
+				 <option value="module">Module</option>
+				 <option value="priority">Priority</option>
+				 <option value="project">Project</option>`
+			);
 		}
+		group.val(this.group_by);
+		root.find(".bb-zoom").val(this.zoom);
+		root.find(".bb-zoom-grp").prop("hidden", this.view !== "timeline");
 	}
 
 	render_count(rows) {
@@ -468,24 +476,23 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				rows.filter((item) => (item.priority || "None") === p),
 			]);
 		}
+		const blank = { assignee: "Unassigned", module: "No module", project: "No project" }[this.group_by];
 		const keys = new Set();
 		rows.forEach((item) => {
-			if (this.group_by === "assignee") {
-				item.assignees.length ? item.assignees.forEach((a) => keys.add(a)) : keys.add("Unassigned");
-			} else {
-				keys.add(item.project || "No project");
-			}
+			if (this.group_by === "assignee")
+				item.assignees.length ? item.assignees.forEach((a) => keys.add(a)) : keys.add(blank);
+			else keys.add(item[this.group_by] || blank);
 		});
-		return [...keys].sort().map((key) => [
-			key,
-			rows.filter((item) =>
-				this.group_by === "assignee"
-					? key === "Unassigned"
-						? !item.assignees.length
-						: item.assignees.includes(key)
-					: (item.project || "No project") === key
-			),
-		]);
+		const has = (item, key) =>
+			this.group_by === "assignee"
+				? key === blank
+					? !item.assignees.length
+					: item.assignees.includes(key)
+				: (item[this.group_by] || blank) === key;
+		// the unassigned or unscoped bucket sits last, not alphabetically
+		return [...keys]
+			.sort((a, b) => (a === blank ? 1 : b === blank ? -1 : a.localeCompare(b)))
+			.map((key) => [key, rows.filter((item) => has(item, key))]);
 	}
 
 	render_board(stage, rows) {
@@ -823,17 +830,14 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			? `<div class="dpx-bb-todaytag" style="left:${x(now)}px">Today</div>`
 			: "";
 
-		const lanes = this.group_by === "stage" ? null : this.group(dated.map((s) => s));
+		const lanes = this.group_by === "stage" ? null : this.group(dated);
 		const body = lanes
 			? lanes
 					.filter(([, items]) => items.length)
 					.map(([key, items]) => {
 						const own = spans.filter((s) => items.includes(s.item));
 						if (!own.length) return "";
-						return (
-							`<div class="dpx-bb-tl-lane">${esc(key)}<span class="n">${own.length}</span></div>` +
-							own.map((span) => tl_row(span, x, width)).join("")
-						);
+						return lane_head(key, own) + own.map((span) => tl_row(span, x, width)).join("");
 					})
 					.join("")
 			: spans.map((span) => tl_row(span, x, width)).join("");
@@ -864,6 +868,108 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const scroll = stage.find(".dpx-bb-tl-scroll")[0];
 			if (scroll) scroll.scrollLeft = Math.max(0, x(now) - scroll.clientWidth / 2);
 		}
+
+		this.bind_drag_bars(stage, day_w, first);
+	}
+
+	// A schedule you can only read is a report. Grabbing a bar moves both dates by
+	// the same number of days; grabbing an edge moves one of them.
+	bind_drag_bars(stage, day_w, first) {
+		let drag = null;
+
+		const onMove = (e) => {
+			if (!drag) return;
+			e.preventDefault();
+			const shift = Math.round((e.clientX - drag.fromX) / day_w);
+			if (shift === drag.shift) return;
+			drag.shift = shift;
+
+			const start = drag.mode === "end" ? 0 : shift;
+			const end = drag.mode === "start" ? 0 : shift;
+			let left = drag.left + start * day_w;
+			let width = drag.width + (end - start) * day_w;
+			if (width < day_w) {
+				width = day_w;
+				if (drag.mode === "start") left = drag.left + drag.width - day_w;
+			}
+			drag.bar.style.left = `${left}px`;
+			drag.bar.style.width = `${width}px`;
+			drag.readout.textContent = `${fmt(add_days(drag.start, start))} → ${fmt(add_days(drag.end, end))}`;
+			drag.readout.style.left = `${left}px`;
+		};
+
+		const onUp = () => {
+			if (!drag) return;
+			const { item, mode, shift, start, end } = drag;
+			document.removeEventListener("pointermove", onMove);
+			document.removeEventListener("pointerup", onUp);
+			stage.find(".dpx-bb-tl").removeClass("dragging");
+			drag.bar.classList.remove("held");
+			drag.readout.remove();
+			drag = null;
+
+			if (!shift) return this.render();
+			const moves = [];
+			if (mode !== "end") moves.push(["start", iso(add_days(start, shift))]);
+			if (mode !== "start") moves.push(["end", iso(add_days(end, shift))]);
+			this.reschedule(item, moves);
+		};
+
+		stage.find(".dpx-bb-tlbar[data-movable]").on("pointerdown", (e) => {
+			if (e.button !== 0) return;
+			e.preventDefault();
+			const bar = e.currentTarget;
+			const item = this.items.find((i) => `${i.doctype}:${i.name}` === $(bar).data("id"));
+			if (!item) return;
+
+			const box = bar.getBoundingClientRect();
+			const edge = e.clientX - box.left < 7 ? "start" : box.right - e.clientX < 7 ? "end" : "move";
+			const readout = document.createElement("div");
+			readout.className = "dpx-bb-readout";
+			bar.parentNode.appendChild(readout);
+
+			drag = {
+				bar,
+				item,
+				mode: edge,
+				fromX: e.clientX,
+				shift: 0,
+				left: bar.offsetLeft,
+				width: bar.offsetWidth,
+				start: date_of(item.start || item.end),
+				end: date_of(item.end || item.start),
+				readout,
+			};
+			readout.style.left = `${drag.left}px`;
+			readout.textContent = `${fmt(drag.start)} → ${fmt(drag.end)}`;
+			bar.classList.add("held");
+			stage.find(".dpx-bb-tl").addClass("dragging");
+			document.addEventListener("pointermove", onMove);
+			document.addEventListener("pointerup", onUp);
+		});
+	}
+
+	reschedule(item, moves) {
+		const before = { start: item.start, end: item.end };
+		moves.forEach(([field, value]) => (item[field] = value));
+		this.render();
+
+		Promise.all(
+			moves.map(([field, value]) =>
+				frappe.xcall("upande_dev_tools.api.board.set_field", {
+					doctype: item.doctype,
+					name: item.name,
+					field,
+					value,
+				})
+			)
+		)
+			.then(() => this.load())
+			.catch(() => {
+				Object.assign(item, before);
+				this.render();
+				frappe.show_alert({ message: __("Could not move that work."), indicator: "red" });
+			});
 	}
 };
 
@@ -923,13 +1029,41 @@ function tl_row({ item, start, end }, x, width) {
 				}
 			</div>
 			<div class="track" style="width:${width}px">
-				<a class="dpx-bb-tlbar ${cls}" href="${link(item)}" style="left:${left}px;width:${bar_w}px"
+				<a class="dpx-bb-tlbar ${cls}" href="${link(item)}" data-id="${esc(item.doctype)}:${esc(item.name)}"
+					${item.movable ? "data-movable" : ""} style="left:${left}px;width:${bar_w}px"
 					title="${esc(item.title)} · ${esc(item.stage)} · ${label} · ${days} day${
 						days === 1 ? "" : "s"
 					}${item.assignees.length ? ` · ${esc(item.assignees.join(", "))}` : ""}">${inside}</a>
 				${outside}
 			</div>
 		</div>`;
+}
+
+// A lane is a person's week. It says how much is on them, not just what.
+function lane_head(key, spans) {
+	const late = spans.filter((s) => s.item.late).length;
+	const days = spans.reduce((n, s) => n + Math.round((s.end - s.start) / DAY) + 1, 0);
+	const load = Math.min(100, Math.round((days / (spans.length * 14 || 1)) * 100));
+	return `
+		<div class="dpx-bb-tl-lane">
+			<span class="who">${esc(key)}</span>
+			<span class="n">${spans.length} item${spans.length === 1 ? "" : "s"}</span>
+			${late ? `<span class="late">${late} late</span>` : ""}
+			<span class="load" title="${days} days committed across ${spans.length} items">
+				<i style="width:${load}%"></i>
+			</span>
+			<span class="days">${days}d</span>
+		</div>`;
+}
+
+function add_days(date, n) {
+	const d = new Date(date.getTime());
+	d.setUTCDate(d.getUTCDate() + n);
+	return d;
+}
+
+function iso(date) {
+	return date.toISOString().slice(0, 10);
 }
 
 function week_start(date) {
