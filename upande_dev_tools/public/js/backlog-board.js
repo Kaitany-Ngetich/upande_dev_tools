@@ -108,6 +108,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.zoom = "weeks";
 		this.shut = new Set();
 		this.caps = {};
+		this.hide_done = false;
 		this.limit = PAGE;
 		this.filters = { q: "", source: "", assignee: "", priority: "", hide_done: false };
 		this.render_shell();
@@ -201,6 +202,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<span class="dpx-bb-grp-lbl bb-extra-lbl">Group</span>
 							<select class="dpx-bb-field bb-extra" aria-label="Group by"></select>
 						</div>
+						<span class="dpx-bb-sep bb-tools-sep" hidden></span>
+						<div class="dpx-bb-grp bb-tools"></div>
 						<span class="dpx-bb-hint">
 							<span class="bb-hint-txt"></span>
 							<span class="dpx-bb-kbd">/</span><span>search</span>
@@ -247,6 +250,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			this.render();
 		});
 
+		root.on("click", ".bb-tool", (e) => this.tool($(e.currentTarget).data("tool")));
+
 		this.bind_keys(root);
 	}
 
@@ -283,6 +288,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					if (item.assignees.length) return false;
 				} else if (!item.assignees.includes(this.filters.assignee)) return false;
 			}
+			if (this.hide_done && item.stage === "Done") return false;
 			if (q && !item.title.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q))
 				return false;
 			return true;
@@ -293,6 +299,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const rows = this.visible();
 		this.render_assignees();
 		this.render_extra();
+		this.render_tools();
 		this.render_count(rows);
 
 		const stage = $(this.wrapper).find(".bb-stage");
@@ -311,6 +318,67 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				.concat(people.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`))
 				.join("")
 		);
+	}
+
+	render_tools() {
+		const root = $(this.wrapper);
+		const tools = {
+			list: `<button class="dpx-bb-btn bb-tool" data-tool="collapse">Collapse all</button>
+				<button class="dpx-bb-btn bb-tool" data-tool="expand">Expand all</button>`,
+			timeline: `<button class="dpx-bb-btn bb-tool" data-tool="today">Jump to today</button>`,
+			sheet: `<button class="dpx-bb-btn bb-tool" data-tool="csv">Export CSV</button>
+				<button class="dpx-bb-btn bb-tool" data-tool="fit">Fit columns</button>`,
+			board: `<button class="dpx-bb-btn bb-tool" data-tool="done">${
+				this.hide_done ? "Show done" : "Hide done"
+			}</button>`,
+		};
+		root.find(".bb-tools").html(tools[this.view] || "");
+		root.find(".bb-tools-sep").prop("hidden", !tools[this.view]);
+	}
+
+	tool(name) {
+		if (name === "collapse") {
+			this.group(this.visible()).forEach(([key]) => this.shut.add(key));
+			return this.render();
+		}
+		if (name === "expand") {
+			this.shut.clear();
+			return this.render();
+		}
+		if (name === "done") {
+			this.hide_done = !this.hide_done;
+			return this.render();
+		}
+		if (name === "today") {
+			const scroll = $(this.wrapper).find(".dpx-bb-tl-scroll")[0];
+			const mark = $(this.wrapper).find(".dpx-bb-today")[0];
+			if (scroll && mark)
+				scroll.scrollTo({ left: Math.max(0, mark.offsetLeft - scroll.clientWidth / 2), behavior: "smooth" });
+			return;
+		}
+		if (name === "fit" && this.sheet) return this.render_sheet($(this.wrapper).find(".bb-stage"), this.visible());
+		if (name === "csv") return this.export_csv();
+	}
+
+	export_csv() {
+		const head = ["Type", "ID", "Work item", "Stage", "Priority", "Assignee", "Start", "Due", "Project", "Status"];
+		const cell = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+		const body = this.visible().map((i) =>
+			[i.doctype, i.name, i.title, i.stage, i.priority, i.assignees.join("; "), i.start, i.end, i.project, i.status]
+				.map(cell)
+				.join(",")
+		);
+		const blob = new Blob([[head.map(cell).join(","), ...body].join("\n")], {
+			type: "text/csv;charset=utf-8",
+		});
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(blob);
+		a.download = `backlog-${today()}.csv`;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+		frappe.show_alert({ message: __("Exported {0} rows.", [body.length]), indicator: "green" });
 	}
 
 	render_extra() {

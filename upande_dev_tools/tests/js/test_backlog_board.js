@@ -167,6 +167,22 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 		"list links into the desk form"
 	);
 
+	// ── Per-view tools: each view carries the controls that view needs ──
+	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
+	assert.strictEqual($(root).find('.bb-tool[data-tool="done"]').length, 1, "board can hide done work");
+	$(root).find('.bb-tool[data-tool="done"]').trigger("click");
+	assert.strictEqual($(root).find('.dpx-bb-drop[data-stage="Done"] .dpx-bb-card').length, 0);
+	assert.strictEqual($(root).find('.bb-tool[data-tool="done"]').text(), "Show done");
+	$(root).find('.bb-tool[data-tool="done"]').trigger("click");
+
+	$(root).find('.dpx-bb-views button[data-view="list"]').trigger("click");
+	assert.strictEqual($(root).find('.bb-tool[data-tool="collapse"]').length, 1, "list can fold its groups");
+	$(root).find('.bb-tool[data-tool="collapse"]').trigger("click");
+	assert.strictEqual($(root).find("tbody .dpx-bb-row").length, 0, "collapse all folds every group");
+	$(root).find('.bb-tool[data-tool="expand"]').trigger("click");
+	assert.ok($(root).find("tbody .dpx-bb-row").length > 0);
+	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
+
 	// ── Sheet ──
 	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
 	await new Promise((r) => setTimeout(r, 30));
@@ -176,6 +192,7 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	assert.strictEqual(sheet.config.freezeColumns, 2, "work item and stage stay pinned while you scroll");
 	assert.ok(sheet.config.columnSorting, "columns sort");
 	assert.ok(sheet.config.lazyLoading, "only the visible rows render");
+	assert.strictEqual($(root).find('.bb-tool[data-tool="csv"]').length, 1, "the sheet can export");
 	assert.strictEqual(sheet.config.defaultColAlign, "left", "cells read left aligned, not centred");
 	assert.ok(
 		window.document.body.classList.contains("dpx-menu-skin"),
