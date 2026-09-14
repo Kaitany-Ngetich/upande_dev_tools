@@ -54,6 +54,38 @@ class IntegrationTestMobileAuthApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
+	def test_mobile_login_rejects_when_user_pass_login_disabled(self) -> None:
+		email = self._make_user("mobile-login-disabled@example.test", [], "TestPass123!")
+		frappe.db.set_single_value("System Settings", "disable_user_pass_login", 1)
+		# frappe.local.system_settings is a per-process cache that set_single_value alone does
+		# not invalidate - without this, get_system_settings can keep returning whatever it
+		# first cached, regardless of what other tests already ran.
+		frappe.clear_cache()
+		try:
+			with self.assertRaises(frappe.AuthenticationError):
+				mobile_login(usr=email, pwd="TestPass123!")
+		finally:
+			frappe.db.set_single_value("System Settings", "disable_user_pass_login", 0)
+			frappe.clear_cache()
+			frappe.set_user("Administrator")
+
+	def test_mobile_login_rejects_2fa_enrolled_user(self) -> None:
+		# should_run_2fa checks the "All" role's two_factor_auth flag (every user has "All"),
+		# combined with the site-wide enable_two_factor_auth setting - see
+		# frappe.twofactor.two_factor_is_enabled_for_.
+		email = self._make_user("mobile-login-2fa@example.test", [], "TestPass123!")
+		frappe.db.set_single_value("System Settings", "enable_two_factor_auth", 1)
+		frappe.db.set_value("Role", "All", "two_factor_auth", 1)
+		frappe.clear_cache()
+		try:
+			with self.assertRaises(frappe.AuthenticationError):
+				mobile_login(usr=email, pwd="TestPass123!")
+		finally:
+			frappe.db.set_value("Role", "All", "two_factor_auth", 0)
+			frappe.db.set_single_value("System Settings", "enable_two_factor_auth", 0)
+			frappe.clear_cache()
+			frappe.set_user("Administrator")
+
 	def test_get_session_context_returns_roles_for_authenticated_user(self) -> None:
 		email = self._make_user(
 			"mobile-context@example.test", ["Dev Team", "Projects Manager"], "TestPass123!"
