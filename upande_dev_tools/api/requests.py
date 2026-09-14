@@ -337,3 +337,22 @@ def get_customer_workload(project: str) -> list[dict]:
 		result.append(bucket)
 	result.sort(key=lambda b: b["active_tasks"], reverse=True)
 	return result
+
+
+@frappe.whitelist()
+def update_task_status(name: str, status: str) -> dict:
+	"""Backs the Backlog Board's Kanban view (drag a card to a new column). Validates against
+	Task's own Select options rather than a hardcoded list here, so this stays correct if
+	Task.status's options ever change on this bench."""
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	valid_statuses = frappe.get_meta("Task").get_field("status").options.split("\n")
+	if status not in valid_statuses:
+		frappe.throw(_("Invalid status."), frappe.ValidationError)
+
+	if not frappe.db.exists("Task", name):
+		frappe.throw(_("Task not found."), frappe.DoesNotExistError)
+
+	frappe.db.set_value("Task", name, "status", status)
+	return {"name": name, "status": status}

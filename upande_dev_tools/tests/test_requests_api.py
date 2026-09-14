@@ -16,6 +16,7 @@ from upande_dev_tools.api.requests import (
 	get_upcoming_meetings,
 	promote_to_task,
 	triage_request,
+	update_task_status,
 )
 
 
@@ -326,5 +327,51 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				get_customer_workload(project=project)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_update_task_status_moves_a_task_between_kanban_columns(self) -> None:
+		dev = self._make_user("dev-kanban@example.test", ["Dev Team"])
+		project = self._make_project()
+		task = frappe.get_doc(
+			{"doctype": "Task", "subject": "Kanban drag test", "project": project, "status": "Open"}
+		)
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+
+		frappe.set_user(dev)
+		try:
+			result = update_task_status(task.name, "Working")
+		finally:
+			frappe.set_user("Administrator")
+
+		self.assertEqual(result["status"], "Working")
+		self.assertEqual(frappe.db.get_value("Task", task.name, "status"), "Working")
+
+	def test_update_task_status_rejects_an_invalid_status(self) -> None:
+		dev = self._make_user("dev-kanban-badstatus@example.test", ["Dev Team"])
+		project = self._make_project()
+		task = frappe.get_doc({"doctype": "Task", "subject": "Kanban bad status test", "project": project})
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+
+		frappe.set_user(dev)
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				update_task_status(task.name, "Not A Real Status")
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_update_task_status_denies_users_without_reviewer_role(self) -> None:
+		outsider = self._make_user("outsider-kanban@example.test", [])
+		project = self._make_project()
+		task = frappe.get_doc({"doctype": "Task", "subject": "Kanban perm test", "project": project})
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				update_task_status(task.name, "Working")
 		finally:
 			frappe.set_user("Administrator")
