@@ -190,6 +190,16 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const open = td();
 	sheet.config.updateTable(null, open, 5, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
 	assert.ok(open.classList.contains("bb-pick"), "editable cells show a picker chevron");
+	assert.strictEqual(sheet.config.defaultColAlign, "left", "cells read left aligned, not centred");
+
+	// stage and priority carry a fill so a column reads at a glance
+	const stageCell = td();
+	sheet.config.updateTable(null, stageCell, 4, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
+	assert.ok(stageCell.classList.contains("bb-fill"));
+	assert.ok(stageCell.classList.contains("st-in-progress"), "stage cell is tinted by stage");
+	const priCell = td();
+	sheet.config.updateTable(null, priCell, 5, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
+	assert.ok(priCell.classList.contains("pr-urgent"), "priority cell is tinted by priority");
 	const shut = td();
 	sheet.config.updateTable(null, shut, 5, sheet.config.data.findIndex((r) => r[0] === "Request:REQ-03"));
 	assert.ok(shut.classList.contains("bb-locked"));

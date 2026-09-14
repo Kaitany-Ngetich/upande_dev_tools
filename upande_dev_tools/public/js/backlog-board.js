@@ -51,10 +51,12 @@ function load_jspreadsheet() {
 function paint_cell(cell, x, item) {
 	if (!item) return;
 	cell.classList.toggle("bb-done", item.stage === "Done");
-	if (x === 1) cell.classList.add("bb-mono");
-	if (x === 2 || x === 6 || x === 7) cell.classList.add("bb-mono");
+	if (x === 1 || x === 2 || x === 6 || x === 7) cell.classList.add("bb-mono");
 	if (x === 7 && item.late) cell.classList.add("bb-late");
 	if (x >= 4 && x <= 7) cell.classList.add(item.movable ? "bb-pick" : "bb-locked");
+	if (x === 4) cell.classList.add("bb-fill", `st-${slug(item.stage)}`);
+	if (x === 5 && item.priority) cell.classList.add("bb-fill", `pr-${slug(item.priority)}`);
+	if (x === 10) cell.classList.add("bb-quiet");
 }
 
 function ico(name, size) {
@@ -455,7 +457,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ type: "hidden", title: "id" },
 				{ type: "text", title: "Type", width: 62, ...locked },
 				{ type: "text", title: "ID", width: 132, ...locked },
-				{ type: "text", title: "Work item", width: 320, ...locked },
+				{ type: "text", title: "Work item", width: 380, ...locked },
 				{ type: "dropdown", title: "Stage", width: 118, source: this.stages },
 				{ type: "dropdown", title: "Priority", width: 96, source: ["", "Low", "Medium", "High", "Urgent"] },
 				{ type: "calendar", title: "Start", width: 104, options: { format: "YYYY-MM-DD" } },
@@ -465,6 +467,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ type: "text", title: "Status", width: 118, ...locked },
 				{ type: "text", title: "Flag", width: 64, ...locked },
 			],
+			defaultColAlign: "left",
 			columnSorting: true,
 			columnDrag: false,
 			tableOverflow: true,

@@ -252,7 +252,11 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
    and floating menus on a soft shadow rather than bordered boxes. */
 .dpx .dpx-bb-sheet{--grid:#e6e5e0;--head:#f6f5f1;--head-on:#ecebe4;--sel:var(--bb-accent);--sel-wash:rgba(31,111,107,.09);border:1px solid var(--hairline);border-radius:10px;background:var(--surface-2);overflow:hidden}
 .dpx .dpx-bb-sheet .jexcel_container{--jexcel-border-color:var(--grid);display:block;padding:0;width:100%;font-family:var(--sans)}
-.dpx .dpx-bb-sheet .jexcel_content{padding:0;width:100%;scrollbar-width:thin}
+.dpx .dpx-bb-sheet .jexcel_content{padding:0;width:100%;scrollbar-width:thin;scrollbar-color:#c9c8c1 transparent}
+.dpx .dpx-bb-sheet .jexcel_content::-webkit-scrollbar{width:11px;height:11px}
+.dpx .dpx-bb-sheet .jexcel_content::-webkit-scrollbar-thumb{background:#c9c8c1;border:3px solid var(--surface-2);border-radius:99px}
+.dpx .dpx-bb-sheet .jexcel_content::-webkit-scrollbar-thumb:hover{background:#aeada6}
+.dpx .dpx-bb-sheet .jexcel_content::-webkit-scrollbar-track{background:transparent}
 .dpx .dpx-bb-sheet table.jexcel{border-collapse:separate;border-spacing:0;font-family:var(--sans);font-size:11.5px;color:var(--ink-2)}
 
 .dpx .dpx-bb-sheet table.jexcel > thead > tr > td{background:var(--head);border:0;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);color:var(--ink-mute);font:500 10.5px var(--sans);letter-spacing:0;text-transform:none;padding:0 8px;height:26px;text-align:left;transition:background .1s,color .1s}
@@ -262,7 +266,7 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr.selected > td.jexcel_row{background:var(--head-on);color:var(--ink-4)}
 
 /* Selection: a wash over the range, one ring around it, a handle at the corner. */
-.dpx .dpx-bb-sheet .jexcel .highlight{background:var(--sel-wash)}
+.dpx .dpx-bb-sheet .jexcel td.highlight{background-image:linear-gradient(var(--sel-wash),var(--sel-wash))}
 .dpx .dpx-bb-sheet .jexcel .highlight-selected{background:rgba(31,111,107,.035)}
 .dpx .dpx-bb-sheet .jexcel .highlight-top{border-top:2px solid var(--sel);box-shadow:none}
 .dpx .dpx-bb-sheet .jexcel .highlight-left{border-left:2px solid var(--sel);box-shadow:none}
@@ -282,6 +286,20 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-sheet .jexcel .editor > input,.dpx .dpx-bb-sheet .jexcel .editor > textarea{width:100%;height:100%;min-height:25px;margin:0;padding:0 8px!important;border:0;outline:0;background:transparent;font:500 11.5px var(--sans);color:var(--ink);box-sizing:border-box}
 .dpx .dpx-bb-sheet .jexcel .editor .jdropdown-header{border:0!important;padding:0 8px!important;height:100%;font:500 11.5px var(--sans);color:var(--ink);background:transparent;box-shadow:none}
 
+/* Stage and priority carry a muted fill, the way a tracker's own sheet does -
+   enough to read a column at a glance, short of a highlighter. */
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-fill{font-weight:600;color:var(--ink-2)}
+.dpx .dpx-bb-sheet td.st-triage{background:#f1f0ea}
+.dpx .dpx-bb-sheet td.st-todo{background:#eceff1}
+.dpx .dpx-bb-sheet td.st-in-progress{background:#e3efe9;color:#17543f}
+.dpx .dpx-bb-sheet td.st-in-review{background:#f6ecda;color:#6b4a15}
+.dpx .dpx-bb-sheet td.st-blocked{background:#f6e4e0;color:#7a2f24}
+.dpx .dpx-bb-sheet td.st-done{background:transparent;color:var(--ink-faint);font-weight:500}
+.dpx .dpx-bb-sheet td.pr-urgent{background:#f4ddd8;color:#7a2f24}
+.dpx .dpx-bb-sheet td.pr-high{background:#f8e9d5;color:#6b4a15}
+.dpx .dpx-bb-sheet td.pr-medium{background:#f0efe9;color:var(--ink-3)}
+.dpx .dpx-bb-sheet td.pr-low{background:transparent;color:var(--ink-mute);font-weight:500}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-quiet{color:var(--ink-mute)}
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-mono{font-family:var(--mono);font-size:10.5px;color:var(--ink-mute)}
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-late{color:var(--bb-late);font-weight:600}
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-done{color:var(--ink-mute)}
