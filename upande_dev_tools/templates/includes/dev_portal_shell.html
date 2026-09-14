@@ -1,14 +1,5 @@
-{# The stylesheet/font <link> tags previously lived at the top of this file. Because pages consume
-   this shell via {% from %} (to get the dpx_shell macro), Jinja does not emit a template's top-level
-   output through {% from %}/{% import %} - only the imported macro's own rendered output appears at
-   the {% call %} site. The <link> tags therefore now live in dev_portal_shell_head.html, which pages
-   should {% include %} directly (an {% include %} does emit top-level output) alongside importing
-   dpx_shell from this file.
-
-   This macro reads context vars set by the page controller's get_context() (page_title, active_route)
-   and reads its jinja globals fine either way (frappe, get_nav_items - registered as environment
-   globals via the `jinja` hook), but page_title/active_route are per-render context, not globals -
-   so pages must import with `{% from "..." import dpx_shell with context %}`, not a plain import. #}
+{# Jinja emits no top-level output through {% from %}/{% import %}; the <link> tags live in dev_portal_shell_head.html, which pages {% include %}. #}
+{# page_title/active_route are per-render context, not globals: import as `{% from "..." import dpx_shell with context %}`. #}
 {% macro dpx_shell() %}
 <div class="dpx">
 	<aside class="dpx-side">

@@ -1,105 +1,104 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+
 import os
 import subprocess
-import requests
+
 import frappe
 from frappe.utils import get_bench_path, now_datetime
 
 
 class GitCommandError(Exception):
-    pass
+	pass
 
 
 def run_git_command(repo_path, args, timeout=30):
-    """Execute git commands safely."""
-    try:
-        result = subprocess.run(
-            ["git"] + args,
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=timeout,
-        )
-        return result.stdout.strip()
+	"""Execute git commands safely."""
+	try:
+		result = subprocess.run(
+			["git", *args],
+			cwd=repo_path,
+			capture_output=True,
+			text=True,
+			check=True,
+			timeout=timeout,
+		)
+		return result.stdout.strip()
 
-    except subprocess.CalledProcessError as e:
-        raise GitCommandError(
-            e.stderr.strip() or e.stdout.strip() or str(e)
-        )
+	except subprocess.CalledProcessError as e:
+		raise GitCommandError(e.stderr.strip() or e.stdout.strip() or str(e))
 
-    except subprocess.TimeoutExpired:
-        raise GitCommandError(
-            f"Git command timed out: git {' '.join(args)}"
-        )
+	except subprocess.TimeoutExpired:
+		raise GitCommandError(f"Git command timed out: git {' '.join(args)}")
 
 
 def get_repo_path(app_name):
-    """Return repo root path."""
-    repo_path = os.path.join(
-        get_bench_path(),
-        "apps",
-        app_name,
-    )
+	"""Return repo root path."""
+	repo_path = os.path.join(
+		get_bench_path(),
+		"apps",
+		app_name,
+	)
 
-    if not os.path.exists(repo_path):
-        raise Exception(f"App '{app_name}' not found.")
+	if not os.path.exists(repo_path):
+		raise Exception(f"App '{app_name}' not found.")
 
-    if not os.path.exists(os.path.join(repo_path, ".git")):
-        raise Exception(f"'{app_name}' is not a git repository.")
+	if not os.path.exists(os.path.join(repo_path, ".git")):
+		raise Exception(f"'{app_name}' is not a git repository.")
 
-    return repo_path
+	return repo_path
 
 
 def get_current_branch(repo_path):
-    return run_git_command(
-        repo_path,
-        ["branch", "--show-current"],
-        timeout=10,
-    )
+	return run_git_command(
+		repo_path,
+		["branch", "--show-current"],
+		timeout=10,
+	)
 
 
 def get_upstream_branch(repo_path):
-    try:
-        return run_git_command(
-            repo_path,
-            [
-                "rev-parse",
-                "--abbrev-ref",
-                "--symbolic-full-name",
-                "@{u}",
-            ],
-            timeout=10,
-        )
-    except Exception:
-        return None
+	try:
+		return run_git_command(
+			repo_path,
+			[
+				"rev-parse",
+				"--abbrev-ref",
+				"--symbolic-full-name",
+				"@{u}",
+			],
+			timeout=10,
+		)
+	except Exception:
+		return None
 
 
 def get_working_tree_status(repo_path):
-    return run_git_command(
-        repo_path,
-        ["status", "--porcelain"],
-        timeout=10,
-    )
+	return run_git_command(
+		repo_path,
+		["status", "--porcelain"],
+		timeout=10,
+	)
 
 
 def get_ahead_behind(repo_path, upstream):
-    behind = int(
-        run_git_command(
-            repo_path,
-            ["rev-list", f"HEAD..{upstream}", "--count"],
-            timeout=10,
-        )
-    )
+	behind = int(
+		run_git_command(
+			repo_path,
+			["rev-list", f"HEAD..{upstream}", "--count"],
+			timeout=10,
+		)
+	)
 
-    ahead = int(
-        run_git_command(
-            repo_path,
-            ["rev-list", f"{upstream}..HEAD", "--count"],
-            timeout=10,
-        )
-    )
+	ahead = int(
+		run_git_command(
+			repo_path,
+			["rev-list", f"{upstream}..HEAD", "--count"],
+			timeout=10,
+		)
+	)
 
-    return ahead, behind
+	return ahead, behind
 
 
 @frappe.whitelist()

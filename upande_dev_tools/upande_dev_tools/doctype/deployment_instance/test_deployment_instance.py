@@ -1,4 +1,5 @@
-# Copyright (c) 2026, shadrack@upande.com and Contributors
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
 # See license.txt
 
 import frappe
@@ -7,9 +8,7 @@ from frappe.tests import IntegrationTestCase
 
 class IntegrationTestDeploymentInstance(IntegrationTestCase):
 	def test_named_by_instance_name(self) -> None:
-		# A synthetic name - "Kaitet v16 Production" etc. are now taken by genuine Deployment
-		# Instance records imported from real deployment history, so a real-looking name here
-		# would collide.
+		# Synthetic name so it can't collide with a real seeded Deployment Instance.
 		instance_name = "Test Deployment Instance Named By Instance Name"
 		if frappe.db.exists("Deployment Instance", instance_name):
 			frappe.delete_doc("Deployment Instance", instance_name, force=True)

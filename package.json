@@ -1,14 +1,18 @@
 {
   "name": "upande_dev_tools",
   "version": "1.0.0",
-  "description": "Internal developer tools for Upande workflows",
+  "description": "Development tools",
   "main": "index.js",
   "scripts": {
     "test": "node upande_dev_tools/tests/js/test_backlog_board.js && node upande_dev_tools/tests/js/test_review_queue.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Upande LTD <dev@upande.com>",
+  "contributors": [
+    "Shadrack <shadrack@upande.com>",
+    "Upande Devs <dev@upande.com>"
+  ],
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "monaco-editor": "^0.55.1"

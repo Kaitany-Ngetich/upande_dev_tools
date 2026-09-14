@@ -26,6 +26,8 @@
 	"root": true,
 	"globals": {
 		"frappe": true,
+		"monaco": true,
+		"upande_dev_tools_portal": true,
 		"Vue": true,
 		"SetVueGlobals": true,
 		"__": true,

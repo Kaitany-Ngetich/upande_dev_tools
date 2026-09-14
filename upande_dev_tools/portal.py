@@ -48,14 +48,7 @@ def _is_permitted(allowed: set[str], require_all: bool, user_roles: set[str]) ->
 
 
 def _route_permits(route: str, user_roles: set[str]) -> bool:
-	"""Whether user_roles may access `route` (leading slash optional). A route with
-	no `Dev Portal Page` registration yet is treated as permitted — an optimistic
-	default for a route a later sub-project hasn't registered as a page yet, so
-	behavior for not-yet-built dashboards (dev-dashboard, pm-dashboard, as of this
-	sub-project) matches what it was before this function existed. This exists so
-	resolve_home_route never hands back a route enforce_page_access would then
-	deny for the same user — that combination was a self-redirect infinite loop.
-	"""
+	"""Unregistered route -> permitted."""
 	page = _fetch_page(route.lstrip("/"))
 	if not page:
 		return True
@@ -75,8 +68,7 @@ def enforce_page_access(route: str) -> None:
 
 	target = resolve_home_route()
 	if target == f"/{route}":
-		# resolve_home_route just picked the very route we're about to deny — redirecting
-		# there would loop forever. Fall through to a route this function never gates.
+		# avoid redirect loop: target must not equal the denied route
 		target = "/app"
 	frappe.local.flags.redirect_location = target
 	raise frappe.Redirect

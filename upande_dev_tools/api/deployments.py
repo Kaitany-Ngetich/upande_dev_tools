@@ -1,3 +1,6 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+
 import frappe
 from frappe import _
 
@@ -61,10 +64,8 @@ def get_deployment_queue() -> list[dict]:
 
 @frappe.whitelist()
 def get_recent_deployments(limit: int = 10) -> dict:
-	"""Recent deployment activity across every status, not just the pending queue -
-	get_deployment_queue only ever shows Requested/In Progress/Failed rows (and is Dev
-	Team/System Manager only), so a PM watching the dashboard had no way to see deployment
-	history at all, successful or not."""
+	"""Deployment activity across every status, unlike get_deployment_queue (Requested/In
+	Progress/Failed only, Dev Team/System Manager only)."""
 	if not set(frappe.get_roles()) & DEPLOYMENT_VIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
 

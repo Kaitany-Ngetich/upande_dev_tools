@@ -1,16 +1,12 @@
-# Copyright (c) 2026, shadrack@upande.com and Contributors
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
 # See license.txt
 
 import frappe
 from frappe.tests import IntegrationTestCase
 
-# See the identical note in test_request.py — Deployment Request links
-# directly to User (requested_by_user, deployed_by_user) and Employee
-# (requested_by_employee), and both eventually reach the same broken
-# Company regional setup during IntegrationTestCase's automatic missing-record
-# walk. `app`/`instance`/`linked_request` don't need listing here: the first
-# two have no Link fields of their own, and `linked_request` recurses into
-# Request, which already excludes the doctypes that would reach Company.
+# User/Employee both eventually reach the broken Company regional setup during
+# IntegrationTestCase's automatic missing-record walk.
 IGNORE_TEST_RECORD_DEPENDENCIES = ["User", "Employee"]
 
 

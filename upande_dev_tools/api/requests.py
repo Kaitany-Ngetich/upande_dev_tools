@@ -1,3 +1,6 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+
 import json
 
 import frappe
@@ -250,9 +253,7 @@ def get_my_day(user: str | None = None) -> dict:
 
 @frappe.whitelist()
 def get_developer_backlog(user: str | None = None, project: str | None = None) -> list[dict]:
-	"""Every open (not Completed/Cancelled) task assigned to a developer, not just today's -
-	the "for more than the day" view My Day deliberately doesn't provide, so a PM can see the
-	whole of someone's plate, not just what's due today."""
+	"""Every open task assigned to a developer, not just today's (unlike My Day)."""
 	user = user or frappe.session.user
 	if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
@@ -275,18 +276,6 @@ def get_developer_backlog(user: str | None = None, project: str | None = None) -
 
 @frappe.whitelist()
 def get_customer_workload(project: str) -> list[dict]:
-	"""Per-developer breakdown of a customer's own active work - how many of their tasks each
-	developer currently has, and how many are done. Deliberately minimal (no titles, no due
-	dates, no overdue/incoming detail - that's the PM's own get_team_workload) so it's safe to
-	show a customer.
-
-	Permission is intentionally narrower than "can read this Project": this app doesn't set up
-	Project-level User Permissions for customer/employee accounts, so has_permission("Project",
-	...) would fail for the very users this endpoint exists for. Instead: a reviewer (Dev
-	Team/PM/System Manager) can see any project, and anyone else can see a project only if
-	they've actually raised a request against it - a real, checkable relationship instead of a
-	permission this app doesn't grant them.
-	"""
 	if not (
 		set(frappe.get_roles()) & REVIEWER_ROLES
 		or frappe.db.exists("Request", {"project": project, "raised_by_user": frappe.session.user})
@@ -316,3 +305,20 @@ def get_customer_workload(project: str) -> list[dict]:
 		result.append(bucket)
 	result.sort(key=lambda b: b["active_tasks"], reverse=True)
 	return result
+
+
+@frappe.whitelist()
+def update_task_status(name: str, status: str) -> dict:
+	"""Validates status against Task's own Select options, not a hardcoded list."""
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	valid_statuses = frappe.get_meta("Task").get_field("status").options.split("\n")
+	if status not in valid_statuses:
+		frappe.throw(_("Invalid status."), frappe.ValidationError)
+
+	if not frappe.db.exists("Task", name):
+		frappe.throw(_("Task not found."), frappe.DoesNotExistError)
+
+	frappe.db.set_value("Task", name, "status", status)
+	return {"name": name, "status": status}

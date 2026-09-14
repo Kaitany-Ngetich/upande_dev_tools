@@ -1,59 +1,63 @@
-import importlib
-import frappe
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
 
+import importlib
+
+import frappe
+from frappe import _
 
 DEV_TOOLS_ROLES = {"Dev Team"}
 
 
 def _require_dev_team():
-    if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
-        frappe.throw("Not permitted", frappe.PermissionError)
+	if not DEV_TOOLS_ROLES & set(frappe.get_roles()):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
 HOOK_KEYS = [
-    "doc_events",
-    "scheduler_events",
-    "fixtures",
-    "override_doctype_class",
-    "override_whitelisted_methods",
-    "permission_query_conditions",
-    "has_permission",
-    "doctype_js",
-    "doctype_list_js",
-    "app_include_js",
-    "app_include_css",
-    "add_to_apps_screen",
+	"doc_events",
+	"scheduler_events",
+	"fixtures",
+	"override_doctype_class",
+	"override_whitelisted_methods",
+	"permission_query_conditions",
+	"has_permission",
+	"doctype_js",
+	"doctype_list_js",
+	"app_include_js",
+	"app_include_css",
+	"add_to_apps_screen",
 ]
 
 
 @frappe.whitelist()
 def get_installed_apps():
-    _require_dev_team()
-    return frappe.get_installed_apps()
+	_require_dev_team()
+	return frappe.get_installed_apps()
 
 
 @frappe.whitelist()
 def get_app_hooks(app_name: str):
-    _require_dev_team()
-    try:
-        hooks_module = importlib.import_module(f"{app_name}.hooks")
+	_require_dev_team()
+	try:
+		hooks_module = importlib.import_module(f"{app_name}.hooks")
 
-        data = {
-            "app_name": app_name,
-            "hooks": {},
-        }
+		data = {
+			"app_name": app_name,
+			"hooks": {},
+		}
 
-        for key in HOOK_KEYS:
-            value = getattr(hooks_module, key, None)
-            if value:
-                data["hooks"][key] = value
+		for key in HOOK_KEYS:
+			value = getattr(hooks_module, key, None)
+			if value:
+				data["hooks"][key] = value
 
-        return data
+		return data
 
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Hooks Explorer Error")
-        return {
-            "app_name": app_name,
-            "error": str(e),
-            "hooks": {},
-        }
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Hooks Explorer Error")
+		return {
+			"app_name": app_name,
+			"error": str(e),
+			"hooks": {},
+		}

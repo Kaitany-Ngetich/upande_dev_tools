@@ -1,6 +1,49 @@
-### Upande Dev Tools
+### Dev Tools
 
-Internal developer tools for Upande workflows
+Developer portal for Upande benches: request intake, backlog and deployment
+tracking, code snapshots, and Frappe customization tooling.
+
+The app installs a set of portal pages on top of a handful of DocTypes, so
+developers, project managers and the people raising work all use the same
+records. `/dev-tools` is the entry point — it redirects to whichever dashboard
+the signed-in user's roles resolve to.
+
+**Work intake and planning**
+
+- `/requests-portal` — raise a Request against a project, typed by Request Type,
+  Priority Level, Product Area and tags.
+- `/backlog-board` — Requests grouped by workflow state, plus the Task backlog in
+  list, Kanban (drag to set status) or Gantt view.
+- `/my-day` — a single developer's tasks due today.
+- `/review-queue` — what is waiting on a reviewer.
+- `/pm-dashboard` — team workload, open vs. closed totals and project health
+  across every project at once; `/dev-dashboard` is the per-developer equivalent.
+
+**Deployments**
+
+Deployment Request records track what is being released, to which Deployment
+Instance, for which Deployment App, with the queue and full history exposed on
+the dashboards.
+
+**Code and customization tooling**
+
+- `/code-editor` — in-browser Monaco editor.
+- `/code-snapshots` — Code Backup Snapshot records, taken on the interval set in
+  Code Backup Settings, covering DocTypes, Server Scripts and Client Scripts with
+  a configurable retention window.
+- `/hooks-explorer` — what every installed app registers for each Frappe hook,
+  which is how hook collisions get found.
+- `/master-data` — master records across apps in one place.
+- Module Version Check — runs git against each app's repo (branch, upstream,
+  commits ahead/behind, uncommitted changes) and reports a `safe_to_deploy` flag
+  and risk level before a release.
+- Field Difference Log — field-level drift between a snapshot's values and what
+  is live, so a customization that was changed outside the app is visible.
+
+**Access control**
+
+Dev Portal Page records gate each route by role, editable at
+`/dev-portal-settings`. A page can require any one of its roles or all of them.
 
 ### Selective Customization Export
 
