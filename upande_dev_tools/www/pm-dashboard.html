@@ -2,6 +2,7 @@
 {% block head_include %}
 	{{ super() }}
 	{% include "templates/includes/dev_portal_shell_head.html" %}
+	<script src="/assets/upande_dev_tools/js/vendor/chart.umd.min.js"></script>
 {% endblock %}
 {% block page_content %}
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
@@ -22,13 +23,17 @@
 	</select>
 </div>
 <div class="dpx-kpis" id="pm-kpis"></div>
-<div class="dpx-card" style="margin-bottom: 18px;">
-	<div class="dpx-card-hd"><div class="ttl">Open vs Closed Tasks</div></div>
-	<div class="dpx-card-body">
-		<div class="dpx-stackbar" id="pm-openclosed-bar"></div>
-		<div class="dpx-stackbar-legend">
-			<span><span class="dot open"></span><span id="pm-openclosed-open-lbl">0 open</span></span>
-			<span><span class="dot closed"></span><span id="pm-openclosed-closed-lbl">0 closed</span></span>
+<div class="row-2" style="display:grid;grid-template-columns:1fr 2fr;gap:18px;margin-bottom:18px;">
+	<div class="dpx-card">
+		<div class="dpx-card-hd"><div class="ttl">Open vs Closed Tasks</div></div>
+		<div class="dpx-card-body" style="max-width:260px;margin:0 auto;">
+			<canvas id="pm-openclosed-chart" height="220"></canvas>
+		</div>
+	</div>
+	<div class="dpx-card">
+		<div class="dpx-card-hd"><div class="ttl">Workload per Developer</div></div>
+		<div class="dpx-card-body">
+			<canvas id="pm-workload-chart" height="220"></canvas>
 		</div>
 	</div>
 </div>
@@ -63,6 +68,8 @@
 frappe.ready(function() {
 	var scopeFilter = document.querySelector("#pm-scope-filter");
 	var projectFilter = document.querySelector("#pm-project-filter");
+	var openClosedChart = null;
+	var workloadChart = null;
 
 	function kpiTile(label, value) {
 		var kpi = document.createElement("div");
@@ -198,27 +205,35 @@ frappe.ready(function() {
 		}).then(function(r) {
 			var data = r.message || {open_tasks: 0, closed_tasks: 0, developers: []};
 
-			var total = data.open_tasks + data.closed_tasks;
-			var openPct = total ? Math.round((data.open_tasks / total) * 100) : 0;
-			var bar = document.querySelector("#pm-openclosed-bar");
-			bar.innerHTML = "";
-			var openSeg = document.createElement("div");
-			openSeg.className = "seg-open";
-			openSeg.style.width = openPct + "%";
-			var closedSeg = document.createElement("div");
-			closedSeg.className = "seg-closed";
-			closedSeg.style.width = (100 - openPct) + "%";
-			bar.appendChild(openSeg);
-			bar.appendChild(closedSeg);
-			document.querySelector("#pm-openclosed-open-lbl").textContent = data.open_tasks + " open";
-			document.querySelector("#pm-openclosed-closed-lbl").textContent = data.closed_tasks + " closed";
+			if (openClosedChart) openClosedChart.destroy();
+			openClosedChart = new Chart(document.querySelector("#pm-openclosed-chart"), {
+				type: "doughnut",
+				data: {
+					labels: ["Open", "Closed"],
+					datasets: [{data: [data.open_tasks, data.closed_tasks], backgroundColor: ["#0a0a0a", "#b8b6ae"]}]
+				},
+				options: {plugins: {legend: {position: "bottom"}}}
+			});
+
+			if (workloadChart) workloadChart.destroy();
+			workloadChart = new Chart(document.querySelector("#pm-workload-chart"), {
+				type: "bar",
+				data: {
+					labels: data.developers.map(function(d) { return d.full_name; }),
+					datasets: [
+						{label: "Open", data: data.developers.map(function(d) { return d.open_tasks; }), backgroundColor: "#0a0a0a"},
+						{label: "Overdue", data: data.developers.map(function(d) { return d.overdue; }), backgroundColor: "#c4302b"},
+						{label: "Incoming", data: data.developers.map(function(d) { return d.incoming_requests; }), backgroundColor: "#228883"}
+					]
+				},
+				options: {indexAxis: "y", scales: {x: {beginAtZero: true}}, plugins: {legend: {position: "bottom"}}}
+			});
 
 			root.innerHTML = "";
 			if (!data.developers.length) {
 				root.innerHTML = "<div class=\"dpx-empty\">No open tasks under this filter.</div>";
 				return;
 			}
-			var maxOpen = Math.max.apply(null, data.developers.map(function(d) { return d.open_tasks; }).concat([1]));
 			data.developers.forEach(function(dev) {
 				var row = document.createElement("div");
 				row.className = "dpx-devrow";
@@ -230,14 +245,6 @@ frappe.ready(function() {
 				name.className = "dpx-devrow-name";
 				name.textContent = dev.full_name;
 				hd.appendChild(name);
-
-				var barWrap = document.createElement("div");
-				barWrap.className = "dpx-devrow-bar dpx-stackbar";
-				var seg = document.createElement("div");
-				seg.className = "seg-open";
-				seg.style.width = Math.round((dev.open_tasks / maxOpen) * 100) + "%";
-				barWrap.appendChild(seg);
-				hd.appendChild(barWrap);
 
 				var counts = document.createElement("div");
 				counts.className = "dpx-devrow-counts";
