@@ -127,6 +127,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=10,
 		roles=["Projects Manager"],
 	)
+	register_dev_portal_page(
+		route="review-queue",
+		title="Review Queue",
+		icon="check-circle",
+		nav_group="Management",
+		sort_order=20,
+		roles=["Projects Manager"],
+	)
 
 
 def run_setup() -> None:

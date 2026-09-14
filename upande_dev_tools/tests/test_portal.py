@@ -17,6 +17,7 @@ from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
 from upande_dev_tools.www.my_day import get_context as my_day_get_context
 from upande_dev_tools.www.pm_dashboard import get_context as pm_dashboard_get_context
+from upande_dev_tools.www.review_queue import get_context as review_queue_get_context
 
 
 class IntegrationTestPortal(IntegrationTestCase):
@@ -560,3 +561,36 @@ class IntegrationTestPortal(IntegrationTestCase):
 			enforce_page_access("pm-dashboard")  # must not raise
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_review_queue_permits_projects_manager_and_denies_others(self) -> None:
+		pm = self._make_user("review-queue-pm@example.test", ["Projects Manager"])
+		other = self._make_user("review-queue-other@example.test", [])
+
+		frappe.set_user(pm)
+		try:
+			review_queue_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.Redirect):
+				review_queue_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_review_queue_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "review-queue")
+		self.assertEqual(doc.title, "Review Queue")
+		self.assertEqual(doc.icon, "check-circle")
+		self.assertEqual(doc.nav_group, "Management")
+		self.assertEqual(doc.sort_order, 20)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"Projects Manager"})
+
+	def test_management_nav_group_lists_both_pages_in_order(self) -> None:
+		pm = self._make_user("management-nav-order@example.test", ["Projects Manager"])
+		items = get_nav_items(pm)
+		management_routes = [item["route"] for item in items if item["nav_group"] == "Management"]
+		self.assertEqual(management_routes, ["pm-dashboard", "review-queue"])

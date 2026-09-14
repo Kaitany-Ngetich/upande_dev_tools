@@ -1,0 +1,97 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Management</div>
+	<div class="ttl">Review Queue</div>
+	<div class="sub">Requests awaiting your approval.</div>
+</div>
+<div class="dpx-card">
+	<div class="dpx-card-hd"><div class="ttl">Pending Requests</div></div>
+	<div class="dpx-card-body">
+		<table id="review-queue-table">
+			<thead>
+				<tr><th>Title</th><th>Type</th><th>Area</th><th>Raised By</th><th>Age</th><th>Project</th><th>Priority</th><th></th></tr>
+			</thead>
+			<tbody></tbody>
+		</table>
+	</div>
+</div>
+<script>
+frappe.ready(function() {
+	function buildRow(request) {
+		var tr = document.createElement("tr");
+		tr.dataset.name = request.name;
+
+		["title", "request_type", "product_area", "raised_by_user"].forEach(function(field) {
+			var td = document.createElement("td");
+			td.textContent = request[field] || "";
+			tr.appendChild(td);
+		});
+
+		var ageTd = document.createElement("td");
+		ageTd.textContent = request.creation || "";
+		tr.appendChild(ageTd);
+
+		var projectTd = document.createElement("td");
+		var projectInput = document.createElement("input");
+		projectInput.type = "text";
+		projectInput.className = "rq-project";
+		projectInput.value = request.project || "";
+		projectInput.placeholder = "Project name";
+		projectTd.appendChild(projectInput);
+		tr.appendChild(projectTd);
+
+		var priorityTd = document.createElement("td");
+		var prioritySelect = document.createElement("select");
+		prioritySelect.className = "rq-priority";
+		["Low", "Medium", "High", "Urgent"].forEach(function(p) {
+			var opt = document.createElement("option");
+			opt.value = p;
+			opt.textContent = p;
+			prioritySelect.appendChild(opt);
+		});
+		priorityTd.appendChild(prioritySelect);
+		tr.appendChild(priorityTd);
+
+		var actionsTd = document.createElement("td");
+		[["Approve", "Approve"], ["Reject", "Reject"], ["Defer", "Defer"]].forEach(function(pair) {
+			var btn = document.createElement("button");
+			btn.className = "pill";
+			btn.style.marginRight = "6px";
+			btn.textContent = pair[0];
+			btn.addEventListener("click", function() {
+				frappe.call({
+					method: "upande_dev_tools.api.requests.triage_request",
+					args: {
+						name: request.name,
+						action: pair[1],
+						project: projectInput.value || undefined,
+						priority: prioritySelect.value || undefined
+					}
+				}).then(function() {
+					tr.remove();
+				});
+			});
+			actionsTd.appendChild(btn);
+		});
+		tr.appendChild(actionsTd);
+
+		return tr;
+	}
+
+	frappe.call({method: "upande_dev_tools.api.requests.get_review_queue"}).then(function(r) {
+		var tbody = document.querySelector("#review-queue-table tbody");
+		(r.message || []).forEach(function(request) {
+			tbody.appendChild(buildRow(request));
+		});
+	});
+});
+</script>
+{% endcall %}
+{% endblock %}
