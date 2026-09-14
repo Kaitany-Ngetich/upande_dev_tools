@@ -14,6 +14,8 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 	}
 
 	load() {
+		const icon = $(this.wrapper).find(".rq-reload").addClass("spin");
+		if (!this.requests.length) this.skeleton();
 		Promise.all([
 			frappe.xcall("upande_dev_tools.api.requests.get_review_queue"),
 			frappe.xcall("frappe.client.get_list", {
@@ -29,12 +31,25 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				this.projects = projects || [];
 				this.people = people || [];
 				this.render();
+				icon.removeClass("spin");
 			})
-			.catch((e) =>
+			.catch((e) => {
+				icon.removeClass("spin");
 				this.stage().html(
 					blank("Could not load the queue", String((e && e.message) || e) || "Reload to try again.")
-				)
-			);
+				);
+			});
+	}
+
+	skeleton() {
+		$(this.wrapper)
+			.find(".rq-stats")
+			.html([1, 2, 3, 4].map(() => '<div class="rq-stat"><div class="dpx-bb-skel bare"><i style="width:52%"></i><i style="width:38%"></i></div></div>').join(""));
+		this.stage().html(
+			`<div class="dpx-card"><div class="dpx-bb-skel">${[92, 78, 88]
+				.map((w) => `<i style="width:${w}%"></i>`)
+				.join("")}</div></div>`
+		);
 	}
 
 	stage() {

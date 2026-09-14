@@ -60,8 +60,18 @@ REQUEST_STAGE = {
 STAGE_SETTERS = {"Task": (TASK_STATUS, "status"), "Issue": (ISSUE_STATUS, "status")}
 
 EDITABLE = {
-	"Task": {"priority": "priority", "start": "exp_start_date", "end": "exp_end_date"},
-	"Issue": {"priority": "priority", "start": "opening_date", "end": "sla_resolution_by"},
+	"Task": {
+		"priority": "priority",
+		"start": "exp_start_date",
+		"end": "exp_end_date",
+		"module": "custom_module",
+	},
+	"Issue": {
+		"priority": "priority",
+		"start": "opening_date",
+		"end": "sla_resolution_by",
+		"module": "custom_module",
+	},
 }
 
 
@@ -103,6 +113,7 @@ def _tasks(filters: dict) -> list[dict]:
 			"project",
 			"custom_request",
 			"custom_planned_for",
+			"custom_module",
 			"exp_start_date",
 			"exp_end_date",
 			"_assign",
@@ -119,6 +130,7 @@ def _tasks(filters: dict) -> list[dict]:
 			"rank": PRIORITY_RANK.get(row.priority, 0),
 			"priority": row.priority,
 			"project": row.project,
+			"module": row.custom_module,
 			"start": _date(row.exp_start_date or row.custom_planned_for),
 			"end": _date(row.exp_end_date or row.custom_planned_for),
 			"movable": True,
@@ -138,6 +150,7 @@ def _issues(filters: dict) -> list[dict]:
 			"status",
 			"priority",
 			"project",
+			"custom_module",
 			"opening_date",
 			"sla_resolution_by",
 			"_assign",
@@ -154,6 +167,7 @@ def _issues(filters: dict) -> list[dict]:
 			"rank": PRIORITY_RANK.get(row.priority, 0),
 			"priority": row.priority,
 			"project": row.project,
+			"module": row.custom_module,
 			"start": _date(row.opening_date),
 			"end": _date(row.sla_resolution_by),
 			"movable": True,
@@ -167,7 +181,16 @@ def _requests(filters: dict) -> list[dict]:
 	rows = frappe.get_all(
 		"Request",
 		filters=filters,
-		fields=["name", "title", "workflow_state", "priority", "project", "linked_task", "_assign"],
+		fields=[
+			"name",
+			"title",
+			"workflow_state",
+			"priority",
+			"project",
+			"product_area",
+			"linked_task",
+			"_assign",
+		],
 		ignore_permissions=True,
 	)
 	return [
@@ -180,6 +203,7 @@ def _requests(filters: dict) -> list[dict]:
 			"rank": PRIORITY_RANK.get(row.priority, 0),
 			"priority": row.priority,
 			"project": row.project,
+			"module": row.product_area,
 			"start": "",
 			"end": "",
 			"movable": False,
@@ -239,6 +263,9 @@ def set_field(doctype: str, name: str, field: str, value: str | None = None) -> 
 	if field == "priority" and value and value not in PRIORITY_RANK:
 		frappe.throw(_("Unknown priority {0}.").format(value), frappe.ValidationError)
 
+	if field == "module" and value and not frappe.db.exists("Product Area", value):
+		frappe.throw(_("Unknown module {0}.").format(value), frappe.ValidationError)
+
 	fieldname = fields[field]
 	doc = frappe.get_doc(doctype, name)
 	doc.set(fieldname, _coerce(doc.meta.get_field(fieldname).fieldtype, value))
@@ -254,3 +281,8 @@ def _coerce(fieldtype: str, value: str | None):
 	if fieldtype == "Date":
 		return getdate(value)
 	return value
+
+
+@frappe.whitelist()
+def get_modules() -> list[str]:
+	return frappe.get_all("Product Area", pluck="name", order_by="name asc")

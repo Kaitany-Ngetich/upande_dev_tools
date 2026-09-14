@@ -79,6 +79,16 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-rail-toggle{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ink-mute);cursor:pointer;flex:none;transition:background .12s,color .12s,border-color .12s}
 .dpx .dpx-rail-toggle:hover{background:rgba(10,10,10,.045);color:var(--ink);border-color:var(--hairline)}
 
+/* A click has to be answered before the next page paints. */
+.dpx-progress{position:fixed;top:0;left:0;height:2px;width:0;background:#1f6f6b;z-index:2147483600;opacity:0;transition:width .18s ease,opacity .2s ease;pointer-events:none}
+.dpx-progress.on{opacity:1;box-shadow:0 0 8px rgba(31,111,107,.5)}
+.dpx .dpx-side .nav-item.going{opacity:.75}
+.dpx .dpx-content[aria-busy="true"]{opacity:.5;transition:opacity .15s ease .06s;pointer-events:none}
+
+/* The stage keeps its height while a view is swapped, so the page does not
+   collapse and jump under the pointer. */
+.dpx .bb-stage{min-height:calc(100vh - 300px)}
+
 /* ══ RAIL (collapsed sidebar) ══ */
 .dpx.rail{--sidebar-w:52px}
 .dpx.rail .dpx-side .brand{justify-content:center;padding:14px 0}
@@ -232,6 +242,7 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-chip.pr-high{background:#f8ecd9;color:var(--bb-amber)}
 .dpx .dpx-bb-chip.pr-medium{background:var(--rule-soft);color:var(--ink-4)}
 .dpx .dpx-bb-chip.pr-low{background:transparent;color:var(--ink-faint);padding-left:0}
+.dpx .dpx-bb-chip.tiny{height:14px;padding:0 5px;font-size:8.5px;letter-spacing:.3px;flex:none}
 
 /* ── List ── */
 .dpx .dpx-bb-listwrap{overflow-x:auto}
@@ -338,7 +349,21 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-sheet .jexcel .editor{padding:0!important;box-shadow:inset 0 0 0 2px var(--sel);background:var(--surface-2)}
 .dpx .dpx-bb-sheet .jexcel .editor > input,.dpx .dpx-bb-sheet .jexcel .editor > textarea{width:100%;height:100%;min-height:22px;margin:0;padding:0 9px!important;border:0;outline:0;background:transparent;font:500 11px var(--ui);color:var(--ink);box-sizing:border-box}
 .dpx .dpx-bb-sheet .jexcel .editor .jdropdown-header{border:0!important;padding:0 9px!important;height:100%;font:500 11px var(--ui)!important;color:var(--ink);background:transparent;box-shadow:none}
-.dpx .dpx-bb-sheet .jexcel_filter,.dpx .dpx-bb-sheet .jexcel_pagination,.dpx .dpx-bb-sheet .jexcel_about{display:none}
+.dpx .dpx-bb-sheet .jexcel_pagination,.dpx .dpx-bb-sheet .jexcel_about{display:none}
+
+/* Per-column filters: a second header row of pickers, sitting under the labels
+   and above the data, sticky with them. */
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter.has-filter{position:relative}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter.has-filter::after{content:"";position:absolute;right:8px;top:50%;width:8px;height:8px;margin-top:-4px;opacity:.4;pointer-events:none;background:currentColor;color:var(--ink-mute);clip-path:polygon(0 0,100% 0,62% 42%,62% 100%,38% 78%,38% 42%)}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter.has-filter:hover::after{opacity:.75}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter{background:#fbfbf8;color:var(--ink-faint);font:500 10px var(--ui);cursor:pointer;border-right:1px solid var(--grid-v);border-bottom:1px solid var(--rule);height:24px;padding:0 5px;line-height:24px}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter > input{width:100%;height:22px;border:1px solid transparent;border-radius:5px;background:transparent;font:500 10px var(--ui);color:var(--ink-2);padding:0 20px 0 6px;outline:none;cursor:pointer;transition:background .12s,border-color .12s}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter > input::placeholder{color:var(--ink-faint)}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter > input:hover{background:var(--surface-2);border-color:var(--rule)}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter > input:focus{background:var(--surface-2);border-color:var(--bb-accent);box-shadow:0 0 0 2px rgba(31,111,107,.12)}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_row.jexcel_column_filter{background:#fbfbf8}
+/* a filtered column announces itself */
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.jexcel_column_filter.filtered > input{background:rgba(31,111,107,.1);border-color:rgba(31,111,107,.3);color:var(--bb-accent);font-weight:600}
 
 /* ── Floating menus (jsuites) ── */
 .dpx-menu-skin .jdropdown-default .jdropdown-container,.dpx-menu-skin .jcalendar-container{border:0;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(10,10,10,.08),0 10px 30px -10px rgba(10,10,10,.3);overflow:hidden;font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -402,6 +427,9 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 
 /* ── Skeleton ── */
 .dpx .dpx-bb-skel{padding:14px}
+.dpx .dpx-bb-skel.bare{padding:0}
+.dpx .dpx-bb-skel.bare i{height:9px;margin-bottom:7px}
+.dpx .dpx-bb-skel.bare i:last-child{margin-bottom:0}
 .dpx .dpx-bb-skel i{display:block;height:11px;border-radius:4px;margin-bottom:9px;background:linear-gradient(90deg,#f1f0ec 25%,#f7f6f3 50%,#f1f0ec 75%);background-size:320px 100%;animation:dpx-shine 1.1s linear infinite}
 @keyframes dpx-shine{to{background-position:320px 0}}
 
@@ -420,7 +448,9 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-tl-hd .corner{position:sticky;left:0;z-index:6;width:var(--bb-gutter);flex:none;background:var(--surface-2);border-right:1px solid var(--rule);display:flex;align-items:center;gap:6px;padding:0 12px;font:600 8.5px var(--ui);letter-spacing:.9px;text-transform:uppercase;color:var(--ink-faint)}
 .dpx .dpx-bb-tl-hd .band{position:relative;flex:1 1 auto}
 .dpx .dpx-bb-mo{position:absolute;top:5px;height:14px;font:600 10px var(--ui);color:var(--ink-3);padding-left:7px;border-left:1px solid var(--rule);letter-spacing:.2px;white-space:nowrap}
-.dpx .dpx-bb-tk{position:absolute;top:23px;font:500 9px var(--mono);color:#c2c1b9;transform:translateX(-50%);white-space:nowrap}
+.dpx .dpx-bb-tk{position:absolute;top:23px;font:500 9px var(--mono);color:#c2c1b9;transform:translateX(-50%);white-space:nowrap;display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.dpx .dpx-bb-tk b{font-weight:600;color:var(--ink-mute)}
+.dpx .dpx-bb-tk.dim,.dpx .dpx-bb-tk.dim b{color:#d6d5cd}
 
 .dpx .dpx-bb-tl-body{position:relative}
 .dpx .dpx-bb-grid{position:absolute;top:0;bottom:0;left:var(--bb-gutter);right:0;pointer-events:none;z-index:0}
@@ -437,29 +467,31 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-tl-row:last-child{border-bottom:0}
 .dpx .dpx-bb-tl-row:hover .name,.dpx .dpx-bb-tl-row:hover .track{background:#fbfbf8}
 .dpx .dpx-bb-tl-row .name{position:sticky;left:0;z-index:3;width:var(--bb-gutter);flex:none;background:var(--surface-2);border-right:1px solid var(--rule);display:flex;align-items:center;gap:7px;padding:0 12px;font:500 11px var(--ui);color:var(--ink-2);white-space:nowrap;overflow:hidden}
-.dpx .dpx-bb-tl-row .name a{color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;flex:1}
+.dpx .dpx-bb-tl-row .name a{color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .dpx .dpx-bb-tl-row .name a:hover{text-decoration:underline;text-underline-offset:2px}
 .dpx .dpx-bb-tl-row.done .name a{color:var(--ink-faint)}
 .dpx .dpx-bb-tl-row .track{position:relative;flex:1 1 auto}
 
-.dpx .dpx-bb-tlbar{position:absolute;top:6px;height:17px;min-width:6px;border-radius:4px;background:var(--ink-2);z-index:2;display:flex;align-items:center;padding:0 7px;overflow:hidden;cursor:default;transition:filter .12s}
-.dpx .dpx-bb-tlbar:hover{filter:brightness(.92)}
+.dpx .dpx-bb-tlbar{position:absolute;top:6px;height:17px;min-width:6px;border-radius:4px;background:var(--ink-2);z-index:2;display:flex;align-items:center;padding:0 7px;overflow:hidden;cursor:pointer;text-decoration:none;transition:filter .12s,box-shadow .12s}
+.dpx .dpx-bb-tlbar:hover{filter:brightness(.93);box-shadow:0 1px 4px rgba(10,10,10,.18)}
+.dpx .dpx-bb-tlbar:focus-visible{outline:2px solid var(--bb-accent);outline-offset:1px}
 .dpx .dpx-bb-tlbar .lb{font:600 9.5px var(--ui);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.95}
 .dpx .dpx-bb-tlbar.st-in-progress{background:#2d7a5c}
 .dpx .dpx-bb-tlbar.st-in-review{background:#a5741f}
 .dpx .dpx-bb-tlbar.st-triage,.dpx .dpx-bb-tlbar.st-todo{background:#8d8b82}
 .dpx .dpx-bb-tlbar.st-blocked{background:var(--bb-late)}
 .dpx .dpx-bb-tlbar.late{background:var(--bb-late)}
-.dpx .dpx-bb-tlbar.done{background:transparent;box-shadow:inset 0 0 0 1px var(--ink-faint)}
-.dpx .dpx-bb-tlbar.done .lb{color:var(--ink-faint)}
-.dpx .dpx-bb-span{position:absolute;top:6px;height:17px;display:flex;align-items:center;padding-left:8px;font:500 9.5px var(--mono);color:#c2c1b9;white-space:nowrap;z-index:2;pointer-events:none}
+.dpx .dpx-bb-tlbar.done{background:#f4f3ef;box-shadow:inset 0 0 0 1px var(--rule)}
+.dpx .dpx-bb-tlbar.done .lb{color:var(--ink-mute)}
+.dpx .dpx-bb-tlbar.done:hover{filter:none;background:#eeede8}
+.dpx .dpx-bb-span{position:absolute;top:6px;height:17px;display:flex;align-items:center;padding-left:8px;font:500 9.5px var(--mono);color:var(--ink-mute);white-space:nowrap;z-index:2;pointer-events:none}
 
 .dpx .dpx-bb-legend{display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:9px 13px;border-top:1px solid var(--rule);font:500 9.5px var(--ui);color:var(--ink-mute)}
 .dpx .dpx-bb-legend span{display:inline-flex;align-items:center;gap:6px}
 .dpx .dpx-bb-legend i{width:13px;height:7px;border-radius:2px;background:#8d8b82;flex:none}
 .dpx .dpx-bb-legend i.prog{background:#2d7a5c}
 .dpx .dpx-bb-legend i.rev{background:#a5741f}
-.dpx .dpx-bb-legend i.done{background:transparent;box-shadow:inset 0 0 0 1px var(--ink-faint)}
+.dpx .dpx-bb-legend i.done{background:#f4f3ef;box-shadow:inset 0 0 0 1px var(--rule)}
 .dpx .dpx-bb-legend i.late{background:var(--bb-late)}
 .dpx .dpx-bb-legend i.today{width:2px;height:11px;border-radius:0;background:var(--bb-accent)}
 .dpx .dpx-bb-legend .sp{margin-left:auto}

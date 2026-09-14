@@ -3,12 +3,21 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 const DAY = 86400000;
 const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const SHORT = {
+	"In Progress": "WIP",
+	"In Review": "Review",
+	Triage: "Triage",
+	Todo: "Todo",
+	Blocked: "Blocked",
+	Done: "Done",
+};
+const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const ZOOM = { weeks: 15, months: 5 };
+const ZOOM = { days: 34, weeks: 15, months: 5 };
 const PAGE = 60;
 const COLUMN_CAP = 25;
 const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
-const SHEET_FIELDS = { 2: "stage", 3: "priority", 5: "end", 6: "start" };
+const SHEET_FIELDS = { 2: "stage", 3: "priority", 5: "module", 6: "end", 7: "start" };
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 const HINTS = {
 	board: "Drag a card between stages to move it",
@@ -79,12 +88,14 @@ function paint_cell(cell, x, item) {
 					item.assignees.length > 1 ? ` +${item.assignees.length - 1}` : ""
 				}</span></span>`
 			: '<span class="cellwrap" style="color:var(--ink-faint)">Unassigned</span>';
-	} else if (x === 5 || x === 6) {
-		cell.classList.add("bb-mono");
-		if (x === 5 && item.late) cell.classList.add("bb-late");
-	} else if (x === 7 || x === 8) {
+	} else if (x === 5) {
 		cell.classList.add("bb-quiet");
-	} else if (x === 9) {
+	} else if (x === 6 || x === 7) {
+		cell.classList.add("bb-mono");
+		if (x === 6 && item.late) cell.classList.add("bb-late");
+	} else if (x === 8 || x === 9) {
+		cell.classList.add("bb-quiet");
+	} else if (x === 10) {
 		cell.classList.add("bb-mono");
 	}
 }
@@ -103,6 +114,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.items = [];
 		this.stages = [];
 		this.total = 0;
+		this.modules = [];
 		this.view = "board";
 		this.group_by = "stage";
 		this.zoom = "weeks";
@@ -110,7 +122,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.caps = {};
 		this.hide_done = false;
 		this.limit = PAGE;
-		this.filters = { q: "", source: "", assignee: "", priority: "", hide_done: false };
+		this.filters = { q: "", source: "", assignee: "", module: "", priority: "" };
 		this.render_shell();
 		this.load();
 	}
@@ -119,6 +131,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const args = this.project ? { project: this.project } : {};
 		const icon = $(this.wrapper).find(".bb-reload").addClass("spin");
 		if (!this.items.length) this.skeleton();
+		frappe
+			.xcall("upande_dev_tools.api.board.get_modules")
+			.then((m) => {
+				this.modules = ["", ...(m || [])];
+				if (this.items.length) this.render();
+			})
+			.catch(() => {});
 		frappe
 			.xcall("upande_dev_tools.api.board.get_board", args)
 			.then((data) => {
@@ -189,6 +208,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 								<option value="Request">Requests</option>
 							</select>
 							<select class="dpx-bb-field" data-f="assignee" aria-label="Assignee"></select>
+							<select class="dpx-bb-field" data-f="module" aria-label="Module"></select>
 							<select class="dpx-bb-field" data-f="priority" aria-label="Priority">
 								<option value="">Any priority</option>
 								<option value="Urgent">Urgent</option>
@@ -283,6 +303,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		return this.items.filter((item) => {
 			if (this.filters.source && item.doctype !== this.filters.source) return false;
 			if (this.filters.priority && item.priority !== this.filters.priority) return false;
+			if (this.filters.module && (item.module || "") !== this.filters.module) return false;
 			if (this.filters.assignee) {
 				if (this.filters.assignee === "__none") {
 					if (item.assignees.length) return false;
@@ -310,14 +331,32 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	render_assignees() {
-		const select = $(this.wrapper).find('[data-f="assignee"]');
-		if (select.children().length) return;
-		const people = [...new Set(this.items.flatMap((item) => item.assignees))].sort();
-		select.html(
-			['<option value="">Anyone</option>', '<option value="__none">Unassigned</option>']
-				.concat(people.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`))
-				.join("")
-		);
+		const root = $(this.wrapper);
+		const people = root.find('[data-f="assignee"]');
+		if (!people.children().length) {
+			const names = [...new Set(this.items.flatMap((item) => item.assignees))].sort();
+			people.html(
+				['<option value="">Anyone</option>', '<option value="__none">Unassigned</option>']
+					.concat(names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`))
+					.join("")
+			);
+		}
+
+		// Modules come from master data so you can filter to one that has nothing
+		// in it yet and see that it is empty, rather than not see it at all.
+		const modules = root.find('[data-f="module"]');
+		const names = this.modules.length
+			? this.modules.filter(Boolean)
+			: [...new Set(this.items.map((item) => item.module).filter(Boolean))].sort();
+		if (modules.children().length !== names.length + 1) {
+			const held = modules.val();
+			modules.html(
+				['<option value="">All modules</option>']
+					.concat(names.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`))
+					.join("")
+			);
+			if (held) modules.val(held);
+		}
 	}
 
 	render_tools() {
@@ -361,10 +400,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	export_csv() {
-		const head = ["Type", "ID", "Work item", "Stage", "Priority", "Assignee", "Start", "Due", "Project", "Status"];
+		const head = ["Type", "ID", "Work item", "Stage", "Priority", "Assignee", "Module", "Start", "Due", "Project", "Status"];
 		const cell = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
 		const body = this.visible().map((i) =>
-			[i.doctype, i.name, i.title, i.stage, i.priority, i.assignees.join("; "), i.start, i.end, i.project, i.status]
+			[i.doctype, i.name, i.title, i.stage, i.priority, i.assignees.join("; "), i.module, i.start, i.end, i.project, i.status]
 				.map(cell)
 				.join(",")
 		);
@@ -388,7 +427,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			.text(this.view === "timeline" ? "Zoom" : "Group");
 		if (this.view === "timeline") {
 			select.html(
-				`<option value="weeks">Weeks</option><option value="months">Months</option>`
+				`<option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>`
 			).val(this.zoom);
 		} else {
 			select.html(
@@ -588,6 +627,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			item.stage,
 			item.priority || "",
 			item.assignees.join(", "),
+			item.module || "",
 			item.end || "",
 			item.start || "",
 			item.status,
@@ -603,12 +643,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ type: "text", title: "Work item", width: 372, ...locked },
 				{ type: "dropdown", title: "Stage", width: 124, source: this.stages },
 				{ type: "dropdown", title: "Priority", width: 104, source: ["", "Low", "Medium", "High", "Urgent"] },
-				{ type: "text", title: "Assignee", width: 150, ...locked },
-				{ type: "calendar", title: "Due", width: 102, options: { format: "YYYY-MM-DD" } },
-				{ type: "calendar", title: "Start", width: 102, options: { format: "YYYY-MM-DD" } },
-				{ type: "text", title: "Status", width: 106, ...locked },
-				{ type: "text", title: "Project", width: 104, ...locked },
-				{ type: "text", title: "ID", width: 122, ...locked },
+				{ type: "text", title: "Assignee", width: 142, ...locked },
+				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
+				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
+				{ type: "calendar", title: "Start", width: 100, options: { format: "YYYY-MM-DD" } },
+				{ type: "text", title: "Status", width: 104, ...locked },
+				{ type: "text", title: "Project", width: 102, ...locked },
+				{ type: "text", title: "ID", width: 118, ...locked },
 			],
 			defaultColAlign: "left",
 			columnSorting: true,
@@ -619,6 +660,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			lazyLoading: true,
 			loadingSpin: true,
 			freezeColumns: 2,
+			filters: true,
 			search: false,
 			pagination: false,
 			allowInsertRow: false,
@@ -632,6 +674,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		});
 
 		document.body.classList.add("dpx-menu-skin");
+		this.label_filters(host);
 		this.watch_clicks(host);
 	}
 
@@ -639,6 +682,22 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	// This has to run after the click has finished bubbling to document - jsuites
 	// closes an open dropdown from its own document handler, so opening any earlier
 	// (on selection, which fires at mousedown) opens and shuts it in one gesture.
+	// jspreadsheet draws its filter row as bare inputs with no placeholder and no
+	// affordance, so nobody discovers them. Name them after their column.
+	label_filters(host) {
+		const titles = this.sheet.options.columns.map((c) => c.title);
+		// The filter cells start as &nbsp; and only grow an input on click, so the
+		// affordance has to be drawn into the cell itself.
+		host.querySelectorAll("td.jexcel_column_filter").forEach((td) => {
+			const x = Number(td.getAttribute("data-x"));
+			const title = titles[x];
+			if (!title || td.style.display === "none") return;
+			td.classList.add("has-filter");
+			td.textContent = "All";
+			td.setAttribute("title", `Filter by ${title}`);
+		});
+	}
+
 	watch_clicks(host) {
 		host.addEventListener("click", (e) => {
 			const td = e.target.closest("td[data-x]");
@@ -741,6 +800,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					`<div class="dpx-bb-mo" style="left:${at}px">${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}</div>`
 				);
 				rules.push(`<div class="mo" style="left:${at}px"></div>`);
+			} else if (this.zoom === "days") {
+				rules.push(`<div class="wk" style="left:${at}px"></div>`);
+				ticks.push(
+					`<div class="dpx-bb-tk${d.getUTCDay() % 6 === 0 ? " dim" : ""}" style="left:${
+						at + day_w / 2
+					}px">${DOW[d.getUTCDay()]}<b>${d.getUTCDate()}</b></div>`
+				);
 			} else if (d.getUTCDay() === 1) {
 				rules.push(`<div class="wk" style="left:${at}px"></div>`);
 				ticks.push(`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`);
@@ -847,6 +913,7 @@ function tl_row({ item, start, end }, x, width) {
 			<div class="name">
 				<span class="dpx-bb-pri p${item.rank - 1}" title="${esc(item.priority || "No priority")}"></span>
 				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a>
+				<span class="dpx-bb-chip st-${slug(item.stage)} tiny">${esc(SHORT[item.stage] || item.stage)}</span>
 				${
 					item.assignees.length
 						? `<span class="dpx-bb-av" title="${esc(item.assignees.join(", "))}">${esc(
@@ -856,8 +923,10 @@ function tl_row({ item, start, end }, x, width) {
 				}
 			</div>
 			<div class="track" style="width:${width}px">
-				<div class="dpx-bb-tlbar ${cls}" style="left:${left}px;width:${bar_w}px"
-					title="${esc(item.title)} · ${label} · ${days} day${days === 1 ? "" : "s"} · ${esc(item.stage)}">${inside}</div>
+				<a class="dpx-bb-tlbar ${cls}" href="${link(item)}" style="left:${left}px;width:${bar_w}px"
+					title="${esc(item.title)} · ${esc(item.stage)} · ${label} · ${days} day${
+						days === 1 ? "" : "s"
+					}${item.assignees.length ? ` · ${esc(item.assignees.join(", "))}` : ""}">${inside}</a>
 				${outside}
 			</div>
 		</div>`;

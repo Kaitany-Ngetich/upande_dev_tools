@@ -28,6 +28,33 @@ TASK_CUSTOM_FIELDS = {
 			"insert_after": "custom_request",
 			"description": "The day a developer has chosen to work on this task.",
 		},
+		{
+			"fieldname": "custom_module",
+			"label": "Module",
+			"fieldtype": "Link",
+			"options": "Product Area",
+			"insert_after": "custom_planned_for",
+			"description": "The part of the system this work belongs to.",
+		},
+	]
+}
+
+ISSUE_CUSTOM_FIELDS = {
+	"Issue": [
+		{
+			"fieldname": "dev_tools_tab",
+			"label": "Dev Tools",
+			"fieldtype": "Tab Break",
+			"insert_after": "content_type",
+		},
+		{
+			"fieldname": "custom_module",
+			"label": "Module",
+			"fieldtype": "Link",
+			"options": "Product Area",
+			"insert_after": "dev_tools_tab",
+			"description": "The part of the system this issue belongs to.",
+		},
 	]
 }
 
@@ -58,6 +85,10 @@ PROJECT_CUSTOM_FIELDS = {
 
 def create_task_custom_fields() -> None:
 	create_custom_fields(TASK_CUSTOM_FIELDS, update=True)
+
+
+def create_issue_custom_fields() -> None:
+	create_custom_fields(ISSUE_CUSTOM_FIELDS, update=True)
 
 
 def create_project_custom_fields() -> None:
@@ -318,6 +349,7 @@ def register_dev_portal_pages() -> None:
 
 def run_setup() -> None:
 	create_task_custom_fields()
+	create_issue_custom_fields()
 	create_project_custom_fields()
 	backfill_project_scope()
 	register_master_data()

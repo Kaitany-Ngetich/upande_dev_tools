@@ -47,22 +47,22 @@ function assert_no_layout_collisions() {
 const ITEMS = [
 	{
 		doctype: "Task", name: "TASK-01", title: "Bucket reject reconciliation", status: "Working",
-		stage: "In Progress", rank: 4, priority: "Urgent", project: "PROJ-1",
+		stage: "In Progress", rank: 4, priority: "Urgent", project: "PROJ-1", module: "Coffee",
 		start: "2026-09-07", end: "2026-09-19", movable: true, assignees: ["Teddy Kaitany"], late: false,
 	},
 	{
 		doctype: "Issue", name: "ISS-02", title: "Label PDF prints blank pages", status: "Open",
-		stage: "Triage", rank: 2, priority: "Medium", project: "PROJ-1",
+		stage: "Triage", rank: 2, priority: "Medium", project: "PROJ-1", module: "Coffee",
 		start: "2026-08-28", end: "2026-09-02", movable: true, assignees: [], late: true,
 	},
 	{
 		doctype: "Request", name: "REQ-03", title: "Add vase life to quality report", status: "Under Review",
-		stage: "Triage", rank: 1, priority: "Low", project: null,
+		stage: "Triage", rank: 1, priority: "Low", project: null, module: null,
 		start: "", end: "", movable: false, assignees: ["Jane Doe", "Sam Otieno"], late: false,
 	},
 	{
 		doctype: "Task", name: "TASK-04", title: "Ship picker fairness view", status: "Completed",
-		stage: "Done", rank: 3, priority: "High", project: "PROJ-2",
+		stage: "Done", rank: 3, priority: "High", project: "PROJ-2", module: "QC",
 		start: "2026-10-05", end: "2026-10-09", movable: true, assignees: ["Teddy Kaitany"], late: false,
 	},
 ];
@@ -88,13 +88,15 @@ function boot() {
 		// message). frappe.call there is a jqXHR posting to "/" and is not usable.
 		xcall(method, args) {
 			calls.push({ method, args });
+			if (method.endsWith("get_modules"))
+				return Promise.resolve(["Coffee", "QC", "Sales", "Stores"]);
 			if (method.endsWith("get_board"))
 				return Promise.resolve({
 					items: ITEMS,
 					total: 9,
 					stages: ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"],
 				});
-			return Promise.resolve({ name: args.name, status: "Working", stage: args.stage });
+			return Promise.resolve({ name: (args || {}).name, status: "Working", stage: (args || {}).stage });
 		},
 		show_alert() {},
 		utils: { escape_html: (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") },
@@ -120,7 +122,10 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const root = window.document.getElementById("root");
 	const board = new window.upande_dev_tools.BacklogBoard(root, null);
 
-	assert.strictEqual(calls[0].method, "upande_dev_tools.api.board.get_board");
+	assert.ok(
+		calls.some((c) => c.method === "upande_dev_tools.api.board.get_board"),
+		"the board loads its items"
+	);
 	assert.ok(!window.frappe.call, "the board must not use frappe.call, which portal pages do not provide");
 	await Promise.resolve();
 	await new Promise((r) => setTimeout(r, 0));
@@ -149,6 +154,17 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	await settle();
 	assert.strictEqual($(root).find(".dpx-bb-card").length, 1);
 	$(root).find('[data-f="q"]').val("").trigger("input");
+	await settle();
+
+	// ── Module filter ──
+	assert.ok(
+		$(root).find('[data-f="module"] option').length > 1,
+		"modules come from master data, not only what is on screen"
+	);
+	$(root).find('[data-f="module"]').val("QC").trigger("change");
+	await settle();
+	assert.strictEqual($(root).find(".dpx-bb-card").length, 1, "filtering by module narrows the board");
+	$(root).find('[data-f="module"]').val("").trigger("change");
 	await settle();
 
 	// ── Source filter ──
@@ -202,12 +218,12 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	// What the work is comes first; identifiers are reference material and go last.
 	assert.strictEqual(
 		sheet.config.columns.map((c) => c.title).join(),
-		"id,Work item,Stage,Priority,Assignee,Due,Start,Status,Project,ID"
+		"id,Work item,Stage,Priority,Assignee,Module,Due,Start,Status,Project,ID"
 	);
 	const editable = sheet.config.columns
 		.map((c, i) => (c.readOnly ? null : i))
 		.filter((i) => i !== null && i > 0);
-	assert.strictEqual(editable.join(), "2,3,5,6", "stage, priority, due and start take an edit");
+	assert.strictEqual(editable.join(), "2,3,5,6,7", "stage, priority, module, due and start take an edit");
 	assert.strictEqual(
 		sheet.config.columns[2].source.join(),
 		"Triage,Todo,In Progress,In Review,Blocked,Done"

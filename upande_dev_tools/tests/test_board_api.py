@@ -4,7 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
-from upande_dev_tools.api.board import STAGES, get_board, set_field, set_stage
+from upande_dev_tools.api.board import STAGES, get_board, get_modules, set_field, set_stage
 
 
 class IntegrationTestBoardApi(IntegrationTestCase):
@@ -92,6 +92,36 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 			for field in ("start", "end"):
 				if item[field]:
 					self.assertRegex(item[field], r"^\d{4}-\d{2}-\d{2}$")
+
+	def test_module_rides_on_every_kind_of_work(self) -> None:
+		project = self._project()
+		area = frappe.get_all("Product Area", limit=1, pluck="name")
+		if not area:
+			self.skipTest("No Product Area master data on this site.")
+		self._task(project, custom_module=area[0])
+		self._issue(project, custom_module=area[0])
+		frappe.get_doc(
+			{"doctype": "Request", "title": "Scoped", "project": project, "product_area": area[0]}
+		).insert(ignore_permissions=True)
+
+		modules = {item["module"] for item in get_board(project=project)["items"]}
+		self.assertEqual(modules, {area[0]})
+
+	def test_set_field_writes_a_module(self) -> None:
+		area = frappe.get_all("Product Area", limit=1, pluck="name")
+		if not area:
+			self.skipTest("No Product Area master data on this site.")
+		task = self._task(self._project())
+		set_field("Task", task, "module", area[0])
+		self.assertEqual(frappe.db.get_value("Task", task, "custom_module"), area[0])
+
+	def test_set_field_rejects_an_unknown_module(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			set_field("Task", task, "module", "Not A Module")
+
+	def test_get_modules_lists_master_data(self) -> None:
+		self.assertEqual(get_modules(), frappe.get_all("Product Area", pluck="name", order_by="name asc"))
 
 	def test_board_reports_total_beyond_the_limit(self) -> None:
 		project = self._project()
