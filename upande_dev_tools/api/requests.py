@@ -211,7 +211,15 @@ def get_upcoming_meetings(
 			["starts_on", ">=", now],
 			["starts_on", "<=", end],
 		],
-		fields=["name", "subject", "starts_on", "ends_on", "event_category", "location"],
+		fields=[
+			"name",
+			"subject",
+			"starts_on",
+			"ends_on",
+			"event_category",
+			"location",
+			"google_meet_link",
+		],
 		order_by="starts_on asc",
 		ignore_permissions=True,
 	)
