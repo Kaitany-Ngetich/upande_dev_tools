@@ -595,8 +595,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		stage.html(`
 			<div class="dpx-card"><div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
 				<table class="dpx-bb-table">
-					<colgroup><col><col style="width:116px"><col class="opt" style="width:96px"><col class="opt" style="width:150px"><col style="width:96px"></colgroup>
-					<thead><tr><th>Work item</th><th>Stage</th><th class="opt">Priority</th><th class="opt">Assigned to</th><th style="text-align:right">Due</th></tr></thead>
+					<colgroup><col><col style="width:128px"><col style="width:104px"><col class="opt" style="width:158px"><col class="opt" style="width:132px"><col style="width:104px"></colgroup>
+					<thead><tr><th>Work item</th><th>Stage</th><th>Priority</th><th class="opt">Assigned to</th>
+						<th class="opt">Module</th><th style="text-align:right">Due</th></tr></thead>
 					<tbody>${body}</tbody>
 				</table>
 				${shown < rows.length ? `<button class="dpx-bb-more">Show more — ${rows.length - shown} remaining</button>` : ""}
@@ -1055,9 +1056,14 @@ function list_row(item) {
 		<tr class="${cls.join(" ")}">
 			<td><div class="subj">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				<a href="${link(item)}">${esc(item.title)}</a></div></td>
-			<td><span class="dpx-bb-dot st-${slug(item.stage)}"></span>${esc(item.stage)}</td>
-			<td class="opt">${esc(item.priority || "—")}</td>
+			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>
+			<td>${
+				item.priority
+					? `<span class="dpx-bb-chip pr-${slug(item.priority)}">${esc(item.priority)}</span>`
+					: '<span class="muted">—</span>'
+			}</td>
 			<td class="opt">${people(item)}</td>
+			<td class="opt muted">${esc(item.module || "—")}</td>
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
 		</tr>`;
 }
