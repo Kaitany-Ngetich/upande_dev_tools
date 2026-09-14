@@ -7,7 +7,6 @@ from frappe.utils import add_to_date, now_datetime, today
 
 from upande_dev_tools.api.requests import (
 	create_request,
-	get_backlog_board,
 	get_customer_workload,
 	get_developer_backlog,
 	get_my_day,
@@ -16,7 +15,6 @@ from upande_dev_tools.api.requests import (
 	get_upcoming_meetings,
 	promote_to_task,
 	triage_request,
-	update_task_status,
 )
 
 
@@ -140,47 +138,6 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 
 		doc = frappe.get_doc("Request", created["name"])
 		self.assertEqual(doc.workflow_state, "Completed")
-
-	def test_get_backlog_board_returns_requests_for_project(self) -> None:
-		project = self._make_project()
-		created = create_request(title="Board item", request_type="Feature", project=project)
-
-		board = get_backlog_board(project=project)
-		self.assertIn(created["name"], [r["name"] for r in board["requests"]])
-
-	def test_get_backlog_board_shows_requester_and_assignee(self) -> None:
-		# Needs "Projects User" too - create_request checks read permission on a caller-supplied
-		# project (see test_triage_and_promote_normal_request's identical note).
-		dev = self._make_user("dev-board-assignee@example.test", ["Dev Team", "Projects User"])
-		project = self._make_project()
-
-		frappe.set_user(dev)
-		try:
-			created = create_request(title="Needs an owner shown", request_type="Bug", project=project)
-		finally:
-			frappe.set_user("Administrator")
-
-		task = frappe.get_doc({"doctype": "Task", "subject": "Board task with an owner", "project": project})
-		task.flags.ignore_recursion_check = True
-		task.insert(ignore_permissions=True)
-		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
-
-		board = get_backlog_board(project=project)
-
-		request_row = next(r for r in board["requests"] if r["name"] == created["name"])
-		self.assertEqual(request_row["requested_by"], frappe.db.get_value("User", dev, "full_name"))
-
-		task_row = next(t for t in board["tasks"] if t["name"] == task.name)
-		self.assertEqual(task_row["assigned_to"], [frappe.db.get_value("User", dev, "full_name")])
-
-	def test_get_backlog_board_denies_outsider_without_project(self) -> None:
-		outsider = self._make_user("outsider-board@example.test", [])
-		frappe.set_user(outsider)
-		try:
-			with self.assertRaises(frappe.PermissionError):
-				get_backlog_board()
-		finally:
-			frappe.set_user("Administrator")
 
 	def test_get_upcoming_meetings_by_project(self) -> None:
 		project = self._make_project()
@@ -327,51 +284,5 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				get_customer_workload(project=project)
-		finally:
-			frappe.set_user("Administrator")
-
-	def test_update_task_status_moves_a_task_between_kanban_columns(self) -> None:
-		dev = self._make_user("dev-kanban@example.test", ["Dev Team"])
-		project = self._make_project()
-		task = frappe.get_doc(
-			{"doctype": "Task", "subject": "Kanban drag test", "project": project, "status": "Open"}
-		)
-		task.flags.ignore_recursion_check = True
-		task.insert(ignore_permissions=True)
-
-		frappe.set_user(dev)
-		try:
-			result = update_task_status(task.name, "Working")
-		finally:
-			frappe.set_user("Administrator")
-
-		self.assertEqual(result["status"], "Working")
-		self.assertEqual(frappe.db.get_value("Task", task.name, "status"), "Working")
-
-	def test_update_task_status_rejects_an_invalid_status(self) -> None:
-		dev = self._make_user("dev-kanban-badstatus@example.test", ["Dev Team"])
-		project = self._make_project()
-		task = frappe.get_doc({"doctype": "Task", "subject": "Kanban bad status test", "project": project})
-		task.flags.ignore_recursion_check = True
-		task.insert(ignore_permissions=True)
-
-		frappe.set_user(dev)
-		try:
-			with self.assertRaises(frappe.ValidationError):
-				update_task_status(task.name, "Not A Real Status")
-		finally:
-			frappe.set_user("Administrator")
-
-	def test_update_task_status_denies_users_without_reviewer_role(self) -> None:
-		outsider = self._make_user("outsider-kanban@example.test", [])
-		project = self._make_project()
-		task = frappe.get_doc({"doctype": "Task", "subject": "Kanban perm test", "project": project})
-		task.flags.ignore_recursion_check = True
-		task.insert(ignore_permissions=True)
-
-		frappe.set_user(outsider)
-		try:
-			with self.assertRaises(frappe.PermissionError):
-				update_task_status(task.name, "Working")
 		finally:
 			frappe.set_user("Administrator")
