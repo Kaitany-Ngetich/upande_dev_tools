@@ -48,12 +48,55 @@
 		</table>
 	</div>
 </div>
+<div class="dpx-card" style="margin-top: 18px;" id="rp-workload-card" hidden>
+	<div class="dpx-card-hd"><div class="ttl">Who's Working On It</div></div>
+	<div class="dpx-card-body" id="rp-workload-body"></div>
+</div>
 <script>
 frappe.ready(function() {
+	function loadWorkloadForProjects(projects) {
+		var card = document.querySelector("#rp-workload-card");
+		var body = document.querySelector("#rp-workload-body");
+		if (!projects.length) {
+			card.hidden = true;
+			return;
+		}
+		card.hidden = false;
+		body.innerHTML = "";
+		projects.forEach(function(project) {
+			frappe.call({
+				method: "upande_dev_tools.api.requests.get_customer_workload",
+				args: {project: project}
+			}).then(function(r) {
+				var rows = r.message || [];
+				if (!rows.length) return;
+				rows.forEach(function(dev) {
+					var row = document.createElement("div");
+					row.className = "dpx-devrow";
+					var hd = document.createElement("div");
+					hd.className = "dpx-devrow-hd";
+					var name = document.createElement("div");
+					name.className = "dpx-devrow-name";
+					name.textContent = dev.full_name;
+					var counts = document.createElement("div");
+					counts.className = "dpx-devrow-counts";
+					counts.innerHTML =
+						"<span><b>" + dev.active_tasks + "</b> active</span>" +
+						"<span><b>" + dev.completed_tasks + "</b> completed</span>";
+					hd.appendChild(name);
+					hd.appendChild(counts);
+					row.appendChild(hd);
+					body.appendChild(row);
+				});
+			});
+		});
+	}
+
 	function loadMyRequests() {
 		frappe.call({method: "upande_dev_tools.api.requests.get_my_requests"}).then(function(r) {
 			var tbody = document.querySelector("#rp-requests-table tbody");
 			tbody.innerHTML = "";
+			var projects = [];
 			(r.message || []).forEach(function(request) {
 				var tr = document.createElement("tr");
 				[request.title, request.request_type, request.priority || "", request.workflow_state, request.creation].forEach(function(v) {
@@ -62,7 +105,11 @@ frappe.ready(function() {
 					tr.appendChild(td);
 				});
 				tbody.appendChild(tr);
+				if (request.project && projects.indexOf(request.project) === -1) {
+					projects.push(request.project);
+				}
 			});
+			loadWorkloadForProjects(projects);
 		});
 	}
 

@@ -292,3 +292,48 @@ def get_developer_backlog(user: str | None = None, project: str | None = None) -
 		order_by="custom_planned_for asc, priority desc",
 		ignore_permissions=True,
 	)
+
+
+@frappe.whitelist()
+def get_customer_workload(project: str) -> list[dict]:
+	"""Per-developer breakdown of a customer's own active work - how many of their tasks each
+	developer currently has, and how many are done. Deliberately minimal (no titles, no due
+	dates, no overdue/incoming detail - that's the PM's own get_team_workload) so it's safe to
+	show a customer.
+
+	Permission is intentionally narrower than "can read this Project": this app doesn't set up
+	Project-level User Permissions for customer/employee accounts, so has_permission("Project",
+	...) would fail for the very users this endpoint exists for. Instead: a reviewer (Dev
+	Team/PM/System Manager) can see any project, and anyone else can see a project only if
+	they've actually raised a request against it - a real, checkable relationship instead of a
+	permission this app doesn't grant them.
+	"""
+	if not (
+		set(frappe.get_roles()) & REVIEWER_ROLES
+		or frappe.db.exists("Request", {"project": project, "raised_by_user": frappe.session.user})
+	):
+		frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
+
+	tasks = frappe.get_all(
+		"Task",
+		filters={"project": project, "status": ["!=", "Cancelled"]},
+		fields=["status", "_assign"],
+		ignore_permissions=True,
+	)
+	per_dev: dict[str, dict] = {}
+	for task in tasks:
+		assignees = json.loads(task["_assign"]) if task.get("_assign") else []
+		for email in assignees:
+			bucket = per_dev.setdefault(email, {"user": email, "active_tasks": 0, "completed_tasks": 0})
+			if task["status"] == "Completed":
+				bucket["completed_tasks"] += 1
+			else:
+				bucket["active_tasks"] += 1
+
+	names = _resolve_user_display_names(set(per_dev))
+	result = []
+	for email, bucket in per_dev.items():
+		bucket["full_name"] = names.get(email, email)
+		result.append(bucket)
+	result.sort(key=lambda b: b["active_tasks"], reverse=True)
+	return result

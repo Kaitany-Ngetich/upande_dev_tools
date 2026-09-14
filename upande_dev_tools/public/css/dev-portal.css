@@ -103,3 +103,29 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx table td{padding:11px 12px;border-bottom:1px solid var(--hairline);color:var(--ink-3)}
 .dpx table tbody tr:hover{background:rgba(10,10,10,0.025)}
 .dpx .pill{border-radius:999px;font:500 11px var(--sans);padding:3px 10px;display:inline-block}
+
+/* ══ FILTER BAR ══ */
+.dpx .dpx-filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.dpx .dpx-filters select{font:500 12.5px var(--sans);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--hairline);border-radius:10px;padding:8px 12px;min-width:160px}
+
+/* ══ SIMPLE BAR CHARTS (no external charting lib - proportional-width divs) ══ */
+.dpx .dpx-stackbar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--hairline);margin:10px 0}
+.dpx .dpx-stackbar .seg-open{background:var(--ink-2)}
+.dpx .dpx-stackbar .seg-closed{background:var(--ink-faint)}
+.dpx .dpx-stackbar-legend{display:flex;gap:18px;font:500 11.5px var(--sans);color:var(--ink-mute)}
+.dpx .dpx-stackbar-legend .dot{display:inline-block;width:8px;height:8px;border-radius:999px;margin-right:6px}
+.dpx .dpx-stackbar-legend .dot.open{background:var(--ink-2)}
+.dpx .dpx-stackbar-legend .dot.closed{background:var(--ink-faint)}
+.dpx .dpx-devrow{padding:14px 0;border-bottom:1px solid var(--hairline)}
+.dpx .dpx-devrow:last-child{border-bottom:none}
+.dpx .dpx-devrow-hd{display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:16px}
+.dpx .dpx-devrow-name{font:600 13.5px var(--sans);color:var(--ink)}
+.dpx .dpx-devrow-counts{display:flex;gap:16px;font:500 11.5px var(--sans);color:var(--ink-mute);white-space:nowrap}
+.dpx .dpx-devrow-counts b{color:var(--ink-2);font-weight:600}
+.dpx .dpx-devrow-bar{flex:1;max-width:280px}
+.dpx .dpx-devrow-detail{margin-top:12px;padding-left:2px;display:none}
+.dpx .dpx-devrow-detail.open{display:block}
+.dpx .dpx-devrow-detail .task-row{display:flex;justify-content:space-between;gap:12px;font:500 12px var(--sans);color:var(--ink-3);padding:6px 0;border-bottom:1px solid var(--hairline)}
+.dpx .dpx-devrow-detail .task-row:last-child{border-bottom:none}
+.dpx .dpx-devrow-detail .task-row .muted{color:var(--ink-mute)}
+.dpx .dpx-empty{color:var(--ink-mute);font:500 12.5px var(--sans);padding:8px 0}

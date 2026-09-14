@@ -8,6 +8,7 @@ from frappe.utils import add_to_date, now_datetime, today
 from upande_dev_tools.api.requests import (
 	create_request,
 	get_backlog_board,
+	get_customer_workload,
 	get_developer_backlog,
 	get_my_day,
 	get_my_requests,
@@ -291,5 +292,39 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				get_developer_backlog(user=dev)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_customer_workload_permits_a_requester_of_that_project(self) -> None:
+		dev = self._make_user("dev-customer-workload@example.test", ["Dev Team", "Projects User"])
+		project = self._make_project()
+
+		frappe.set_user(dev)
+		create_request(title="Customer workload test", request_type="Bug", project=project)
+
+		task = frappe.get_doc(
+			{"doctype": "Task", "subject": "Active work for the customer", "project": project}
+		)
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
+
+		# Still the requester's own session - create_request set raised_by_user to dev.
+		workload = get_customer_workload(project=project)
+		frappe.set_user("Administrator")
+
+		row = next(w for w in workload if w["user"] == dev)
+		self.assertGreaterEqual(row["active_tasks"], 1)
+		self.assertEqual(row["full_name"], frappe.db.get_value("User", dev, "full_name"))
+		self.assertNotIn("exp_end_date", row)
+
+	def test_get_customer_workload_denies_someone_with_no_relationship_to_the_project(self) -> None:
+		project = self._make_project()
+		outsider = self._make_user("outsider-customer-workload@example.test", [])
+
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_customer_workload(project=project)
 		finally:
 			frappe.set_user("Administrator")
