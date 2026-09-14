@@ -1,3 +1,4 @@
+import json
 import os
 
 import frappe
@@ -120,3 +121,15 @@ def asset_version(path: str) -> str:
 		return str(int(os.path.getmtime(full)))
 	except OSError:
 		return frappe.utils.random_string(8)
+
+
+@frappe.whitelist(allow_guest=True)
+def nav_icon(name: str | None) -> str:
+	"""Inline SVG body for a nav icon. Shipped with the app rather than pulled from
+	frappe's lucide sprite, which a portal page only fetches after first paint."""
+	icons = frappe.cache.get_value("udt_nav_icons")
+	if icons is None:
+		with open(frappe.get_app_path("upande_dev_tools", "nav_icons.json")) as f:
+			icons = json.load(f)
+		frappe.cache.set_value("udt_nav_icons", icons)
+	return icons.get(name or "", icons["activity"])

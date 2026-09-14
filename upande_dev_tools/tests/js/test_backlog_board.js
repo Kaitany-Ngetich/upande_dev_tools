@@ -102,6 +102,12 @@ function boot() {
 		datetime: { get_today: () => "2026-09-14" },
 	};
 	window.__ = (v) => v;
+
+	// the sheet is jspreadsheet; record the config rather than loading 770KB of it
+	window.jspreadsheet = (host, config) => {
+		window.__sheet = { host, config };
+		return { destroy() {} };
+	};
 	return { window, $, calls };
 }
 
@@ -130,7 +136,9 @@ function boot() {
 		"urgent reads as a filled dot, not a left rule"
 	);
 	assert.ok($(root).find('.dpx-bb-card[data-id="Issue:ISS-02"] .d').hasClass("late"));
-	assert.ok($(root).find(".dpx-bb-count").text().includes("4 of 9 loaded"), "load cap is stated");
+	assert.ok($(root).find(".dpx-bb-hint").text().includes("4 of 9"), "load cap is stated");
+	assert.ok($(root).find(".bb-total").text().includes("4 items"));
+	assert.strictEqual($(root).find(".bb-late").prop("hidden"), false, "a late badge shows when work has slipped");
 
 	// ── Search ──
 	$(root).find('[data-f="q"]').val("label").trigger("input");
@@ -153,24 +161,33 @@ function boot() {
 
 	// ── Sheet ──
 	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
-	assert.strictEqual($(root).find(".dpx-bb-sheet tbody tr").length, 4);
-	assert.strictEqual($(root).find(".dpx-bb-sheet thead th").length, 11, "row number plus ten columns");
-	assert.strictEqual(
-		$(root).find('.dpx-bb-sheet tr[data-id="Request:REQ-03"] td.ed').length,
-		0,
-		"workflow-governed requests have no editable cells"
-	);
-	assert.ok($(root).find('.dpx-bb-sheet tr[data-id="Task:TASK-01"] td.ed').length >= 3);
-	assert.strictEqual($(root).find(".dpx-bb-pri.p3").length, 1, "urgent reads as a filled dot");
-	assert.strictEqual($(root).find("[class*='dpx-bb-row'][style*='border-left']").length, 0);
+	await new Promise((r) => setTimeout(r, 30));
+	const sheet = window.__sheet;
+	assert.ok(sheet, "sheet view hands its rows to jspreadsheet");
+	assert.strictEqual(sheet.config.data.length, 4);
+	assert.strictEqual(sheet.config.freezeColumns, 4, "identity columns stay pinned while you scroll");
+	assert.ok(sheet.config.columnSorting, "columns sort");
 
-	// Sorting by a column header reorders the rows.
-	$(root).find('.dpx-bb-sheet thead th[data-key="title"]').trigger("click");
-	const titles = $(root)
-		.find(".dpx-bb-sheet tbody tr td:nth-child(4)")
-		.toArray()
-		.map((td) => $(td).text().trim());
-	assert.deepStrictEqual(titles, [...titles].sort(), "title column sorts ascending");
+	const editable = sheet.config.columns
+		.map((c, i) => (c.readOnly ? null : i))
+		.filter((i) => i !== null && i > 0);
+	// arrays built inside the jsdom realm have a different Array.prototype, so
+	// compare by value rather than with deepStrictEqual
+	assert.strictEqual(
+		editable.join(),
+		"4,5,6,7",
+		`stage, priority, start and due are the editable cells (got ${JSON.stringify(editable)})`
+	);
+	assert.strictEqual(
+		sheet.config.columns[4].source.join(),
+		"Triage,Todo,In Progress,In Review,Blocked,Done"
+	);
+
+	// a request is workflow governed, so its cells refuse the edit
+	const requestRow = sheet.config.data.findIndex((r) => r[0] === "Request:REQ-03");
+	assert.strictEqual(sheet.config.onbeforechange(null, null, 4, requestRow, "Done"), false);
+	const taskRow = sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01");
+	assert.strictEqual(sheet.config.onbeforechange(null, null, 4, taskRow, "Done"), "Done");
 
 	// ── Timeline ──
 	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
@@ -198,15 +215,20 @@ function boot() {
 	assert.strictEqual(board.items.find((i) => i.name === "TASK-01").stage, "Blocked");
 	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_stage");
 
-	// ── Editing a sheet cell saves through set_stage (mutates state, so it runs last) ──
+	// ── Editing a sheet cell saves (mutates state, so it runs last) ──
 	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
-	const cell = $(root).find('.dpx-bb-sheet tr[data-id="Task:TASK-04"] td[data-field="priority"]');
-	cell.trigger("click");
-	assert.strictEqual(cell.find("select").length, 1, "priority cell becomes a dropdown");
-	cell.find("select").val("Low").trigger("change");
+	await new Promise((r) => setTimeout(r, 30));
+	const cfg = window.__sheet.config;
+	const row = cfg.data.findIndex((r) => r[0] === "Task:TASK-04");
+	cfg.onchange(null, null, 5, row, "Low");
 	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_field");
 	assert.strictEqual(calls[calls.length - 1].args.field, "priority");
 	assert.strictEqual(calls[calls.length - 1].args.value, "Low");
+
+	// an unchanged value must not fire a save
+	const before = calls.length;
+	cfg.onchange(null, null, 4, row, cfg.data[row][4]);
+	assert.strictEqual(calls.length, before, "re-entering the same value saves nothing");
 
 	console.log("backlog-board: all checks passed");
 })().catch((e) => {
