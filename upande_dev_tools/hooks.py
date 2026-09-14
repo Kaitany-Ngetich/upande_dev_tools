@@ -129,6 +129,7 @@ on_login = ["upande_dev_tools.hooks._pin_resolved_home_page_on_login"]
 # add methods and filters to jinja environment
 jinja = {
 	"methods": [
+		"upande_dev_tools.portal.asset_version",
 		"upande_dev_tools.portal.get_nav_items",
 		"upande_dev_tools.portal.resolve_home_route",
 	],

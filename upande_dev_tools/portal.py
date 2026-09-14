@@ -1,3 +1,5 @@
+import os
+
 import frappe
 
 HOME_ROUTE_BY_ROLE = (
@@ -107,3 +109,14 @@ def get_nav_items(user: str | None = None) -> list[dict]:
 		for page in pages
 		if _is_permitted(roles_by_page.get(page.name, set()), bool(page.require_all_roles), user_roles)
 	]
+
+
+def asset_version(path: str) -> str:
+	"""Cache key for a file under this app's public/ - these are plain <link>/<script>
+	tags, so they miss the bundler's hashed filenames and are served with a 12 hour
+	max-age."""
+	full = frappe.get_app_path("upande_dev_tools", "public", *path.split("/"))
+	try:
+		return str(int(os.path.getmtime(full)))
+	except OSError:
+		return frappe.utils.random_string(8)
