@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 
 DEPLOYER_ROLES = {"Dev Team", "System Manager"}
+DEPLOYMENT_VIEWER_ROLES = {"Dev Team", "System Manager", "Projects Manager"}
 
 
 @frappe.whitelist()
@@ -56,6 +57,29 @@ def get_deployment_queue() -> list[dict]:
 		order_by="creation asc",
 		ignore_permissions=True,
 	)
+
+
+@frappe.whitelist()
+def get_recent_deployments(limit: int = 10) -> dict:
+	"""Recent deployment activity across every status, not just the pending queue -
+	get_deployment_queue only ever shows Requested/In Progress/Failed rows (and is Dev
+	Team/System Manager only), so a PM watching the dashboard had no way to see deployment
+	history at all, successful or not."""
+	if not set(frappe.get_roles()) & DEPLOYMENT_VIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	limit = max(1, min(int(limit), 50))
+	rows = frappe.get_all(
+		"Deployment Request",
+		fields=["name", "app", "instance", "branch", "commit_hash", "workflow_state", "creation"],
+		order_by="creation desc",
+		limit=limit,
+		ignore_permissions=True,
+	)
+	counts = frappe.db.sql(
+		"select workflow_state, count(*) from `tabDeployment Request` group by workflow_state",
+	)
+	return {"recent": rows, "counts_by_state": dict(counts)}
 
 
 @frappe.whitelist()

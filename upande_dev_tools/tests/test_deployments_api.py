@@ -7,6 +7,7 @@ from upande_dev_tools.api.deployments import (
 	create_deployment_request,
 	get_deployment_queue,
 	get_my_deployment_requests,
+	get_recent_deployments,
 	update_deployment_status,
 )
 
@@ -127,3 +128,42 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 				create_deployment_request(app=app, instance=instance)
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_get_recent_deployments_permits_projects_manager(self) -> None:
+		dev = self._make_user("dev-recent-deploy@example.test", ["Dev Team"])
+		pm = self._make_user("pm-recent-deploy@example.test", ["Projects Manager"])
+		app = self._make_app()
+		instance = self._make_instance()
+
+		frappe.set_user(dev)
+		try:
+			created = create_deployment_request(app=app, instance=instance)
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(pm)
+		try:
+			result = get_recent_deployments(limit=5)
+		finally:
+			frappe.set_user("Administrator")
+
+		self.assertIn(created["name"], [r["name"] for r in result["recent"]])
+		self.assertIn("counts_by_state", result)
+
+	def test_get_recent_deployments_denies_outsiders(self) -> None:
+		outsider = self._make_user("outsider-recent-deploy@example.test", [])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_recent_deployments()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_recent_deployments_clamps_limit(self) -> None:
+		dev = self._make_user("dev-recent-deploy-limit@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			result = get_recent_deployments(limit=999)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertLessEqual(len(result["recent"]), 50)

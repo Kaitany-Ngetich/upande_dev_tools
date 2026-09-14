@@ -38,6 +38,16 @@
 		<div class="dpx-empty">Loading…</div>
 	</div>
 </div>
+<div class="dpx-card" style="margin-bottom: 18px;">
+	<div class="dpx-card-hd"><div class="ttl">Deployment Requests</div></div>
+	<div class="dpx-card-body">
+		<div id="pm-deploy-counts" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;"></div>
+		<table id="pm-deploy-table">
+			<thead><tr><th>App</th><th>Instance</th><th>Branch</th><th>Commit</th><th>Status</th><th>When</th></tr></thead>
+			<tbody></tbody>
+		</table>
+	</div>
+</div>
 <div class="dpx-card">
 	<div class="dpx-card-hd"><div class="ttl">Projects</div></div>
 	<div class="dpx-card-body">
@@ -252,9 +262,59 @@ frappe.ready(function() {
 		});
 	}
 
+	function loadDeployments() {
+		frappe.call({
+			method: "upande_dev_tools.api.deployments.get_recent_deployments",
+			args: {limit: 10}
+		}).then(function(r) {
+			var data = r.message || {recent: [], counts_by_state: {}};
+
+			var countsRoot = document.querySelector("#pm-deploy-counts");
+			countsRoot.innerHTML = "";
+			Object.keys(data.counts_by_state).forEach(function(state) {
+				var pill = document.createElement("span");
+				pill.className = "pill";
+				pill.textContent = state + ": " + data.counts_by_state[state];
+				countsRoot.appendChild(pill);
+			});
+
+			var tbody = document.querySelector("#pm-deploy-table tbody");
+			tbody.innerHTML = "";
+			if (!data.recent.length) {
+				var tr = document.createElement("tr");
+				var td = document.createElement("td");
+				td.colSpan = 6;
+				td.className = "dpx-empty";
+				td.textContent = "No deployment requests yet.";
+				tr.appendChild(td);
+				tbody.appendChild(tr);
+				return;
+			}
+			data.recent.forEach(function(dep) {
+				var tr = document.createElement("tr");
+				[dep.app, dep.instance, dep.branch || "—", dep.commit_hash || "—"].forEach(function(v) {
+					var td = document.createElement("td");
+					td.textContent = v;
+					tr.appendChild(td);
+				});
+				var statusTd = document.createElement("td");
+				var pill = document.createElement("span");
+				pill.className = "pill";
+				pill.textContent = dep.workflow_state;
+				statusTd.appendChild(pill);
+				tr.appendChild(statusTd);
+				var whenTd = document.createElement("td");
+				whenTd.textContent = dep.creation;
+				tr.appendChild(whenTd);
+				tbody.appendChild(tr);
+			});
+		});
+	}
+
 	function loadAll() {
 		loadProjects();
 		loadTeamWorkload();
+		loadDeployments();
 	}
 
 	scopeFilter.addEventListener("change", loadAll);
