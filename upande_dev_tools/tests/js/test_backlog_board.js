@@ -176,6 +176,23 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	assert.strictEqual(sheet.config.freezeColumns, 4, "identity columns stay pinned while you scroll");
 	assert.ok(sheet.config.columnSorting, "columns sort");
 	assert.ok(sheet.config.lazyLoading, "only the visible rows render");
+	assert.ok(
+		window.document.body.classList.contains("dpx-menu-skin"),
+		"jsuites appends its menus to body, so body carries the class that styles them"
+	);
+
+	// an editable cell advertises itself; a locked one does not
+	const td = (cls) => {
+		const el = window.document.createElement("td");
+		el.className = cls || "";
+		return el;
+	};
+	const open = td();
+	sheet.config.updateTable(null, open, 5, sheet.config.data.findIndex((r) => r[0] === "Task:TASK-01"));
+	assert.ok(open.classList.contains("bb-pick"), "editable cells show a picker chevron");
+	const shut = td();
+	sheet.config.updateTable(null, shut, 5, sheet.config.data.findIndex((r) => r[0] === "Request:REQ-03"));
+	assert.ok(shut.classList.contains("bb-locked"));
 
 	const editable = sheet.config.columns
 		.map((c, i) => (c.readOnly ? null : i))

@@ -246,40 +246,62 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-colmore:hover{background:rgba(10,10,10,.03);color:var(--ink)}
 .dpx .dpx-bb-col-blank{font:400 10.5px var(--sans);color:var(--ink-faint);padding:11px 5.5px}
 
-/* ── Sheet: jspreadsheet skinned to read like a spreadsheet, not a web table ── */
-.dpx .dpx-bb-sheet{--grid:#e4e3de;--head:#f6f5f1;--sel:var(--bb-accent);border:1px solid var(--hairline);border-radius:10px;background:var(--surface-2);overflow:hidden}
+/* ── Sheet: jspreadsheet skinned after Google Sheets ──
+   Light grey hairlines on white, no cell chrome, quiet headers that tint when
+   their column is selected, one accent ring with a fill handle on the cursor,
+   and floating menus on a soft shadow rather than bordered boxes. */
+.dpx .dpx-bb-sheet{--grid:#e6e5e0;--head:#f6f5f1;--head-on:#ecebe4;--sel:var(--bb-accent);--sel-wash:rgba(31,111,107,.09);border:1px solid var(--hairline);border-radius:10px;background:var(--surface-2);overflow:hidden}
 .dpx .dpx-bb-sheet .jexcel_container{--jexcel-border-color:var(--grid);display:block;padding:0;width:100%;font-family:var(--sans)}
 .dpx .dpx-bb-sheet .jexcel_content{padding:0;width:100%;scrollbar-width:thin}
 .dpx .dpx-bb-sheet table.jexcel{border-collapse:separate;border-spacing:0;font-family:var(--sans);font-size:11.5px;color:var(--ink-2)}
 
-.dpx .dpx-bb-sheet table.jexcel > thead > tr > td{background:var(--head);border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);border-top:0;border-left:0;color:var(--ink-mute);font:600 10px var(--sans);letter-spacing:.3px;text-transform:none;padding:0 8px;height:26px;text-align:left}
-.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.selected{background:#eceae4;color:var(--ink)}
-.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);border-top:0;border-left:0;padding:0 8px;height:25px;color:var(--ink-2);background:var(--surface-2)}
-.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.jexcel_row{background:var(--head);color:var(--ink-faint);font:500 10px var(--mono);text-align:center;padding:0}
-.dpx .dpx-bb-sheet table.jexcel > tbody > tr.selected > td.jexcel_row{background:#eceae4;color:var(--ink-4)}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td{background:var(--head);border:0;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);color:var(--ink-mute);font:500 10.5px var(--sans);letter-spacing:0;text-transform:none;padding:0 8px;height:26px;text-align:left;transition:background .1s,color .1s}
+.dpx .dpx-bb-sheet table.jexcel > thead > tr > td.selected{background:var(--head-on);color:var(--ink)}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td{border:0;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:0 8px;height:25px;color:var(--ink-2);background:var(--surface-2)}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.jexcel_row{background:var(--head);color:var(--ink-faint);font:500 10px var(--mono);text-align:center;padding:0;transition:background .1s,color .1s}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr.selected > td.jexcel_row{background:var(--head-on);color:var(--ink-4)}
 
-/* Selection: one accent ring around the range, a faint wash inside. */
-.dpx .dpx-bb-sheet .jexcel .highlight{background:rgba(31,111,107,.07)}
-.dpx .dpx-bb-sheet .jexcel .highlight-selected{background:rgba(31,111,107,.03)}
+/* Selection: a wash over the range, one ring around it, a handle at the corner. */
+.dpx .dpx-bb-sheet .jexcel .highlight{background:var(--sel-wash)}
+.dpx .dpx-bb-sheet .jexcel .highlight-selected{background:rgba(31,111,107,.035)}
 .dpx .dpx-bb-sheet .jexcel .highlight-top{border-top:2px solid var(--sel);box-shadow:none}
 .dpx .dpx-bb-sheet .jexcel .highlight-left{border-left:2px solid var(--sel);box-shadow:none}
 .dpx .dpx-bb-sheet .jexcel .highlight-right{border-right:2px solid var(--sel)}
 .dpx .dpx-bb-sheet .jexcel .highlight-bottom{border-bottom:2px solid var(--sel)}
 .dpx .dpx-bb-sheet .jexcel .highlight-top.highlight-left{box-shadow:none}
-.dpx .dpx-bb-sheet .jexcel_corner{background:var(--sel);border:1px solid #fff;padding:2px}
+.dpx .dpx-bb-sheet .jexcel_corner{background:var(--sel);border:2px solid #fff;border-radius:1px;padding:2px;box-shadow:0 0 0 1px var(--sel)}
 
-/* The editor is the cell: same box, same type, same padding - no input inside a box. */
+/* A cell you can edit says so: a chevron at its right edge, like data validation. */
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-pick{position:relative;padding-right:18px}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-pick::after{content:"";position:absolute;right:6px;top:50%;width:5px;height:5px;margin-top:-3px;border-right:1.4px solid var(--ink-faint);border-bottom:1.4px solid var(--ink-faint);transform:rotate(45deg);transition:border-color .12s}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-pick:hover::after{border-color:var(--ink-4)}
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-pick.editor::after{display:none}
+
+/* The editor is the cell, not a box inside it. */
 .dpx .dpx-bb-sheet .jexcel .editor{padding:0!important;box-shadow:inset 0 0 0 2px var(--sel);background:var(--surface-2)}
 .dpx .dpx-bb-sheet .jexcel .editor > input,.dpx .dpx-bb-sheet .jexcel .editor > textarea{width:100%;height:100%;min-height:25px;margin:0;padding:0 8px!important;border:0;outline:0;background:transparent;font:500 11.5px var(--sans);color:var(--ink);box-sizing:border-box}
-.dpx .dpx-bb-sheet .jexcel .editor .jdropdown-header{border:0!important;padding:0 8px!important;height:100%;font:500 11.5px var(--sans);color:var(--ink);background:transparent}
-.dpx .dpx-bb-sheet .jexcel .editor .jcalendar-header input{padding:0 8px!important}
+.dpx .dpx-bb-sheet .jexcel .editor .jdropdown-header{border:0!important;padding:0 8px!important;height:100%;font:500 11.5px var(--sans);color:var(--ink);background:transparent;box-shadow:none}
 
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-mono{font-family:var(--mono);font-size:10.5px;color:var(--ink-mute)}
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-late{color:var(--bb-late);font-weight:600}
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-done{color:var(--ink-mute)}
-.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-edit{background:#fdfdfb}
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-locked{color:var(--ink-faint)}
 .dpx .dpx-bb-sheet .jexcel_filter,.dpx .dpx-bb-sheet .jexcel_pagination,.dpx .dpx-bb-sheet .jexcel_about{display:none}
+
+/* ── Floating menus (jsuites), restyled from bordered boxes into cards ── */
+.dpx-menu-skin .jdropdown-default .jdropdown-container,.dpx-menu-skin .jcalendar-container{border:0;border-radius:10px;background:#fff;box-shadow:0 1px 2px rgba(10,10,10,.1),0 8px 28px -8px rgba(10,10,10,.28);overflow:hidden;font-family:"Poppins",-apple-system,sans-serif}
+.dpx-menu-skin .jdropdown-container-header{padding:6px}
+.dpx-menu-skin .jdropdown-header{border:1px solid #e6e5e0!important;border-radius:7px!important;height:30px!important;font:500 11.5px "Poppins",sans-serif!important;padding:0 9px!important}
+.dpx-menu-skin .jdropdown-content{padding:5px;max-height:260px}
+.dpx-menu-skin .jdropdown-item{height:30px;padding:0 10px;margin:1px 0;border-radius:6px;font:500 11.5px "Poppins",sans-serif;color:#2a2a26;cursor:pointer}
+.dpx-menu-skin .jdropdown-item:hover,.dpx-menu-skin .jdropdown-cursor{background:rgba(10,10,10,.05)}
+.dpx-menu-skin .jdropdown-item.jdropdown-selected{background:rgba(31,111,107,.1);color:#0a0a0a;font-weight:600}
+.dpx-menu-skin .jdropdown-item .jdropdown-image,.dpx-menu-skin .jdropdown-icon{display:none}
+.dpx-menu-skin .jcalendar-content{padding:8px}
+.dpx-menu-skin .jcalendar-header,.dpx-menu-skin .jcalendar-controls{border:0;background:transparent}
+.dpx-menu-skin .jcalendar-table td{border-radius:6px;font:500 11px "Poppins",sans-serif}
+.dpx-menu-skin .jcalendar-selected{background:var(--bb-accent,#1f6f6b)!important;color:#fff!important;border-radius:6px}
+.dpx-menu-skin .jcalendar-backdrop,.dpx-menu-skin .jdropdown-backdrop{background:rgba(10,10,10,.12)}
 
 /* ── Buttons ── */
 .dpx .dpx-bb-btn{border:1px solid var(--hairline);background:var(--surface-2);color:var(--ink-3);font:500 10.5px var(--sans);padding:5px 11px;border-radius:7px;cursor:pointer;margin-right:5px;transition:background .12s,color .12s,border-color .12s}

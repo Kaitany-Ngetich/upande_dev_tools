@@ -54,7 +54,7 @@ function paint_cell(cell, x, item) {
 	if (x === 1) cell.classList.add("bb-mono");
 	if (x === 2 || x === 6 || x === 7) cell.classList.add("bb-mono");
 	if (x === 7 && item.late) cell.classList.add("bb-late");
-	if (x >= 4 && x <= 7) cell.classList.add(item.movable ? "bb-edit" : "bb-locked");
+	if (x >= 4 && x <= 7) cell.classList.add(item.movable ? "bb-pick" : "bb-locked");
 }
 
 function ico(name, size) {
@@ -480,26 +480,37 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			allowDeleteRow: false,
 			allowDeleteColumn: false,
 			contextMenu: () => false,
-			onselection: (_el, x1, y1, x2, y2) => this.cell_selected(Number(x1), Number(y1), Number(x2), Number(y2)),
 			onbeforechange: (_el, cell, x, y, value) => this.guard_cell(y, value),
 			onchange: (_el, _cell, x, y, value) => this.sheet_changed(Number(x), Number(y), value),
 			updateTable: (_el, cell, x, y) => paint_cell(cell, Number(x), order[Number(y)]),
 		});
+
+		document.body.classList.add("dpx-menu-skin");
+		this.watch_clicks(host);
 	}
 
-	cell_selected(x1, y1, x2, y2) {
-		// Google Sheets opens a picker on one click; jspreadsheet waits for a
-		// second. Only for the editable columns, and never for a dragged range.
-		if (x1 !== x2 || y1 !== y2 || !SHEET_FIELDS[x1]) return;
+	// Google Sheets opens a picker on one click; jspreadsheet waits for a second.
+	// This has to run after the click has finished bubbling to document - jsuites
+	// closes an open dropdown from its own document handler, so opening any earlier
+	// (on selection, which fires at mousedown) opens and shuts it in one gesture.
+	watch_clicks(host) {
+		host.addEventListener("click", (e) => {
+			const td = e.target.closest("td[data-x]");
+			if (!td || td.classList.contains("editor")) return;
 
-		const item = this.sheet_rows[y1];
-		if (!item || !item.movable) return;
+			const x = Number(td.getAttribute("data-x"));
+			const y = Number(td.getAttribute("data-y"));
+			if (!SHEET_FIELDS[x]) return;
 
-		clearTimeout(this.opening);
-		this.opening = setTimeout(() => {
-			const cell = this.sheet.getCellFromCoords(x1, y1);
-			if (cell && !cell.classList.contains("editor")) this.sheet.openEditor(cell);
-		}, 0);
+			const item = this.sheet_rows[y];
+			if (!item || !item.movable) return;
+
+			clearTimeout(this.opening);
+			this.opening = setTimeout(() => {
+				const cell = this.sheet.getCellFromCoords(x, y);
+				if (cell && !cell.classList.contains("editor")) this.sheet.openEditor(cell);
+			}, 0);
+		});
 	}
 
 	guard_cell(y, value) {
