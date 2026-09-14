@@ -371,12 +371,12 @@ AGE_BANDS = [("Under a week", 7), ("One to two weeks", 14), ("Two to four weeks"
 def _ageing(scoped: dict, end) -> list[dict]:
 	"""How long open work has been open. A backlog that is merely large is one
 	thing; a backlog that is old is another."""
-	bands = [{"label": label, "count": 0} for label, _ in AGE_BANDS]
+	bands = [{"label": label, "count": 0} for label, _ceiling in AGE_BANDS]
 	for task in frappe.get_all(
 		"Task", filters={**scoped, "status": OPEN_TASK}, fields=["creation"], ignore_permissions=True
 	):
 		age = (getdate(end) - getdate(task.creation)).days
-		for index, (_, ceiling) in enumerate(AGE_BANDS):
+		for index, (_label, ceiling) in enumerate(AGE_BANDS):
 			if ceiling is None or age < ceiling:
 				bands[index]["count"] += 1
 				break

@@ -93,8 +93,10 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 		root.on("click", ".pm-print", () => window.print());
 		root.on("click", ".pm-export", () => this.export());
 		root.on("click", ".pm-share", () => {
-			const share = () => frappe.show_alert({ message: __("Link copied."), indicator: "green" });
-			if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(share, () => {});
+			const share = () =>
+				frappe.show_alert({ message: __("Link copied."), indicator: "green" });
+			if (navigator.clipboard)
+				navigator.clipboard.writeText(location.href).then(share, () => {});
 			else share();
 		});
 		root.on("click", ".pm-days button", (e) => {
@@ -166,22 +168,11 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 	}
 
 	skeleton() {
-<<<<<<< HEAD
 		$(this.wrapper)
 			.find(".bb-stage")
 			.attr("aria-busy", "true")
 			.html(
 				`<div class="dpx-skel" aria-hidden="true">
-				<div class="pm-kpis">${Array.from(
-					{ length: 6 },
-					() =>
-						`<div class="pm-kpi"><i class="sk w50"></i>
-						<i class="sk" style="width:46%;height:20px;margin-top:9px"></i>
-						<i class="sk w70" style="margin-top:8px"></i></div>`
-				).join("")}</div>
-=======
-		$(this.wrapper).find(".bb-stage").attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true">
 				<div class="dpx-card sk-plain pm-hero">
 					<div class="pm-hero-fig"><i class="sk w50"></i>
 						<i class="sk" style="width:70%;height:38px;margin-top:8px"></i>
@@ -196,13 +187,13 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 						)
 						.join("")}
 				</div>
->>>>>>> d5cb6bf621c53c8c2327acdac51bde1330e649e2
 				<div class="pm-grid">
 					${[1, 2]
 						.map(
-							() => `<div class="dpx-card sk-plain" style="padding:14px">${[1, 2, 3, 4]
-								.map(() => '<i class="sk w90" style="margin-bottom:9px"></i>')
-								.join("")}</div>`
+							() =>
+								`<div class="dpx-card sk-plain" style="padding:14px">${[1, 2, 3, 4]
+									.map(() => '<i class="sk w90" style="margin-bottom:9px"></i>')
+									.join("")}</div>`
 						)
 						.join("")}
 				</div>
@@ -257,21 +248,10 @@ function pm_hero(k, flow, period) {
 				<div class="val">${pm_esc(k.value === null ? "—" : k.value)}</div>
 				<div class="sub">${pm_esc(pm_change(k, `in the previous ${period.days} days`))}</div>
 				${
-<<<<<<< HEAD
-					k.delta === null || k.delta === undefined || k.delta === 0
-						? `<span class="flat">${
-								k.was === null || k.was === undefined ? "right now" : "no change"
-						  }</span>`
-						: `<span class="delta">${arrow} ${pm_esc(Math.abs(k.delta))}${pm_esc(
-								k.unit
-						  )}</span>
-							<span class="vs">vs previous ${pm_esc(k.was)}${pm_esc(k.unit)}</span>`
-=======
 					period.clears_on
 						? `<div class="fore">At this rate the ${period.open} open clear around
 							<b>${pm_esc(period.clears_on)}</b></div>`
 						: ""
->>>>>>> d5cb6bf621c53c8c2327acdac51bde1330e649e2
 				}
 				<div class="key"><span><i class="out"></i>delivered</span><span><i class="in"></i>raised</span></div>
 			</div>
@@ -332,11 +312,9 @@ function pm_risks(risks, waiting, risk) {
 	return `
 		<div class="dpx-card">
 			<div class="dpx-card-hd"><div class="ttl">Needs attention</div>
-				<span class="pm-tally">${
-					waiting && waiting.value ? `<b>${waiting.value}</b> awaiting you` : ""
-				}${waiting && waiting.value && risk && risk.value ? "<i></i>" : ""}${
-					risk && risk.value ? `<b>${risk.value}</b> at risk` : ""
-				}</span></div>
+				<span class="pm-tally">${waiting && waiting.value ? `<b>${waiting.value}</b> awaiting you` : ""}${
+		waiting && waiting.value && risk && risk.value ? "<i></i>" : ""
+	}${risk && risk.value ? `<b>${risk.value}</b> at risk` : ""}</span></div>
 			<div class="dpx-card-body" style="padding:4px 0 6px">
 				${
 					risks.length
@@ -455,14 +433,14 @@ function pm_modules(modules) {
 							const total = m.total;
 							const scale = total > cap ? cap / total : 1;
 							const at = (n) => Math.round(n * scale);
-							return `<div class="u" title="${pm_esc(m.module)}: ${m.delivered} delivered, ${
-								m.open
-							} open, ${m.late} overdue">
+							return `<div class="u" title="${pm_esc(m.module)}: ${
+								m.delivered
+							} delivered, ${m.open} open, ${m.late} overdue">
 								<span class="nm">${pm_esc(m.module)}</span>
 								<span class="dots">${dots(at(m.delivered), "done")}${dots(at(m.open), "open")}${dots(
-									at(m.late),
-									"late"
-								)}</span>
+								at(m.late),
+								"late"
+							)}</span>
 								<span class="n">${total > cap ? `${total}` : ""}</span>
 							</div>`;
 						})
@@ -498,13 +476,18 @@ function pm_ageing(bands, period) {
 				<div class="pm-age-key">
 					${bands
 						.map(
-							(b, i) => `<span><i class="b${i}"></i>${pm_esc(b.label)}<b>${b.count}</b></span>`
+							(b, i) =>
+								`<span><i class="b${i}"></i>${pm_esc(b.label)}<b>${
+									b.count
+								}</b></span>`
 						)
 						.join("")}
 				</div>
 				<p class="pm-note">${
 					stale
-						? `${stale} ${stale === 1 ? "item has" : "items have"} been open longer than a fortnight.`
+						? `${stale} ${
+								stale === 1 ? "item has" : "items have"
+						  } been open longer than a fortnight.`
 						: "Nothing has been sitting longer than a fortnight."
 				}</p>
 			</div>
@@ -541,8 +524,8 @@ function pm_requests(r) {
 					r.waiting
 						? `Longest wait is ${r.oldest_wait} days.`
 						: decided
-							? "Everything raised has had an answer."
-							: "Nothing has been raised yet."
+						? "Everything raised has had an answer."
+						: "Nothing has been raised yet."
 				}</p>
 			</div>
 		</div>`;
@@ -557,11 +540,13 @@ function pm_stalled(rows) {
 			<div class="dpx-card-body" style="padding:4px 0 6px">
 				${rows
 					.map(
-						(r) => `<a class="pm-win pm-stall" href="/app/task/${encodeURIComponent(r.name)}"
+						(r) => `<a class="pm-win pm-stall" href="/app/task/${encodeURIComponent(
+							r.name
+						)}"
 							data-id="Task:${pm_esc(r.name)}">
 							<span class="dpx-bb-chip st-${String(r.status).toLowerCase().replace(/\s+/g, "-")}">${pm_esc(
-								r.status
-							)}</span>
+							r.status
+						)}</span>
 							<span class="t">${pm_esc(r.subject)}</span>
 							${r.custom_module ? `<span class="mod">${pm_esc(r.custom_module)}</span>` : ""}
 							<span class="by">${pm_esc(r.who.join(", "))}</span>
@@ -587,13 +572,19 @@ function pm_projects(rows) {
 							const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
 							return `<tr class="dpx-bb-row">
 								<td><div class="subj"><a href="/app/project/${encodeURIComponent(p.name)}">${pm_esc(
-									p.project_name || p.name
-								)}</a></div></td>
+								p.project_name || p.name
+							)}</a></div></td>
 								<td>${
 									p.custom_project_scope
 										? `<span class="dpx-bb-chip ${
-												p.custom_project_scope === "External" ? "st-triage" : "st-todo"
-											}">${pm_esc(p.custom_project_scope === "External" ? "Client" : "Internal")}</span>`
+												p.custom_project_scope === "External"
+													? "st-triage"
+													: "st-todo"
+										  }">${pm_esc(
+												p.custom_project_scope === "External"
+													? "Client"
+													: "Internal"
+										  )}</span>`
 										: '<span class="muted">—</span>'
 								}</td>
 								<td><div class="pm-prog"><span class="bar"><i style="width:${pct}%"></i></span>

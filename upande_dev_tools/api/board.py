@@ -315,8 +315,25 @@ def get_preview(doctype: str, name: str) -> dict:
 
 	fields = {
 		"Task": ["subject", "status", "priority", "project", "description", "custom_module", "_assign"],
-		"Issue": ["subject", "status", "priority", "project", "description", "custom_module", "_assign", "raised_by"],
-		"Request": ["title", "workflow_state", "priority", "project", "description", "product_area", "raised_by_user"],
+		"Issue": [
+			"subject",
+			"status",
+			"priority",
+			"project",
+			"description",
+			"custom_module",
+			"_assign",
+			"raised_by",
+		],
+		"Request": [
+			"title",
+			"workflow_state",
+			"priority",
+			"project",
+			"description",
+			"product_area",
+			"raised_by_user",
+		],
 	}[doctype]
 
 	doc = frappe.db.get_value(doctype, name, fields, as_dict=True)
