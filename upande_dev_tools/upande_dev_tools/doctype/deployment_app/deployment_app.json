@@ -20,11 +20,11 @@
    "unique": 1
   },
   {
+   "description": "Left blank for apps auto-registered from what's installed on this bench - fill in once known, or it can stay blank if this app isn't deployed from a tracked repo.",
    "fieldname": "repository_url",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Repository URL",
-   "reqd": 1
+   "label": "Repository URL"
   },
   {
    "default": "main",

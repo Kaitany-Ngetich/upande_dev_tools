@@ -24,56 +24,75 @@
 </div>
 <script>
 frappe.ready(function() {
-	frappe.call({method: "upande_dev_tools.api.dev_portal_settings.get_registered_pages"}).then(function(r) {
-		var tbody = document.querySelector("#dps-table tbody");
-		(r.message || []).forEach(function(page) {
-			var tr = document.createElement("tr");
+	// Roles are a real doctype (Role) - pick them from an actual list of what exists, never
+	// type a role name freehand from memory.
+	frappe.call({
+		method: "frappe.client.get_list",
+		args: {doctype: "Role", filters: {disabled: 0}, fields: ["name"], limit_page_length: 0, order_by: "name asc"}
+	}).then(function(rolesResp) {
+		var allRoles = (rolesResp.message || []).map(function(row) { return row.name; });
 
-			var titleTd = document.createElement("td");
-			titleTd.appendChild(document.createTextNode(page.title + " "));
-			var pill = document.createElement("span");
-			pill.className = "pill";
-			pill.textContent = "/" + page.route;
-			titleTd.appendChild(pill);
-			tr.appendChild(titleTd);
+		frappe.call({method: "upande_dev_tools.api.dev_portal_settings.get_registered_pages"}).then(function(r) {
+			var tbody = document.querySelector("#dps-table tbody");
+			(r.message || []).forEach(function(page) {
+				var tr = document.createElement("tr");
 
-			var navTd = document.createElement("td");
-			navTd.textContent = page.nav_group;
-			tr.appendChild(navTd);
+				var titleTd = document.createElement("td");
+				titleTd.appendChild(document.createTextNode(page.title + " "));
+				var pill = document.createElement("span");
+				pill.className = "pill";
+				pill.textContent = "/" + page.route;
+				titleTd.appendChild(pill);
+				tr.appendChild(titleTd);
 
-			var rolesTd = document.createElement("td");
-			var rolesInput = document.createElement("input");
-			rolesInput.type = "text";
-			rolesInput.className = "dps-roles";
-			rolesInput.value = page.allowed_roles.join(", ");
-			rolesTd.appendChild(rolesInput);
-			tr.appendChild(rolesTd);
+				var navTd = document.createElement("td");
+				navTd.textContent = page.nav_group;
+				tr.appendChild(navTd);
 
-			var requireTd = document.createElement("td");
-			var requireInput = document.createElement("input");
-			requireInput.type = "checkbox";
-			requireInput.className = "dps-require-all";
-			requireInput.checked = !!page.require_all_roles;
-			requireTd.appendChild(requireInput);
-			tr.appendChild(requireTd);
-
-			var saveTd = document.createElement("td");
-			var saveBtn = document.createElement("button");
-			saveBtn.className = "dps-save";
-			saveBtn.textContent = "Save";
-			saveTd.appendChild(saveBtn);
-			tr.appendChild(saveTd);
-
-			saveBtn.addEventListener("click", function() {
-				var roles = rolesInput.value.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
-				var requireAll = requireInput.checked;
-				frappe.call({
-					method: "upande_dev_tools.api.dev_portal_settings.update_page_roles",
-					args: {route: page.route, roles: roles, require_all_roles: requireAll ? 1 : 0}
+				var rolesTd = document.createElement("td");
+				var rolesSelect = document.createElement("select");
+				rolesSelect.multiple = true;
+				rolesSelect.className = "dps-roles";
+				rolesSelect.size = Math.max(1, Math.min(allRoles.length, 6));
+				rolesSelect.style.minWidth = "220px";
+				allRoles.forEach(function(roleName) {
+					var opt = document.createElement("option");
+					opt.value = roleName;
+					opt.textContent = roleName;
+					opt.selected = page.allowed_roles.indexOf(roleName) !== -1;
+					rolesSelect.appendChild(opt);
 				});
-			});
+				rolesTd.appendChild(rolesSelect);
+				tr.appendChild(rolesTd);
 
-			tbody.appendChild(tr);
+				var requireTd = document.createElement("td");
+				var requireInput = document.createElement("input");
+				requireInput.type = "checkbox";
+				requireInput.className = "dps-require-all";
+				requireInput.checked = !!page.require_all_roles;
+				requireTd.appendChild(requireInput);
+				tr.appendChild(requireTd);
+
+				var saveTd = document.createElement("td");
+				var saveBtn = document.createElement("button");
+				saveBtn.className = "dps-save";
+				saveBtn.textContent = "Save";
+				saveTd.appendChild(saveBtn);
+				tr.appendChild(saveTd);
+
+				saveBtn.addEventListener("click", function() {
+					var roles = Array.prototype.filter
+						.call(rolesSelect.options, function(opt) { return opt.selected; })
+						.map(function(opt) { return opt.value; });
+					var requireAll = requireInput.checked;
+					frappe.call({
+						method: "upande_dev_tools.api.dev_portal_settings.update_page_roles",
+						args: {route: page.route, roles: roles, require_all_roles: requireAll ? 1 : 0}
+					});
+				});
+
+				tbody.appendChild(tr);
+			});
 		});
 	});
 });

@@ -7,11 +7,17 @@ from frappe.tests import IntegrationTestCase
 
 class IntegrationTestDeploymentInstance(IntegrationTestCase):
 	def test_named_by_instance_name(self) -> None:
+		# A synthetic name - "Kaitet v16 Production" etc. are now taken by genuine Deployment
+		# Instance records imported from real deployment history, so a real-looking name here
+		# would collide.
+		instance_name = "Test Deployment Instance Named By Instance Name"
+		if frappe.db.exists("Deployment Instance", instance_name):
+			frappe.delete_doc("Deployment Instance", instance_name, force=True)
 		doc = frappe.get_doc(
 			{
 				"doctype": "Deployment Instance",
-				"instance_name": "Kaitet v16 Production",
+				"instance_name": instance_name,
 				"environment_type": "Production",
 			}
 		).insert(ignore_permissions=True)
-		self.assertEqual(doc.name, "Kaitet v16 Production")
+		self.assertEqual(doc.name, instance_name)

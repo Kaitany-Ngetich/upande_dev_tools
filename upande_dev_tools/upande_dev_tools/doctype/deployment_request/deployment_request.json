@@ -7,7 +7,10 @@
  "engine": "InnoDB",
  "field_order": [
   "app",
+  "app_repository_url",
   "instance",
+  "instance_environment",
+  "instance_site_url",
   "column_break_app",
   "branch",
   "commit_hash",
@@ -33,6 +36,13 @@
    "reqd": 1
   },
   {
+   "fetch_from": "app.repository_url",
+   "fieldname": "app_repository_url",
+   "fieldtype": "Data",
+   "label": "Repository URL",
+   "read_only": 1
+  },
+  {
    "fieldname": "instance",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -40,6 +50,20 @@
    "label": "Instance",
    "options": "Deployment Instance",
    "reqd": 1
+  },
+  {
+   "fetch_from": "instance.environment_type",
+   "fieldname": "instance_environment",
+   "fieldtype": "Data",
+   "label": "Environment",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "instance.site_url",
+   "fieldname": "instance_site_url",
+   "fieldtype": "Data",
+   "label": "Site URL",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_app",

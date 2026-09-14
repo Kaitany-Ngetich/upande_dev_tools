@@ -157,9 +157,7 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-		task = frappe.get_doc(
-			{"doctype": "Task", "subject": "Board task with an owner", "project": project}
-		)
+		task = frappe.get_doc({"doctype": "Task", "subject": "Board task with an owner", "project": project})
 		task.flags.ignore_recursion_check = True
 		task.insert(ignore_permissions=True)
 		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
