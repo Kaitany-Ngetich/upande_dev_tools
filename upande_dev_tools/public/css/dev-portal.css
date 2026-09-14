@@ -281,6 +281,18 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td.bb-locked{color:var(--ink-faint)}
 .dpx .dpx-bb-sheet .jexcel_filter,.dpx .dpx-bb-sheet .jexcel_pagination,.dpx .dpx-bb-sheet .jexcel_about{display:none}
 
+/* ── Buttons ── */
+.dpx .dpx-bb-btn{border:1px solid var(--hairline);background:var(--surface-2);color:var(--ink-3);font:500 10.5px var(--sans);padding:5px 11px;border-radius:7px;cursor:pointer;margin-right:5px;transition:background .12s,color .12s,border-color .12s}
+.dpx .dpx-bb-btn:hover:not(:disabled){background:rgba(10,10,10,.04);color:var(--ink);border-color:rgba(10,10,10,.18)}
+.dpx .dpx-bb-btn.primary{background:var(--ink);border-color:var(--ink);color:#fafaf6}
+.dpx .dpx-bb-btn.primary:hover:not(:disabled){background:#1f1f1c}
+.dpx .dpx-bb-btn.danger:hover:not(:disabled){color:var(--bb-late);border-color:rgba(140,59,46,.4)}
+.dpx .dpx-bb-btn:disabled{opacity:.45;cursor:not-allowed}
+.dpx .rq-table td{overflow:visible}
+.dpx .rq-table select.dpx-bb-field{width:100%;min-width:0;padding:4px 7px;font-size:10.5px}
+.dpx .rq-table .rq-decide{white-space:nowrap}
+.dpx .rq-busy{opacity:.5}
+
 /* ── Status bar ── */
 .dpx .dpx-bb-status{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px;padding:7px 12px;border:1px solid var(--hairline);border-radius:9px;background:var(--surface-2);font:500 10px var(--mono);color:var(--ink-mute)}
 .dpx .dpx-bb-status b{color:var(--ink-2);font-weight:600}

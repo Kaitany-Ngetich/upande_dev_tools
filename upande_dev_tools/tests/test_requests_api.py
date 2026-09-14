@@ -11,6 +11,8 @@ from upande_dev_tools.api.requests import (
 	get_developer_backlog,
 	get_my_day,
 	get_my_requests,
+	accept_request,
+	get_assignable_users,
 	get_review_queue,
 	get_upcoming_meetings,
 	promote_to_task,
@@ -284,5 +286,48 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				get_customer_workload(project=project)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_assignable_users_lists_dev_team(self) -> None:
+		dev = self._make_user("queue-dev@example.test", ["Dev Team"])
+		frappe.set_user("Administrator")
+		self.assertIn(dev, [row["name"] for row in get_assignable_users()])
+
+	def test_accept_request_schedules_it_and_assigns_the_task(self) -> None:
+		dev = self._make_user("queue-owner@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user("Administrator")
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "Needs doing", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+
+		result = accept_request(request.name, project=project, priority="High", assign_to=dev)
+
+		self.assertEqual(result["workflow_state"], "Scheduled")
+		self.assertTrue(result["task"])
+		owners = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Task", "reference_name": result["task"], "status": "Open"},
+			pluck="allocated_to",
+		)
+		self.assertIn(dev, owners)
+
+	def test_accept_request_refuses_without_a_project(self) -> None:
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "No project", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+		with self.assertRaises(frappe.ValidationError):
+			accept_request(request.name, project="", priority="High")
+
+	def test_accept_request_denies_a_non_reviewer(self) -> None:
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "Not yours", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+		outsider = self._make_user("queue-outsider@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				accept_request(request.name, project="X", priority="High")
 		finally:
 			frappe.set_user("Administrator")

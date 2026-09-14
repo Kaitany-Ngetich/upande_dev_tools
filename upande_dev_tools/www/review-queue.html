@@ -6,113 +6,11 @@
 {% block page_content %}
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
-<div class="dpx-page-hd">
-	<div class="eyebrow">Management</div>
-	<div class="ttl">Review Queue</div>
-	<div class="sub">Requests awaiting your approval.</div>
-</div>
-<div class="dpx-card">
-	<div class="dpx-card-hd"><div class="ttl">Pending Requests</div></div>
-	<div class="dpx-card-body">
-		<table id="review-queue-table">
-			<thead>
-				<tr><th>Title</th><th>Type</th><th>Area</th><th>Raised By</th><th>Age</th><th>Project</th><th>Priority</th><th></th></tr>
-			</thead>
-			<tbody></tbody>
-		</table>
-	</div>
-</div>
+<div id="udt-review-queue"></div>
+<script src="/assets/upande_dev_tools/js/review-queue.js?v={{ asset_version('js/review-queue.js') }}"></script>
 <script>
 frappe.ready(function() {
-	var projectOptions = [];
-
-	function buildProjectSelect(selectedProject) {
-		var select = document.createElement("select");
-		select.className = "rq-project";
-		var blank = document.createElement("option");
-		blank.value = "";
-		blank.textContent = "-- Select project --";
-		select.appendChild(blank);
-		projectOptions.forEach(function(project) {
-			var opt = document.createElement("option");
-			opt.value = project.name;
-			opt.textContent = project.project_name + " (" + project.name + ")";
-			if (project.name === selectedProject) opt.selected = true;
-			select.appendChild(opt);
-		});
-		return select;
-	}
-
-	function buildRow(request) {
-		var tr = document.createElement("tr");
-		tr.dataset.name = request.name;
-
-		["title", "request_type", "product_area", "raised_by_user"].forEach(function(field) {
-			var td = document.createElement("td");
-			td.textContent = request[field] || "";
-			tr.appendChild(td);
-		});
-
-		var ageTd = document.createElement("td");
-		ageTd.textContent = request.creation || "";
-		tr.appendChild(ageTd);
-
-		var projectTd = document.createElement("td");
-		var projectSelect = buildProjectSelect(request.project);
-		projectTd.appendChild(projectSelect);
-		tr.appendChild(projectTd);
-
-		var priorityTd = document.createElement("td");
-		var prioritySelect = document.createElement("select");
-		prioritySelect.className = "rq-priority";
-		["Low", "Medium", "High", "Urgent"].forEach(function(p) {
-			var opt = document.createElement("option");
-			opt.value = p;
-			opt.textContent = p;
-			if (p === (request.priority || "Medium")) opt.selected = true;
-			prioritySelect.appendChild(opt);
-		});
-		priorityTd.appendChild(prioritySelect);
-		tr.appendChild(priorityTd);
-
-		var actionsTd = document.createElement("td");
-		[["Approve", "Approve"], ["Reject", "Reject"], ["Defer", "Defer"]].forEach(function(pair) {
-			var btn = document.createElement("button");
-			btn.className = "pill";
-			btn.style.marginRight = "6px";
-			btn.textContent = pair[0];
-			btn.addEventListener("click", function() {
-				frappe.call({
-					method: "upande_dev_tools.api.requests.triage_request",
-					args: {
-						name: request.name,
-						action: pair[1],
-						project: projectSelect.value || undefined,
-						priority: prioritySelect.value || undefined
-					}
-				}).then(function() {
-					tr.remove();
-				});
-			});
-			actionsTd.appendChild(btn);
-		});
-		tr.appendChild(actionsTd);
-
-		return tr;
-	}
-
-	frappe.call({
-		method: "frappe.client.get_list",
-		args: {doctype: "Project", fields: ["name", "project_name"], order_by: "project_name asc", limit_page_length: 0}
-	}).then(function(r) {
-		projectOptions = r.message || [];
-		return frappe.call({method: "upande_dev_tools.api.requests.get_review_queue"});
-	}).then(function(r) {
-		var tbody = document.querySelector("#review-queue-table tbody");
-		(r.message || []).forEach(function(request) {
-			tbody.appendChild(buildRow(request));
-		});
-	});
+	new upande_dev_tools.ReviewQueue(document.getElementById("udt-review-queue"));
 });
 </script>
 {% endcall %}

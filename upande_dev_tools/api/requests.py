@@ -109,6 +109,61 @@ def triage_request(
 
 
 @frappe.whitelist()
+def get_assignable_users() -> list[dict]:
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	members = frappe.get_all(
+		"Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent"
+	)
+	if not members:
+		return []
+	return frappe.get_all(
+		"User",
+		filters={"name": ["in", members], "enabled": 1},
+		fields=["name", "full_name"],
+		order_by="full_name asc",
+	)
+
+
+@frappe.whitelist()
+def accept_request(
+	name: str, project: str, priority: str, assign_to: str | None = None
+) -> dict:
+	"""Approve a request and schedule it in one step, which is what creates the Task,
+	then hand that Task to whoever will do the work."""
+	from frappe.desk.form.assign_to import add as add_assignment
+	from frappe.model.workflow import apply_workflow
+
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	if not (project and priority):
+		frappe.throw(_("Set a project and a priority before accepting."), frappe.ValidationError)
+
+	doc = frappe.get_doc("Request", name)
+	doc.project = project
+	doc.priority = priority
+	doc.save()
+
+	doc = apply_workflow(doc, "Approve")
+	doc = apply_workflow(doc, "Schedule")
+	doc.reload()
+
+	if assign_to and doc.linked_task:
+		add_assignment(
+			{"doctype": "Task", "name": doc.linked_task, "assign_to": [assign_to], "notify": 0}
+		)
+
+	return {
+		"name": doc.name,
+		"workflow_state": doc.workflow_state,
+		"task": doc.linked_task,
+		"assigned_to": assign_to,
+	}
+
+
+@frappe.whitelist()
 def promote_to_task(name: str) -> dict:
 	from frappe.model.workflow import apply_workflow
 
