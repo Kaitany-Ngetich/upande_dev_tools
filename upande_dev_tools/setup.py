@@ -9,8 +9,10 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 APP_NAME = "upande_dev_tools"
 MODULE_NAME = "Upande Dev Tools"
 
-# Workspace primary key and Module Def name; the user-facing label/title is "Dev Tools".
-WORKSPACE_NAME = "Upande Dev Tools"
+# Workspace docname; it slugs to the /desk/dev-tools route, so it must match NAV_NAME.
+WORKSPACE_NAME = "Dev Tools"
+# Workspace docname before the rename; still the Module Def name, which does not change.
+LEGACY_WORKSPACE_NAME = "Upande Dev Tools"
 # Docname of the Desktop Icon and Workspace Sidebar this app ships.
 NAV_NAME = "Dev Tools"
 # User-facing name on the sidebar header, Desktop Icon and Workspace.
@@ -451,6 +453,31 @@ def sync_workspace_sidebar_title() -> None:
 				frappe.db.set_value("Workspace", WORKSPACE_NAME, field, NAV_TITLE, update_modified=False)
 
 
+def rename_legacy_workspace() -> None:
+	"""Rename the Workspace docname to WORKSPACE_NAME. The docname is what /desk/<slug>
+	resolves against, so while it stays "Upande Dev Tools" the Desktop Icon's /desk/dev-tools
+	route 404s. rename_doc is imported directly: the frappe.rename_doc wrapper is whitelisted
+	and drops ignore_permissions."""
+	from frappe.model.rename_doc import rename_doc
+
+	if not frappe.db.exists("DocType", "Workspace"):
+		return
+	if not frappe.db.exists("Workspace", LEGACY_WORKSPACE_NAME):
+		return
+	if frappe.db.exists("Workspace", WORKSPACE_NAME):
+		frappe.delete_doc("Workspace", LEGACY_WORKSPACE_NAME, force=True, ignore_permissions=True)
+		return
+
+	rename_doc(
+		"Workspace",
+		LEGACY_WORKSPACE_NAME,
+		WORKSPACE_NAME,
+		force=True,
+		ignore_permissions=True,
+		show_alert=False,
+	)
+
+
 def run_setup() -> None:
 	create_task_custom_fields()
 	create_project_custom_fields()
@@ -459,6 +486,8 @@ def run_setup() -> None:
 	fix_product_area_typo()
 	register_dev_portal_pages()
 	register_installed_apps_as_deployment_apps()
+	# Before the resync, or the shipped JSON inserts a second Workspace beside the old one.
+	rename_legacy_workspace()
 	# Nav last: the shipped records must exist before the duplicates around them are pruned.
 	resync_nav_resources()
 	enforce_single_desktop_icon()
