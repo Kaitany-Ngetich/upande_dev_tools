@@ -1,11 +1,17 @@
 name: Dev Tools Commit Checks
 
-# PR title must be a Conventional Commit (semantic-release reads the squash
-# commit, which takes the PR title, to compute the next version), and the
+# One job, so a PR shows one check rather than a row per concern.
+#
+# On a PR: the title must be a Conventional Commit (semantic-release reads the
+# squash commit, which takes the PR title, to compute the next version), and the
 # branch's commits must carry no Claude attribution — GitHub copies
 # Co-authored-by trailers from the squashed commits onto the squash commit
 # regardless of squash_merge_commit_message, so the trailer has to be gone
 # before the merge button is pressed.
+#
+# On a push to main: verify none got through. main is never rewritten here — it
+# carries release tags and semantic-release commits, so a force-push would
+# orphan them.
 
 on:
   pull_request:
@@ -18,42 +24,24 @@ permissions:
   contents: read
 
 concurrency:
-  # Not cancel-in-progress: sanitize force-pushes, and a cancelled rewrite is
+  # Not cancel-in-progress: the job force-pushes, and a cancelled rewrite is
   # worse than a redundant lint run.
   group: dev-tools-commits-${{ github.event.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  commitlint:
-    name: Check PR Title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          check-latest: true
-
-      - name: Check PR title
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          npm install @commitlint/cli @commitlint/config-conventional
-          echo "$PR_TITLE" | npx commitlint --verbose
-
-  sanitize:
-    name: Strip Claude attribution
-    if: github.event_name == 'pull_request'
+  commits:
+    name: Title and attribution
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
 
     steps:
+      # ---- pull_request ----
       - name: Resolve target branch
         id: target
+        if: github.event_name == 'pull_request'
         env:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_REPO: ${{ github.event.pull_request.head.repo.full_name }}
@@ -70,12 +58,28 @@ jobs:
           echo "branch=$PR_BRANCH" >>"$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
         with:
           ref: ${{ steps.target.outputs.branch }}
           fetch-depth: 0
           persist-credentials: true
 
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request'
+        with:
+          node-version: 24
+          check-latest: true
+
+      - name: Check PR title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          npm install @commitlint/cli @commitlint/config-conventional
+          echo "$PR_TITLE" | npx commitlint --verbose
+
       - name: Write message filter
+        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
           cat >"$RUNNER_TEMP/strip-claude-trailer.sh" <<'SH'
@@ -90,8 +94,9 @@ jobs:
           SH
           chmod +x "$RUNNER_TEMP/strip-claude-trailer.sh"
 
-      - name: Strip attribution from branch commits
+      - name: Strip Claude attribution from branch commits
         id: rewrite
+        if: github.event_name == 'pull_request'
         env:
           BRANCH: ${{ steps.target.outputs.branch }}
         run: |
@@ -140,7 +145,7 @@ jobs:
           echo "Rewrote ${start:0:9} -> $(git rev-parse --short=9 HEAD), trees identical."
 
       - name: Force-push the cleaned branch
-        if: steps.rewrite.outputs.changed == 'true'
+        if: github.event_name == 'pull_request' && steps.rewrite.outputs.changed == 'true'
         env:
           BRANCH: ${{ steps.target.outputs.branch }}
           START: ${{ steps.rewrite.outputs.start }}
@@ -151,18 +156,14 @@ jobs:
           git push --force-with-lease="$BRANCH:$START" origin "HEAD:$BRANCH"
           echo "::notice::Branch $BRANCH rewritten. Anyone with it checked out must run: git fetch origin && git reset --hard origin/$BRANCH"
 
-  verify-main:
-    name: Verify none reached main
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
+      # ---- push to main ----
       - uses: actions/checkout@v4
+        if: github.event_name == 'push'
         with:
           fetch-depth: 0
 
-      - name: Check only the commits this push added
+      - name: Verify no attribution reached main
+        if: github.event_name == 'push'
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
@@ -197,7 +198,7 @@ jobs:
           done <<<"$commits"
 
           if [ "$found" -eq 1 ]; then
-            echo "::error::Claude attribution reached main. main is not auto-rewritten: it carries release tags and semantic-release commits, so a force-push would orphan them. Make the sanitize job a required status check on main so no PR can merge while its commits still carry a trailer."
+            echo "::error::Claude attribution reached main. main is not auto-rewritten: it carries release tags and semantic-release commits, so a force-push would orphan them. Make this check required on main so no PR can merge while its commits still carry a trailer."
             exit 1
           fi
           echo "Clean: no Claude attribution in $range"

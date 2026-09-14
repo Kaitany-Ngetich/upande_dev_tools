@@ -147,14 +147,16 @@ function load_monaco() {
 				automaticLayout: true,
 				minimap: { enabled: true },
 				fontSize: 14,
-				wordWrap: "on"
+				wordWrap: "on",
 			});
 
-			udt_editor.onDidChangeCursorPosition(function(e) {
-				$("#status-position").text(`Ln ${e.position.lineNumber}, Col ${e.position.column}`);
+			udt_editor.onDidChangeCursorPosition(function (e) {
+				$("#status-position").text(
+					`Ln ${e.position.lineNumber}, Col ${e.position.column}`
+				);
 			});
 
-			udt_editor.onDidChangeModelContent(function() {
+			udt_editor.onDidChangeModelContent(function () {
 				if (udt_is_switching_tab) return;
 				if (!udt_active_tab || !udt_open_tabs[udt_active_tab]) return;
 
@@ -173,75 +175,93 @@ function load_monaco() {
 }
 
 function bind_events() {
-	$(document).off("change", "#app-selector").on("change", "#app-selector", function() {
-		udt_current_app = $(this).val();
-		udt_current_file = null;
-		udt_open_tabs = {};
-		udt_active_tab = null;
-		reset_editor_state();
-		load_file_tree(udt_current_app);
-	});
+	$(document)
+		.off("change", "#app-selector")
+		.on("change", "#app-selector", function () {
+			udt_current_app = $(this).val();
+			udt_current_file = null;
+			udt_open_tabs = {};
+			udt_active_tab = null;
+			reset_editor_state();
+			load_file_tree(udt_current_app);
+		});
 
-	$(document).off("click", ".real-file").on("click", ".real-file", function() {
-		open_file($(this).data("path"));
-	});
+	$(document)
+		.off("click", ".real-file")
+		.on("click", ".real-file", function () {
+			open_file($(this).data("path"));
+		});
 
-	$(document).off("click", ".udt-tab").on("click", ".udt-tab", function(e) {
-		if ($(e.target).hasClass("udt-tab-close")) return;
-		switch_tab($(this).attr("data-path"));
-	});
+	$(document)
+		.off("click", ".udt-tab")
+		.on("click", ".udt-tab", function (e) {
+			if ($(e.target).hasClass("udt-tab-close")) return;
+			switch_tab($(this).attr("data-path"));
+		});
 
-	$(document).off("click", ".udt-tab-close").on("click", ".udt-tab-close", function(e) {
-		e.stopPropagation();
-		close_tab($(this).attr("data-path"));
-	});
+	$(document)
+		.off("click", ".udt-tab-close")
+		.on("click", ".udt-tab-close", function (e) {
+			e.stopPropagation();
+			close_tab($(this).attr("data-path"));
+		});
 
-	$(document).off("click", ".open-editor-item").on("click", ".open-editor-item", function() {
-		switch_tab($(this).attr("data-path"));
-	});
+	$(document)
+		.off("click", ".open-editor-item")
+		.on("click", ".open-editor-item", function () {
+			switch_tab($(this).attr("data-path"));
+		});
 
-	$(document).off("click", "#save-btn").on("click", "#save-btn", function() {
-		save_current_file();
-	});
+	$(document)
+		.off("click", "#save-btn")
+		.on("click", "#save-btn", function () {
+			save_current_file();
+		});
 
-	$(document).off("input", "#file-search").on("input", "#file-search", function() {
-		const query = ($(this).val() || "").toLowerCase();
+	$(document)
+		.off("input", "#file-search")
+		.on("input", "#file-search", function () {
+			const query = ($(this).val() || "").toLowerCase();
 
-		if (!query) {
-			render_file_tree(udt_file_tree.children || []);
-			return;
-		}
+			if (!query) {
+				render_file_tree(udt_file_tree.children || []);
+				return;
+			}
 
-		const matches = flatten_tree(udt_file_tree.children || []).filter(file =>
-			(file.path || "").toLowerCase().includes(query)
-		);
+			const matches = flatten_tree(udt_file_tree.children || []).filter((file) =>
+				(file.path || "").toLowerCase().includes(query)
+			);
 
-		render_search_results(matches);
-	});
+			render_search_results(matches);
+		});
 }
 
 function load_installed_apps() {
 	frappe.call({
 		method: "upande_dev_tools.api.code_editor.get_installed_apps",
-		callback: function(r) {
+		callback: function (r) {
 			const apps = r.message || [];
 			const selector = $("#app-selector");
 
 			selector.empty();
 
-			apps.forEach(app => {
-				selector.append(`<option value="${escape_html(app.value)}">${escape_html(app.label)}</option>`);
+			apps.forEach((app) => {
+				selector.append(
+					`<option value="${escape_html(app.value)}">${escape_html(app.label)}</option>`
+				);
 			});
 
-			udt_current_app = apps.find(app => app.value === "upande_dev_tools")
+			udt_current_app = apps.find((app) => app.value === "upande_dev_tools")
 				? "upande_dev_tools"
-				: (apps[0] ? apps[0].value : null);
+				: apps[0]
+				? apps[0].value
+				: null;
 
 			if (udt_current_app) {
 				selector.val(udt_current_app);
 				load_file_tree(udt_current_app);
 			}
-		}
+		},
 	});
 }
 
@@ -257,11 +277,11 @@ function load_file_tree(app) {
 	frappe.call({
 		method: "upande_dev_tools.api.code_editor.get_app_tree",
 		args: { app: app },
-		callback: function(r) {
+		callback: function (r) {
 			udt_file_tree = r.message || {};
 			render_file_tree(udt_file_tree.children || []);
 			log_activity("✅ Loaded VS Code-style tree for " + app);
-		}
+		},
 	});
 }
 
@@ -278,7 +298,7 @@ function render_file_tree(nodes) {
 }
 
 function render_tree_nodes(nodes, container, level) {
-	nodes.forEach(node => {
+	nodes.forEach((node) => {
 		const is_folder = node.is_folder || node.type === "folder";
 		const safe_name = escape_html(node.name || "");
 		const safe_path = escape_html(node.path || "");
@@ -286,7 +306,7 @@ function render_tree_nodes(nodes, container, level) {
 		const row = $(`
 			<div class="udt-tree-item ${is_folder ? "real-folder" : "real-file"}"
 				data-path="${safe_path}"
-				style="padding-left: ${10 + (level * 14)}px;">
+				style="padding-left: ${10 + level * 14}px;">
 				<span class="udt-tree-icon">
 					${is_folder ? `▸ ${icon_img("folder")}` : get_file_icon(node.extension)}
 				</span>
@@ -297,10 +317,12 @@ function render_tree_nodes(nodes, container, level) {
 		container.append(row);
 
 		if (is_folder) {
-			const children_container = $(`<div class="udt-tree-children" style="display:none;"></div>`);
+			const children_container = $(
+				`<div class="udt-tree-children" style="display:none;"></div>`
+			);
 			container.append(children_container);
 
-			row.on("click", function(e) {
+			row.on("click", function (e) {
 				e.stopPropagation();
 				const is_open = children_container.is(":visible");
 				children_container.toggle(!is_open);
@@ -313,7 +335,7 @@ function render_tree_nodes(nodes, container, level) {
 				render_tree_nodes(node.children, children_container, level + 1);
 			}
 		} else {
-			row.on("click", function(e) {
+			row.on("click", function (e) {
 				e.stopPropagation();
 				open_file(node.path);
 			});
@@ -330,7 +352,7 @@ function render_search_results(files) {
 		return;
 	}
 
-	files.forEach(file => {
+	files.forEach((file) => {
 		const safe_path = escape_html(file.path || "");
 		tree.append(`
 			<div class="udt-tree-item real-file" data-path="${safe_path}">
@@ -344,7 +366,7 @@ function render_search_results(files) {
 function flatten_tree(nodes) {
 	let files = [];
 
-	(nodes || []).forEach(node => {
+	(nodes || []).forEach((node) => {
 		const is_folder = node.is_folder || node.type === "folder";
 
 		if (is_folder) {
@@ -369,9 +391,9 @@ function open_file(path) {
 		method: "upande_dev_tools.api.code_editor.read_file",
 		args: {
 			app: udt_current_app,
-			path: path
+			path: path,
 		},
-		callback: function(r) {
+		callback: function (r) {
 			const file = r.message;
 
 			udt_open_tabs[file.path] = {
@@ -379,12 +401,12 @@ function open_file(path) {
 				original_content: file.content || "",
 				content: file.content || "",
 				dirty: false,
-				view_state: null
+				view_state: null,
 			};
 
 			switch_tab(file.path);
 			log_activity("📄 Opened file: " + file.path);
-		}
+		},
 	});
 }
 
@@ -403,10 +425,7 @@ function switch_tab(path) {
 	udt_is_switching_tab = true;
 
 	udt_editor.setValue(tab.content || "");
-	monaco.editor.setModelLanguage(
-		udt_editor.getModel(),
-		tab.language || "plaintext"
-	);
+	monaco.editor.setModelLanguage(udt_editor.getModel(), tab.language || "plaintext");
 
 	if (tab.view_state) {
 		udt_editor.restoreViewState(tab.view_state);
@@ -418,7 +437,6 @@ function switch_tab(path) {
 	udt_editor.focus();
 	update_open_file_ui(tab);
 }
-
 
 function close_tab(path) {
 	if (!udt_open_tabs[path]) return;
@@ -458,9 +476,9 @@ function save_current_file() {
 		args: {
 			app: udt_current_app,
 			path: tab.path,
-			content: tab.content
+			content: tab.content,
 		},
-		callback: function(r) {
+		callback: function (r) {
 			tab.original_content = tab.content;
 			tab.dirty = false;
 			$("#save-btn").prop("disabled", true);
@@ -468,7 +486,7 @@ function save_current_file() {
 			render_open_editors();
 			log_activity("💾 Saved file: " + tab.path);
 			frappe.show_alert({ message: "File saved successfully", indicator: "green" });
-		}
+		},
 	});
 }
 
@@ -489,8 +507,8 @@ function update_open_file_ui(file) {
 	$("#status-language").text(file.language);
 	$("#terminal-body").html(
 		`Opened: ${escape_html(file.path)}<br>` +
-		`Language: ${escape_html(file.language)}<br>` +
-		`Size: ${format_bytes((file.content || "").length)}`
+			`Language: ${escape_html(file.language)}<br>` +
+			`Size: ${format_bytes((file.content || "").length)}`
 	);
 }
 
@@ -505,7 +523,7 @@ function render_tabs() {
 		return;
 	}
 
-	paths.forEach(path => {
+	paths.forEach((path) => {
 		const tab = udt_open_tabs[path];
 		const active = path === udt_active_tab ? "active" : "";
 		const dirty = tab.dirty ? "● " : "";
@@ -533,7 +551,7 @@ function render_open_editors() {
 
 	$("#open-editors").empty();
 
-	paths.forEach(path => {
+	paths.forEach((path) => {
 		const tab = udt_open_tabs[path];
 		const active = path === udt_active_tab ? "active" : "";
 		const dirty = tab.dirty ? "● " : "";
@@ -606,7 +624,7 @@ function get_file_icon(ext) {
 		".sql": "database",
 		".sh": "console",
 		".xml": "xml",
-		".dockerfile": "docker"
+		".dockerfile": "docker",
 	};
 
 	return icon_img(icons[ext] || "file");

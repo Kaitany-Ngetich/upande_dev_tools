@@ -21,10 +21,7 @@ frappe.ui.form.on("Customize Form", {
 				return;
 			}
 
-			frm.remove_custom_button(
-				__("Export Customizations"),
-				__("Actions")
-			);
+			frm.remove_custom_button(__("Export Customizations"), __("Actions"));
 
 			frm.add_custom_button(
 				__("Export Customizations"),
@@ -47,16 +44,13 @@ frappe.ui.form.on("Customize Form", {
 	},
 });
 
-
 async function show_selective_export_dialog(frm) {
 	const apps = await frappe.xcall(
 		"upande_dev_tools.api.customization_exporter.get_exportable_apps"
 	);
 
 	if (!apps?.length) {
-		frappe.msgprint(
-			__("No installed applications with exportable modules were found.")
-		);
+		frappe.msgprint(__("No installed applications with exportable modules were found."));
 		return;
 	}
 
@@ -73,10 +67,9 @@ async function show_selective_export_dialog(frm) {
 		}
 
 		const [targets, current] = await Promise.all([
-			frappe.xcall(
-				"upande_dev_tools.api.customization_exporter.get_customization_targets",
-				{ doctype: frm.doc.doc_type }
-			),
+			frappe.xcall("upande_dev_tools.api.customization_exporter.get_customization_targets", {
+				doctype: frm.doc.doc_type,
+			}),
 			frappe.xcall(
 				"upande_dev_tools.api.customization_exporter.get_current_customizations",
 				{ module, doctype: frm.doc.doc_type }
@@ -164,9 +157,7 @@ async function show_selective_export_dialog(frm) {
 					const needle = (txt || "").toLowerCase();
 					return needle
 						? rows.filter((r) =>
-								(r.description || r.value)
-									.toLowerCase()
-									.includes(needle)
+								(r.description || r.value).toLowerCase().includes(needle)
 						  )
 						: rows;
 				},
@@ -262,10 +253,10 @@ async function show_selective_export_dialog(frm) {
 
 			if (removed.length) {
 				frappe.confirm(
-					__(
-						"Remove {0} field(s) from app {1} and save the rest?",
-						[removed.length, values.app]
-					),
+					__("Remove {0} field(s) from app {1} and save the rest?", [
+						removed.length,
+						values.app,
+					]),
 					run
 				);
 			} else {
@@ -277,7 +268,6 @@ async function show_selective_export_dialog(frm) {
 	dialog.show();
 	check_export_duplicates(dialog, frm);
 }
-
 
 async function check_export_duplicates(dialog, frm) {
 	const banner = dialog.fields_dict.dup_banner.$wrapper;
@@ -298,9 +288,7 @@ async function check_export_duplicates(dialog, frm) {
 		.map(
 			(d) =>
 				`<li><b>${frappe.utils.escape_html(d.label)}</b>
-					<span class="text-muted">(${frappe.utils.escape_html(
-						d.fieldname
-					)})</span> — ${d.apps
+					<span class="text-muted">(${frappe.utils.escape_html(d.fieldname)})</span> — ${d.apps
 					.map((a) => frappe.utils.escape_html(a))
 					.join(", ")}</li>`
 		)
@@ -325,7 +313,6 @@ async function check_export_duplicates(dialog, frm) {
 		show_reconcile_dialog(frm);
 	});
 }
-
 
 function show_export_result(result) {
 	const rows = (result.files || [])
@@ -363,16 +350,13 @@ function show_export_result(result) {
 	});
 }
 
-
 async function show_current_customizations_dialog(frm) {
 	const apps = await frappe.xcall(
 		"upande_dev_tools.api.customization_exporter.get_exportable_apps"
 	);
 
 	if (!apps?.length) {
-		frappe.msgprint(
-			__("No installed applications with exportable modules were found.")
-		);
+		frappe.msgprint(__("No installed applications with exportable modules were found."));
 		return;
 	}
 
@@ -510,9 +494,7 @@ async function show_current_customizations_dialog(frm) {
 							title: __("Customizations Updated"),
 							indicator: "green",
 							message: `
-								<p>${__("{0} custom field(s) removed.", [
-									result.total_removed_custom_fields,
-								])}</p>
+								<p>${__("{0} custom field(s) removed.", [result.total_removed_custom_fields])}</p>
 								<table class="table table-bordered">
 									<thead><tr>
 										<th>${__("DocType")}</th>
@@ -536,7 +518,6 @@ async function show_current_customizations_dialog(frm) {
 
 	dialog.show();
 }
-
 
 function render_current_customizations(wrapper, data) {
 	const files = (data && data.files) || [];
@@ -575,11 +556,7 @@ function render_current_customizations(wrapper, data) {
 								meta.push(frappe.utils.escape_html(f.fieldtype));
 							}
 							if (f.property_setter_count) {
-								meta.push(
-									__("{0} property setter(s)", [
-										f.property_setter_count,
-									])
-								);
+								meta.push(__("{0} property setter(s)", [f.property_setter_count]));
 							}
 							const meta_text = meta.length
 								? `<span class="text-muted">${meta.join(", ")}</span>`
@@ -633,24 +610,14 @@ function render_current_customizations(wrapper, data) {
 	});
 }
 
-
 function file_has_preserved(file) {
-	return (
-		file.doctype_property_setter_count ||
-		file.link_count ||
-		file.custom_perm_count
-	);
+	return file.doctype_property_setter_count || file.link_count || file.custom_perm_count;
 }
-
 
 function preserved_summary(file) {
 	const parts = [];
 	if (file.doctype_property_setter_count) {
-		parts.push(
-			__("{0} DocType property setter(s)", [
-				file.doctype_property_setter_count,
-			])
-		);
+		parts.push(__("{0} DocType property setter(s)", [file.doctype_property_setter_count]));
 	}
 	if (file.link_count) {
 		parts.push(__("{0} link(s)", [file.link_count]));
@@ -660,7 +627,6 @@ function preserved_summary(file) {
 	}
 	return parts.join(", ");
 }
-
 
 async function show_all_customizations_dialog(frm) {
 	const dialog = new frappe.ui.Dialog({
@@ -688,7 +654,6 @@ async function show_all_customizations_dialog(frm) {
 	render_field_app_matrix(wrapper, data, { readonly: true });
 }
 
-
 async function show_reconcile_dialog(frm) {
 	const dialog = new frappe.ui.Dialog({
 		title: __("Reconcile Field Apps — {0}", [frm.doc.doc_type]),
@@ -709,10 +674,7 @@ async function show_reconcile_dialog(frm) {
 
 			const unresolved = wrapper
 				.find("tr.udt-field-row")
-				.filter(
-					(_i, tr) =>
-						$(tr).find("input.udt-cell:checked").length > 1
-				);
+				.filter((_i, tr) => $(tr).find("input.udt-cell:checked").length > 1);
 
 			if (unresolved.length) {
 				frappe.msgprint({
@@ -730,9 +692,7 @@ async function show_reconcile_dialog(frm) {
 			wrapper.find("tr.udt-field-row").each((_i, tr) => {
 				const row = $(tr);
 				const target = row.attr("data-target");
-				const original = (row.attr("data-original") || "")
-					.split(",")
-					.filter(Boolean);
+				const original = (row.attr("data-original") || "").split(",").filter(Boolean);
 				const checked = row
 					.find("input.udt-cell:checked")
 					.map((_j, el) => el.getAttribute("data-app"))
@@ -762,9 +722,7 @@ async function show_reconcile_dialog(frm) {
 				);
 
 				frappe.show_alert({
-					message: __("{0} field placement(s) removed.", [
-						result.total_removed,
-					]),
+					message: __("{0} field placement(s) removed.", [result.total_removed]),
 					indicator: "green",
 				});
 
@@ -779,7 +737,6 @@ async function show_reconcile_dialog(frm) {
 	load_field_matrix(dialog, frm);
 }
 
-
 async function load_field_matrix(dialog, frm) {
 	const wrapper = dialog.fields_dict.matrix.$wrapper;
 	wrapper.html(`<p class="text-muted">${__("Loading…")}</p>`);
@@ -791,7 +748,6 @@ async function load_field_matrix(dialog, frm) {
 
 	render_field_app_matrix(wrapper, data);
 }
-
 
 function render_field_app_matrix(wrapper, data, opts = {}) {
 	const { readonly = false } = opts;
@@ -808,9 +764,7 @@ function render_field_app_matrix(wrapper, data, opts = {}) {
 	}
 
 	if (!apps.length) {
-		wrapper.html(
-			`<p class="text-muted">${__("No apps contain these fields.")}</p>`
-		);
+		wrapper.html(`<p class="text-muted">${__("No apps contain these fields.")}</p>`);
 		return;
 	}
 
@@ -839,9 +793,7 @@ function render_field_app_matrix(wrapper, data, opts = {}) {
 				.map((a) => {
 					const present = f.apps.includes(a);
 					if (readonly) {
-						return `<td class="text-center">${
-							present ? "✓" : "–"
-						}</td>`;
+						return `<td class="text-center">${present ? "✓" : "–"}</td>`;
 					}
 					return `<td class="text-center">
 						<input type="checkbox" class="udt-cell"
@@ -890,9 +842,7 @@ function render_field_app_matrix(wrapper, data, opts = {}) {
 	`);
 
 	if (readonly) {
-		wrapper
-			.find("tr.udt-field-row.udt-dupe")
-			.css("background", "var(--red-50, #fdeaea)");
+		wrapper.find("tr.udt-field-row.udt-dupe").css("background", "var(--red-50, #fdeaea)");
 		return;
 	}
 
