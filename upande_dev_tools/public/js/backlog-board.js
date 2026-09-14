@@ -15,10 +15,87 @@ const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const ZOOM = { days: 34, weeks: 15, months: 5 };
 const PAGE = 60;
+const PREFS = "dpx-backlog";
+
+function read_prefs() {
+	try {
+		return JSON.parse(localStorage.getItem(PREFS) || "{}") || {};
+	} catch (e) {
+		return {};
+	}
+}
 const COLUMN_CAP = 25;
 const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
 const SHEET_FIELDS = { 2: "stage", 3: "priority", 5: "module", 6: "end", 7: "start" };
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
+// Each of these mirrors the real markup of its view, so the switch from
+// skeleton to content does not move anything on the page.
+const SKELETON = {
+	board: () => {
+		const card = (n) =>
+			`<div class="sk-card">${`<i class="sk w40"></i><i class="sk w90"></i><i class="sk w70"></i>`}
+				<div class="sk-row"><i class="sk dot"></i><i class="sk w30"></i><i class="sk w20 right"></i></div></div>`;
+		return `<div class="dpx-skel" aria-hidden="true"><div class="dpx-bb-cols">${[3, 4, 2, 3, 1, 2]
+			.map(
+				(n) => `<div class="dpx-bb-col">
+					<div class="sk-colhd"><i class="sk w50"></i><i class="sk w10 right"></i></div>
+					<div class="sk-drop">${Array.from({ length: n }, card).join("")}</div>
+				</div>`
+			)
+			.join("")}</div></div>`;
+	},
+
+	list: () =>
+		`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+			<div class="sk-head">${["w20", "w10", "w10", "w14", "w10", "w8"]
+				.map((w) => `<i class="sk ${w}"></i>`)
+				.join("")}</div>
+			${[1, 2]
+				.map(
+					(g) =>
+						`<div class="sk-group"><i class="sk w16"></i></div>` +
+						[88, 74, 92, 66, 80]
+							.map(
+								(w) => `<div class="sk-line">
+									<i class="sk dot"></i><i class="sk tag"></i><i class="sk" style="width:${w / 3}%"></i>
+									<i class="sk chip"></i><i class="sk chip sm"></i><i class="sk w12 right"></i>
+								</div>`
+							)
+							.join("")
+				)
+				.join("")}
+		</div></div>`,
+
+	timeline: () => {
+		const bar = (left, width, tone) =>
+			`<div class="sk-tlrow"><div class="sk-gutter"><i class="sk dot"></i><i class="sk w70"></i></div>
+				<div class="sk-track"><i class="sk bar ${tone}" style="left:${left}%;width:${width}%"></i></div></div>`;
+		const plan = [
+			[8, 18, ""], [14, 26, "a"], [22, 14, ""], [18, 32, "b"], [34, 20, "a"],
+			[30, 12, ""], [42, 24, "b"], [38, 16, ""], [50, 28, "a"], [46, 14, ""],
+			[58, 22, "b"], [64, 18, ""],
+		];
+		return `<div class="dpx-skel" aria-hidden="true"><div class="dpx-bb-tl sk-plain">
+			<div class="sk-tlhead"><div class="sk-gutter"><i class="sk w40"></i></div>
+				<div class="sk-track">${[10, 30, 50, 70, 90]
+					.map((l) => `<i class="sk w6" style="position:absolute;left:${l}%"></i>`)
+					.join("")}</div></div>
+			${plan.map(([l, w, t]) => bar(l, w, t)).join("")}
+		</div></div>`;
+	},
+
+	sheet: () =>
+		`<div class="dpx-skel" aria-hidden="true"><div class="dpx-bb-sheet sk-plain">
+			<div class="sk-grid">${Array.from(
+				{ length: 14 },
+				(_, r) =>
+					`<div class="sk-grow${r === 0 ? " head" : ""}">${[30, 11, 9, 13, 11, 9, 9, 10]
+						.map((w) => `<i class="sk" style="width:${w}%"></i>`)
+						.join("")}</div>`
+			).join("")}</div>
+		</div></div>`,
+};
+
 const HINTS = {
 	board: "Drag a card between stages to move it",
 	list: "Click a group to collapse it",
@@ -115,9 +192,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.stages = [];
 		this.total = 0;
 		this.modules = [];
-		this.view = "board";
-		this.group_by = "stage";
-		this.zoom = "weeks";
+		const kept = read_prefs();
+		this.view = kept.view || "board";
+		this.group_by = kept.group_by || "stage";
+		this.zoom = kept.zoom || "weeks";
 		this.shut = new Set();
 		this.caps = {};
 		this.hide_done = false;
@@ -144,24 +222,41 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				this.items = data.items;
 				this.stages = data.stages;
 				this.total = data.total;
+				this.settled();
 				this.render();
 				icon.removeClass("spin");
 			})
 			.catch((e) => {
 				icon.removeClass("spin");
+				this.settled();
 				this.fail(e);
 			});
 	}
 
-	skeleton() {
-		const bar = (w) => `<i style="width:${w}%"></i>`;
-		$(this.wrapper)
-			.find(".bb-stage")
-			.html(
-				`<div class="dpx-card"><div class="dpx-bb-skel">${[96, 72, 88, 60, 80, 68, 92, 54]
-					.map(bar)
-					.join("")}</div></div>`
+	// A skeleton should be the shape of what is coming, not a stack of grey bars.
+	// Each view draws its own, so the page does not rearrange itself on arrival.
+	save_prefs() {
+		try {
+			localStorage.setItem(
+				PREFS,
+				JSON.stringify({ view: this.view, group_by: this.group_by, zoom: this.zoom })
 			);
+		} catch (e) {}
+	}
+
+	skeleton() {
+		const stage = $(this.wrapper).find(".bb-stage");
+		stage.attr("aria-busy", "true").html(SKELETON[this.view] ? SKELETON[this.view]() : SKELETON.list());
+
+		clearTimeout(this.slow);
+		this.slow = setTimeout(() => {
+			stage.find(".dpx-skel").addClass("slow");
+		}, 6000);
+	}
+
+	settled() {
+		clearTimeout(this.slow);
+		$(this.wrapper).find(".bb-stage").removeAttr("aria-busy");
 	}
 
 	fail(e) {
@@ -186,10 +281,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<button class="dpx-bb-ico bb-reload" type="button" title="Refresh" aria-label="Refresh">${ico("refresh")}</button>
 							<span class="dpx-bb-div"></span>
 							<div class="dpx-bb-views" role="tablist">
-								<button data-view="board" class="on" role="tab" title="Board">${ico("board", 13)}<span>Board</span></button>
-								<button data-view="list" role="tab" title="List">${ico("list", 13)}<span>List</span></button>
-								<button data-view="timeline" role="tab" title="Timeline">${ico("clock", 13)}<span>Timeline</span></button>
-								<button data-view="sheet" role="tab" title="Sheet">${ico("table", 13)}<span>Sheet</span></button>
+								<button data-view="board" class="${this.view === "board" ? "on" : ""}" role="tab" title="Board">${ico("board", 13)}<span>Board</span></button>
+								<button data-view="list" class="${this.view === "list" ? "on" : ""}" role="tab" title="List">${ico("list", 13)}<span>List</span></button>
+								<button data-view="timeline" class="${this.view === "timeline" ? "on" : ""}" role="tab" title="Timeline">${ico("clock", 13)}<span>Timeline</span></button>
+								<button data-view="sheet" class="${this.view === "sheet" ? "on" : ""}" role="tab" title="Sheet">${ico("table", 13)}<span>Sheet</span></button>
 							</div>
 						</div>
 					</div>
@@ -207,8 +302,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 								<option value="Issue">Issues</option>
 								<option value="Request">Requests</option>
 							</select>
-							<select class="dpx-bb-field" data-f="assignee" aria-label="Assignee"></select>
-							<select class="dpx-bb-field" data-f="module" aria-label="Module"></select>
+							<select class="dpx-bb-field" data-f="assignee" aria-label="Assignee">
+								<option value="">Anyone</option>
+							</select>
+							<select class="dpx-bb-field" data-f="module" aria-label="Module">
+								<option value="">All modules</option>
+							</select>
 							<select class="dpx-bb-field" data-f="priority" aria-label="Priority">
 								<option value="">Any priority</option>
 								<option value="Urgent">Urgent</option>
@@ -220,7 +319,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						<span class="dpx-bb-sep"></span>
 						<div class="dpx-bb-grp">
 							<span class="dpx-bb-grp-lbl">Group</span>
-							<select class="dpx-bb-field bb-extra" aria-label="Group by"></select>
+							<select class="dpx-bb-field bb-extra" aria-label="Group by">
+								<option value="stage">Stage</option>
+								<option value="assignee">Assignee</option>
+								<option value="module">Module</option>
+								<option value="priority">Priority</option>
+								<option value="project">Project</option>
+							</select>
 						</div>
 						<div class="dpx-bb-grp bb-zoom-grp" hidden>
 							<span class="dpx-bb-grp-lbl">Zoom</span>
@@ -251,6 +356,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			btn.addClass("on");
 			this.view = btn.data("view");
 			this.limit = PAGE;
+			this.save_prefs();
 			this.render();
 		});
 		root.on("click", ".bb-reload", () => this.load());
@@ -264,10 +370,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		});
 		root.on("change", ".bb-extra", (e) => {
 			this.group_by = $(e.currentTarget).val();
+			this.save_prefs();
 			this.render();
 		});
 		root.on("change", ".bb-zoom", (e) => {
 			this.zoom = $(e.currentTarget).val();
+			this.save_prefs();
 			this.render();
 		});
 		root.on("click", ".dpx-bb-ghd button", (e) => {
@@ -343,7 +451,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	render_assignees() {
 		const root = $(this.wrapper);
 		const people = root.find('[data-f="assignee"]');
-		if (!people.children().length) {
+		if (people.children().length <= 1) {
 			const names = [...new Set(this.items.flatMap((item) => item.assignees))].sort();
 			people.html(
 				['<option value="">Anyone</option>', '<option value="__none">Unassigned</option>']
@@ -432,17 +540,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	render_extra() {
 		const root = $(this.wrapper);
-		const group = root.find(".bb-extra");
-		if (!group.children().length) {
-			group.html(
-				`<option value="stage">Stage</option>
-				 <option value="assignee">Assignee</option>
-				 <option value="module">Module</option>
-				 <option value="priority">Priority</option>
-				 <option value="project">Project</option>`
-			);
-		}
-		group.val(this.group_by);
+		root.find(".bb-extra").val(this.group_by);
 		root.find(".bb-zoom").val(this.zoom);
 		root.find(".bb-zoom-grp").prop("hidden", this.view !== "timeline");
 	}
@@ -608,11 +706,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	render_sheet(stage, rows) {
 		if (!rows.length) return stage.html(blank("Nothing here yet", empty_hint(this.filters)));
 
-		stage.html('<div class="dpx-bb-sheet"><div class="host"></div></div>');
-		const host = stage.find(".host")[0];
-
+		stage.attr("aria-busy", "true").html(SKELETON.sheet());
 		load_jspreadsheet()
-			.then(() => this.mount_sheet(host, rows))
+			.then(() => {
+				stage.removeAttr("aria-busy").html('<div class="dpx-bb-sheet"><div class="host"></div></div>');
+				this.mount_sheet(stage.find(".host")[0], rows);
+			})
 			.catch(() => stage.html(blank("Sheet could not load", "The spreadsheet library did not load. Reload the page, or use the List view.")));
 	}
 

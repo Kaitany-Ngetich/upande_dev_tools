@@ -30,6 +30,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				this.requests = requests || [];
 				this.projects = projects || [];
 				this.people = people || [];
+				this.stage().removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
 			})
@@ -42,13 +43,30 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 	}
 
 	skeleton() {
-		$(this.wrapper)
-			.find(".rq-stats")
-			.html([1, 2, 3, 4].map(() => '<div class="rq-stat"><div class="dpx-bb-skel bare"><i style="width:52%"></i><i style="width:38%"></i></div></div>').join(""));
-		this.stage().html(
-			`<div class="dpx-card"><div class="dpx-bb-skel">${[92, 78, 88]
-				.map((w) => `<i style="width:${w}%"></i>`)
-				.join("")}</div></div>`
+		const root = $(this.wrapper);
+		root.find(".rq-stats").html(
+			[1, 2, 3, 4]
+				.map(
+					() => `<div class="rq-stat dpx-skel" aria-hidden="true">
+						<i class="sk w50"></i><i class="sk w30" style="height:17px;margin-top:7px"></i>
+						<i class="sk w70" style="margin-top:6px"></i></div>`
+				)
+				.join("")
+		);
+		this.stage().attr("aria-busy", "true").html(
+			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+				<div class="sk-head">${["w20", "w10", "w8", "w12", "w10", "w12", "w10"]
+					.map((w) => `<i class="sk ${w}"></i>`)
+					.join("")}</div>
+				${[1, 2, 3]
+					.map(
+						() => `<div class="sk-line" style="padding:13px 12px">
+							<i class="sk" style="width:26%"></i><i class="sk w10"></i><i class="sk tag"></i>
+							<i class="sk chip"></i><i class="sk chip sm"></i><i class="sk chip"></i>
+							<i class="sk w8 right"></i></div>`
+					)
+					.join("")}
+			</div></div>`
 		);
 	}
 

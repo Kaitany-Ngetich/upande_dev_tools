@@ -16,6 +16,7 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 			.xcall("upande_dev_tools.api.dashboard.get_dashboard_data")
 			.then((data) => {
 				this.data = data || {};
+				this.stage().removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
 			})
@@ -94,10 +95,20 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 	}
 
 	skeleton() {
-		this.stage().html(
-			`<div class="dpx-card"><div class="dpx-bb-skel">${[88, 72, 94, 64, 80]
-				.map((w) => `<i style="width:${w}%"></i>`)
-				.join("")}</div></div>`
+		this.stage().attr("aria-busy", "true").html(
+			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+				<div class="sk-head">${["w20", "w12", "w8", "w8", "w12"]
+					.map((w) => `<i class="sk ${w}"></i>`)
+					.join("")}</div>
+				${[1, 2, 3, 4, 5, 6, 7, 8]
+					.map(
+						() => `<div class="sk-line">
+							<i class="sk dot"></i><i class="sk" style="width:22%"></i>
+							<i class="sk w12"></i><i class="sk w6"></i><i class="sk w6"></i>
+							<i class="sk chip right"></i></div>`
+					)
+					.join("")}
+			</div></div>`
 		);
 	}
 

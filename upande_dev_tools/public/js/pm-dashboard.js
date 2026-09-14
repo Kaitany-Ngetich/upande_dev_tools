@@ -23,6 +23,7 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 			.then(([health, team]) => {
 				this.health = health || {};
 				this.team = team || {};
+				this.stage().removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
 			})
@@ -97,10 +98,21 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 	}
 
 	skeleton() {
-		this.stage().html(
-			`<div class="dpx-card"><div class="dpx-bb-skel">${[84, 70, 92, 62]
-				.map((w) => `<i style="width:${w}%"></i>`)
-				.join("")}</div></div>`
+		$(this.wrapper).find(".pm-alerts").html(
+			`<div class="dpx-skel" aria-hidden="true"><i class="sk" style="height:35px;border-radius:9px"></i></div>`
+		);
+		this.stage().attr("aria-busy", "true").html(
+			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+				${[92, 74, 58, 40, 26]
+					.map(
+						(w) => `<div class="sk-line" style="padding:11px 14px;gap:10px">
+							<i class="sk dot" style="width:18px;height:18px"></i>
+							<i class="sk" style="width:110px"></i>
+							<i class="sk" style="flex:1;width:${w}%;height:7px"></i>
+							<i class="sk w8 right"></i></div>`
+					)
+					.join("")}
+			</div></div>`
 		);
 	}
 
