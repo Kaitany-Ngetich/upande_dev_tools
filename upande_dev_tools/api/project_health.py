@@ -1,7 +1,7 @@
 import json
 
 import frappe
-from frappe.utils import today
+from frappe.utils import getdate, today
 
 PM_ROLES = {"Projects Manager"}
 
@@ -72,7 +72,7 @@ def get_team_workload(project: str | None = None) -> dict:
 	_require_projects_manager()
 
 	task_filters: dict = {"project": project} if project else {}
-	day = today()
+	day = getdate()
 
 	open_tasks = frappe.get_all(
 		"Task",
@@ -98,9 +98,14 @@ def get_team_workload(project: str | None = None) -> dict:
 		for email in assignees:
 			bucket = _bucket(email)
 			bucket["open_tasks"] += 1
-			if task.get("custom_planned_for") == day:
+			# frappe.get_all returns Date-fieldtype columns as datetime.date, not the string
+			# today() gives - normalize both sides with getdate() rather than compare
+			# directly, or these checks silently never match (found against real imported
+			# data, where every row has a real exp_end_date/custom_planned_for; the unit
+			# tests missed it because the synthetic fixtures never set exp_end_date at all).
+			if task.get("custom_planned_for") and getdate(task["custom_planned_for"]) == day:
 				bucket["due_today"] += 1
-			if task.get("exp_end_date") and task["exp_end_date"] < day:
+			if task.get("exp_end_date") and getdate(task["exp_end_date"]) < day:
 				bucket["overdue"] += 1
 
 	incoming_requests = frappe.get_all(
