@@ -145,6 +145,33 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		board = get_backlog_board(project=project)
 		self.assertIn(created["name"], [r["name"] for r in board["requests"]])
 
+	def test_get_backlog_board_shows_requester_and_assignee(self) -> None:
+		# Needs "Projects User" too - create_request checks read permission on a caller-supplied
+		# project (see test_triage_and_promote_normal_request's identical note).
+		dev = self._make_user("dev-board-assignee@example.test", ["Dev Team", "Projects User"])
+		project = self._make_project()
+
+		frappe.set_user(dev)
+		try:
+			created = create_request(title="Needs an owner shown", request_type="Bug", project=project)
+		finally:
+			frappe.set_user("Administrator")
+
+		task = frappe.get_doc(
+			{"doctype": "Task", "subject": "Board task with an owner", "project": project}
+		)
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
+
+		board = get_backlog_board(project=project)
+
+		request_row = next(r for r in board["requests"] if r["name"] == created["name"])
+		self.assertEqual(request_row["requested_by"], frappe.db.get_value("User", dev, "full_name"))
+
+		task_row = next(t for t in board["tasks"] if t["name"] == task.name)
+		self.assertEqual(task_row["assigned_to"], [frappe.db.get_value("User", dev, "full_name")])
+
 	def test_get_backlog_board_denies_outsider_without_project(self) -> None:
 		outsider = self._make_user("outsider-board@example.test", [])
 		frappe.set_user(outsider)

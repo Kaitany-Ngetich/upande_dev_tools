@@ -24,7 +24,16 @@ frappe.ready(function() {
 	var project = {{ project | tojson }};
 	var args = project ? {project: project} : {};
 
-	function renderColumns(root, rows, groupField, cardFields) {
+	function metaLine(text) {
+		var line = document.createElement("div");
+		line.style.fontSize = "12px";
+		line.style.opacity = "0.75";
+		line.style.marginTop = "2px";
+		line.textContent = text;
+		return line;
+	}
+
+	function renderColumns(root, rows, groupField, renderCardBody) {
 		root.innerHTML = "";
 		var groups = {};
 		var order = [];
@@ -42,7 +51,7 @@ frappe.ready(function() {
 		wrap.style.overflowX = "auto";
 		order.forEach(function(key) {
 			var col = document.createElement("div");
-			col.style.minWidth = "220px";
+			col.style.minWidth = "240px";
 			var hd = document.createElement("div");
 			hd.className = "group-lbl";
 			hd.textContent = key + " (" + groups[key].length + ")";
@@ -52,7 +61,7 @@ frappe.ready(function() {
 				card.className = "pill";
 				card.style.display = "block";
 				card.style.marginBottom = "8px";
-				card.textContent = cardFields.map(function(f) { return row[f]; }).filter(Boolean).join(" — ");
+				renderCardBody(card, row);
 				col.appendChild(card);
 			});
 			wrap.appendChild(col);
@@ -60,10 +69,25 @@ frappe.ready(function() {
 		root.appendChild(wrap);
 	}
 
+	function renderRequestCard(card, row) {
+		var title = document.createElement("div");
+		title.textContent = [row.title, row.priority].filter(Boolean).join(" — ");
+		card.appendChild(title);
+		card.appendChild(metaLine("Requested by: " + (row.requested_by || "—")));
+	}
+
+	function renderTaskCard(card, row) {
+		var title = document.createElement("div");
+		title.textContent = [row.subject, row.priority].filter(Boolean).join(" — ");
+		card.appendChild(title);
+		var assignees = row.assigned_to || [];
+		card.appendChild(metaLine("Assigned to: " + (assignees.length ? assignees.join(", ") : "Unassigned")));
+	}
+
 	frappe.call({method: "upande_dev_tools.api.requests.get_backlog_board", args: args}).then(function(r) {
 		var data = r.message || {tasks: [], requests: []};
-		renderColumns(document.querySelector("#board-requests"), data.requests || [], "workflow_state", ["title", "priority"]);
-		renderColumns(document.querySelector("#board-tasks"), data.tasks || [], "status", ["subject", "priority"]);
+		renderColumns(document.querySelector("#board-requests"), data.requests || [], "workflow_state", renderRequestCard);
+		renderColumns(document.querySelector("#board-tasks"), data.tasks || [], "status", renderTaskCard);
 	});
 });
 </script>

@@ -1,7 +1,16 @@
+import json
+
 import frappe
 from frappe import _
 
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
+
+
+def _resolve_user_display_names(emails: set[str]) -> dict[str, str]:
+	if not emails:
+		return {}
+	rows = frappe.get_all("User", filters={"name": ["in", list(emails)]}, fields=["name", "full_name"])
+	return {row.name: row.full_name or row.name for row in rows}
 
 
 @frappe.whitelist()
@@ -131,6 +140,7 @@ def get_backlog_board(project: str | None = None) -> dict:
 			"custom_request",
 			"custom_planned_for",
 			"exp_end_date",
+			"_assign",
 		],
 		order_by="priority desc, exp_end_date asc",
 		ignore_permissions=True,
@@ -138,9 +148,51 @@ def get_backlog_board(project: str | None = None) -> dict:
 	requests = frappe.get_all(
 		"Request",
 		filters=filters,
-		fields=["name", "title", "request_type", "workflow_state", "priority", "project", "linked_task"],
+		fields=[
+			"name",
+			"title",
+			"request_type",
+			"workflow_state",
+			"priority",
+			"project",
+			"linked_task",
+			"raised_by_user",
+			"raised_by_employee",
+			"raised_by_contact",
+		],
 		ignore_permissions=True,
 	)
+
+	# Backlog Board's whole point is to read like the source spreadsheet did - owner and
+	# requester visible on every card, not just title/priority. _assign is a JSON-encoded
+	# list of user emails; resolve to full names once in bulk rather than per-row.
+	assignee_emails: set[str] = set()
+	for task in tasks:
+		task["_assign"] = json.loads(task["_assign"]) if task.get("_assign") else []
+		assignee_emails.update(task["_assign"])
+	user_names = _resolve_user_display_names(assignee_emails)
+	for task in tasks:
+		task["assigned_to"] = [user_names.get(email, email) for email in task["_assign"]]
+
+	requester_user_emails = {r["raised_by_user"] for r in requests if r.get("raised_by_user")}
+	requester_names = _resolve_user_display_names(requester_user_emails)
+	employee_ids = {r["raised_by_employee"] for r in requests if r.get("raised_by_employee")}
+	employee_names: dict[str, str] = {}
+	if employee_ids:
+		employee_rows = frappe.get_all(
+			"Employee", filters={"name": ["in", list(employee_ids)]}, fields=["name", "employee_name"]
+		)
+		employee_names = {row.name: row.employee_name for row in employee_rows}
+	for req in requests:
+		if req.get("raised_by_employee"):
+			req["requested_by"] = employee_names.get(req["raised_by_employee"], req["raised_by_employee"])
+		elif req.get("raised_by_user"):
+			req["requested_by"] = requester_names.get(req["raised_by_user"], req["raised_by_user"])
+		elif req.get("raised_by_contact"):
+			req["requested_by"] = req["raised_by_contact"]
+		else:
+			req["requested_by"] = None
+
 	return {"tasks": tasks, "requests": requests}
 
 
