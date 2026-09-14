@@ -83,7 +83,11 @@ function boot() {
 	assert.strictEqual($(root).find('.dpx-bb-drop[data-stage="Todo"] .dpx-bb-col-blank').length, 1, "empty stage still drawn");
 	assert.strictEqual($(root).find('.dpx-bb-card[data-id="Request:REQ-03"]').attr("draggable"), undefined, "workflow-governed requests are not draggable");
 	assert.strictEqual($(root).find('.dpx-bb-card[data-id="Task:TASK-01"]').attr("draggable"), "true");
-	assert.ok($(root).find('.dpx-bb-card[data-id="Task:TASK-01"]').hasClass("p3"), "urgent gets the heaviest rule");
+	assert.strictEqual(
+		$(root).find('.dpx-bb-card[data-id="Task:TASK-01"] .dpx-bb-pri.p3').length,
+		1,
+		"urgent reads as a filled dot, not a left rule"
+	);
 	assert.ok($(root).find('.dpx-bb-card[data-id="Issue:ISS-02"] .d').hasClass("late"));
 	assert.ok($(root).find(".dpx-bb-count").text().includes("4 of 9 loaded"), "load cap is stated");
 
@@ -105,6 +109,27 @@ function boot() {
 		$(root).find('tbody a[href="/app/issue/ISS-02"]').length === 1,
 		"list links into the desk form"
 	);
+
+	// ── Sheet ──
+	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
+	assert.strictEqual($(root).find(".dpx-bb-sheet tbody tr").length, 4);
+	assert.strictEqual($(root).find(".dpx-bb-sheet thead th").length, 11, "row number plus ten columns");
+	assert.strictEqual(
+		$(root).find('.dpx-bb-sheet tr[data-id="Request:REQ-03"] td.ed').length,
+		0,
+		"workflow-governed requests have no editable cells"
+	);
+	assert.ok($(root).find('.dpx-bb-sheet tr[data-id="Task:TASK-01"] td.ed').length >= 3);
+	assert.strictEqual($(root).find(".dpx-bb-pri.p3").length, 1, "urgent reads as a filled dot");
+	assert.strictEqual($(root).find("[class*='dpx-bb-row'][style*='border-left']").length, 0);
+
+	// Sorting by a column header reorders the rows.
+	$(root).find('.dpx-bb-sheet thead th[data-key="title"]').trigger("click");
+	const titles = $(root)
+		.find(".dpx-bb-sheet tbody tr td:nth-child(4)")
+		.toArray()
+		.map((td) => $(td).text().trim());
+	assert.deepStrictEqual(titles, [...titles].sort(), "title column sorts ascending");
 
 	// ── Timeline ──
 	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
@@ -131,6 +156,16 @@ function boot() {
 	board.move("Task:TASK-01", "Blocked");
 	assert.strictEqual(board.items.find((i) => i.name === "TASK-01").stage, "Blocked");
 	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_stage");
+
+	// ── Editing a sheet cell saves through set_stage (mutates state, so it runs last) ──
+	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
+	const cell = $(root).find('.dpx-bb-sheet tr[data-id="Task:TASK-04"] td[data-field="priority"]');
+	cell.trigger("click");
+	assert.strictEqual(cell.find("select").length, 1, "priority cell becomes a dropdown");
+	cell.find("select").val("Low").trigger("change");
+	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_field");
+	assert.strictEqual(calls[calls.length - 1].args.field, "priority");
+	assert.strictEqual(calls[calls.length - 1].args.value, "Low");
 
 	console.log("backlog-board: all checks passed");
 })().catch((e) => {

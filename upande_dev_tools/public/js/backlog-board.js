@@ -5,6 +5,19 @@ const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const ZOOM = { weeks: 13, months: 4 };
 const PAGE = 60;
+const RANK = { Low: 1, Medium: 2, High: 3, Urgent: 4 };
+const COLUMNS = [
+	{ key: "doctype", label: "Type", w: 62 },
+	{ key: "name", label: "ID", w: 128 },
+	{ key: "title", label: "Work item", w: 300 },
+	{ key: "stage", label: "Stage", w: 116, edit: true },
+	{ key: "status", label: "Status", w: 116 },
+	{ key: "priority", label: "Priority", w: 92, edit: true },
+	{ key: "assignees", label: "Assigned to", w: 168 },
+	{ key: "project", label: "Project", w: 132 },
+	{ key: "start", label: "Start", w: 96, edit: true },
+	{ key: "end", label: "Due", w: 96, edit: true },
+];
 
 upande_dev_tools.BacklogBoard = class BacklogBoard {
 	constructor(wrapper, project) {
@@ -15,6 +28,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.total = 0;
 		this.view = "board";
 		this.group_by = "stage";
+		this.sort = { key: "rank", dir: -1 };
 		this.zoom = "weeks";
 		this.shut = new Set();
 		this.limit = PAGE;
@@ -42,6 +56,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						<button data-view="board" class="on">Board</button>
 						<button data-view="list">List</button>
 						<button data-view="timeline">Timeline</button>
+						<button data-view="sheet">Sheet</button>
 					</div>
 					<input type="search" class="dpx-bb-field dpx-bb-search" data-f="q"
 						placeholder="Search work items" aria-label="Search work items">
@@ -124,6 +139,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const stage = $(this.wrapper).find(".bb-stage");
 		if (this.view === "board") this.render_board(stage, rows);
 		else if (this.view === "list") this.render_list(stage, rows);
+		else if (this.view === "sheet") this.render_sheet(stage, rows);
 		else this.render_timeline(stage, rows);
 	}
 
@@ -294,6 +310,91 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		`);
 	}
 
+	render_sheet(stage, rows) {
+		if (!rows.length) return stage.html(blank("Nothing here yet", empty_hint(this.filters)));
+
+		const sorted = rows.slice().sort(compare(this.sort));
+		stage.html(`
+			<div class="dpx-bb-sheet"><table>
+				<thead><tr><th class="rn"></th>${COLUMNS.map(
+					(col) =>
+						`<th data-key="${col.key}" style="min-width:${col.w}px"><span>${col.label}${
+							this.sort.key === col.key
+								? `<i class="sort">${this.sort.dir > 0 ? "▲" : "▼"}</i>`
+								: ""
+						}</span></th>`
+				).join("")}</tr></thead>
+				<tbody>${sorted.map((item, i) => sheet_row(item, i)).join("")}</tbody>
+			</table></div>
+			<div class="dpx-bb-sheetbar">${sorted.length} rows · click a stage, priority or date cell to edit</div>
+		`);
+
+		stage.find("thead th[data-key]").on("click", (e) => {
+			const key = $(e.currentTarget).data("key");
+			this.sort = { key, dir: this.sort.key === key ? -this.sort.dir : 1 };
+			this.render();
+		});
+		stage.find("td.ed").on("click", (e) => this.edit_cell($(e.currentTarget)));
+	}
+
+	edit_cell(td) {
+		if (td.find("select,input").length) return;
+
+		const item = this.items.find((row) => `${row.doctype}:${row.name}` === td.closest("tr").data("id"));
+		const field = td.data("field");
+		if (!item) return;
+
+		const editor =
+			field === "stage"
+				? `<select>${this.stages.map((s) => option(s, item.stage)).join("")}</select>`
+				: field === "priority"
+					? `<select>${["", "Low", "Medium", "High", "Urgent"]
+							.map((p) => option(p, item.priority || ""))
+							.join("")}</select>`
+					: `<input type="date" value="${esc(item[field] || "")}">`;
+
+		const previous = td.html();
+		td.addClass("on").html(editor);
+		const input = td.find("select,input").trigger("focus");
+
+		const commit = () => {
+			const value = input.val();
+			const current = field === "priority" ? item.priority || "" : item[field] || "";
+			if (value === current) return this.render();
+			td.removeClass("on").addClass("saving").html(previous);
+			this.save_cell(item, field, value);
+		};
+		input.on("change", commit);
+		input.on("blur", () => {
+			if (!td.hasClass("saving")) this.render();
+		});
+		input.on("keydown", (e) => {
+			if (e.key === "Enter") commit();
+			if (e.key === "Escape") this.render();
+		});
+	}
+
+	save_cell(item, field, value) {
+		const previous = { ...item };
+		if (field === "stage") item.stage = value;
+		else item[field] = value;
+		if (field === "priority") item.rank = RANK[value] || 0;
+
+		const call =
+			field === "stage"
+				? { method: "upande_dev_tools.api.board.set_stage", args: { doctype: item.doctype, name: item.name, stage: value } }
+				: { method: "upande_dev_tools.api.board.set_field", args: { doctype: item.doctype, name: item.name, field, value } };
+
+		frappe
+			.call(call)
+			.then(() => this.load())
+			.catch(() => {
+				Object.assign(item, previous);
+				this.render();
+				frappe.show_alert({ message: __("Could not save that cell."), indicator: "red" });
+			});
+	}
+
 	render_timeline(stage, rows) {
 		const dated = rows.filter((item) => item.start || item.end);
 		if (!dated.length) {
@@ -366,12 +467,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 };
 
 function card(item) {
-	const cls = [`dpx-bb-card p${item.rank - 1}`];
+	const cls = ["dpx-bb-card"];
 	if (!item.movable) cls.push("locked");
 	return `
 		<div class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}"
 			${item.movable ? 'draggable="true"' : ""}>
-			<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
+			<div class="hd">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span></div>
 			<div class="t">${esc(item.title)}</div>
 			<div class="m">
 				${people(item)}
@@ -381,11 +482,11 @@ function card(item) {
 }
 
 function list_row(item) {
-	const cls = [`dpx-bb-row p${item.rank - 1}`];
+	const cls = ["dpx-bb-row"];
 	if (item.stage === "Done") cls.push("done");
 	return `
 		<tr class="${cls.join(" ")}">
-			<td><div class="subj"><span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
+			<td><div class="subj">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				<a href="${link(item)}">${esc(item.title)}</a></div></td>
 			<td><span class="dpx-bb-dot st-${slug(item.stage)}"></span>${esc(item.stage)}</td>
 			<td class="opt">${esc(item.priority || "—")}</td>
@@ -410,6 +511,51 @@ function tl_row({ item, start, end }, x, width) {
 				<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>
 			</div>
 		</div>`;
+}
+
+function sheet_row(item, index) {
+	const cells = COLUMNS.map((col) => {
+		const editable = col.edit && item.movable;
+		const attrs = `class="${editable ? "ed" : ""}" data-field="${col.key}"`;
+		if (col.key === "title")
+			return `<td ${attrs}><a class="cell" href="${link(item)}">${esc(item.title)}</a></td>`;
+		if (col.key === "doctype")
+			return `<td ${attrs}><div class="cell">${pri(item)}${SOURCES[item.doctype]}</div></td>`;
+		if (col.key === "stage")
+			return `<td ${attrs}><div class="cell"><span class="dpx-bb-dot st-${slug(item.stage)}"></span>${esc(item.stage)}</div></td>`;
+		if (col.key === "assignees")
+			return `<td ${attrs}><div class="cell">${esc(item.assignees.join(", ") || "—")}</div></td>`;
+		if (col.key === "start" || col.key === "end")
+			return `<td ${attrs}><div class="cell mono${
+				col.key === "end" && item.late ? " late" : ""
+			}">${esc(item[col.key] || "—")}</div></td>`;
+		return `<td ${attrs}><div class="cell">${esc(item[col.key] || "—")}</div></td>`;
+	});
+	return `<tr class="${item.stage === "Done" ? "done" : ""}" data-id="${esc(item.doctype)}:${esc(
+		item.name
+	)}"><td class="rn">${index + 1}</td>${cells.join("")}</tr>`;
+}
+
+function compare({ key, dir }) {
+	return (a, b) => {
+		const x = key === "assignees" ? a.assignees.join() : a[key];
+		const y = key === "assignees" ? b.assignees.join() : b[key];
+		if (x === y) return 0;
+		if (!x) return 1;
+		if (!y) return -1;
+		return (x > y ? 1 : -1) * dir;
+	};
+}
+
+function option(value, selected) {
+	return `<option value="${esc(value)}"${value === selected ? " selected" : ""}>${
+		esc(value) || "—"
+	}</option>`;
+}
+
+function pri(item) {
+	const label = item.priority || "No priority";
+	return `<span class="dpx-bb-pri p${item.rank - 1}" title="${esc(label)}"></span>`;
 }
 
 function people(item) {

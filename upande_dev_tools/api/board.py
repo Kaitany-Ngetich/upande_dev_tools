@@ -59,6 +59,11 @@ REQUEST_STAGE = {
 
 STAGE_SETTERS = {"Task": (TASK_STATUS, "status"), "Issue": (ISSUE_STATUS, "status")}
 
+EDITABLE = {
+	"Task": {"priority": "priority", "start": "exp_start_date", "end": "exp_end_date"},
+	"Issue": {"priority": "priority", "start": "opening_date", "end": "sla_resolution_by"},
+}
+
 
 @frappe.whitelist()
 def get_board(project: str | None = None, limit: int = BOARD_LIMIT) -> dict:
@@ -220,3 +225,32 @@ def set_stage(doctype: str, name: str, stage: str) -> dict:
 	doc.set(fieldname, status)
 	doc.save()
 	return {"name": name, "status": status, "stage": stage}
+
+
+@frappe.whitelist()
+def set_field(doctype: str, name: str, field: str, value: str | None = None) -> dict:
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	fields = EDITABLE.get(doctype)
+	if not fields or field not in fields:
+		frappe.throw(_("{0} cannot be edited from the board.").format(field), frappe.ValidationError)
+
+	if field == "priority" and value and value not in PRIORITY_RANK:
+		frappe.throw(_("Unknown priority {0}.").format(value), frappe.ValidationError)
+
+	fieldname = fields[field]
+	doc = frappe.get_doc(doctype, name)
+	doc.set(fieldname, _coerce(doc.meta.get_field(fieldname).fieldtype, value))
+	doc.save()
+	return {"name": name, "field": field, "value": value or ""}
+
+
+def _coerce(fieldtype: str, value: str | None):
+	if not value:
+		return None
+	if fieldtype == "Datetime":
+		return f"{getdate(value)} 17:00:00"
+	if fieldtype == "Date":
+		return getdate(value)
+	return value

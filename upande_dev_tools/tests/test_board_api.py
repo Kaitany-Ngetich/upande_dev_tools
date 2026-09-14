@@ -4,7 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
-from upande_dev_tools.api.board import STAGES, get_board, set_stage
+from upande_dev_tools.api.board import STAGES, get_board, set_field, set_stage
 
 
 class IntegrationTestBoardApi(IntegrationTestCase):
@@ -133,6 +133,58 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		task = self._task(self._project())
 		with self.assertRaises(frappe.ValidationError):
 			set_stage("Task", task, "Not A Stage")
+
+	def test_set_field_edits_a_task_priority_and_due_date(self) -> None:
+		task = self._task(self._project())
+		set_field("Task", task, "priority", "Urgent")
+		set_field("Task", task, "end", add_days(today(), 7))
+		row = frappe.db.get_value("Task", task, ["priority", "exp_end_date"], as_dict=True)
+		self.assertEqual(row.priority, "Urgent")
+		# exp_end_date is a Datetime on some benches and a Date on others
+		self.assertTrue(str(row.exp_end_date).startswith(add_days(today(), 7)))
+
+	def test_an_edited_date_reads_back_as_a_plain_date(self) -> None:
+		project = self._project()
+		task = self._task(project)
+		set_field("Task", task, "end", add_days(today(), 5))
+		item = next(i for i in get_board(project=project)["items"] if i["name"] == task)
+		self.assertEqual(item["end"], add_days(today(), 5))
+
+	def test_set_field_writes_an_issue_resolution_as_a_datetime(self) -> None:
+		issue = self._issue(self._project())
+		set_field("Issue", issue, "end", add_days(today(), 4))
+		self.assertTrue(
+			str(frappe.db.get_value("Issue", issue, "sla_resolution_by")).startswith(
+				add_days(today(), 4)
+			)
+		)
+
+	def test_set_field_refuses_a_field_that_is_not_editable(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			set_field("Task", task, "subject", "Renamed from the board")
+
+	def test_set_field_refuses_a_workflow_governed_request(self) -> None:
+		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
+			ignore_permissions=True
+		)
+		with self.assertRaises(frappe.ValidationError):
+			set_field("Request", request.name, "priority", "High")
+
+	def test_set_field_rejects_an_unknown_priority(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			set_field("Task", task, "priority", "Whenever")
+
+	def test_set_field_denies_users_without_a_board_role(self) -> None:
+		task = self._task(self._project())
+		outsider = self._user("board-editor@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				set_field("Task", task, "priority", "High")
+		finally:
+			frappe.set_user("Administrator")
 
 	def test_set_stage_denies_users_without_a_board_role(self) -> None:
 		task = self._task(self._project())
