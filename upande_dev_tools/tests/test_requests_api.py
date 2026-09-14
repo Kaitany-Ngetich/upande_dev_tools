@@ -8,6 +8,7 @@ from frappe.utils import add_to_date, now_datetime, today
 from upande_dev_tools.api.requests import (
 	create_request,
 	get_backlog_board,
+	get_developer_backlog,
 	get_my_day,
 	get_my_requests,
 	get_review_queue,
@@ -246,5 +247,49 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				get_my_day(user=dev)
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_get_developer_backlog_includes_open_tasks_regardless_of_planned_date(self) -> None:
+		dev = self._make_user("dev-backlog-owner@example.test", ["Dev Team"])
+		project = self._make_project()
+
+		task = frappe.get_doc(
+			{
+				"doctype": "Task",
+				"subject": "Not planned for today, still open",
+				"project": project,
+				"status": "Open",
+			}
+		)
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
+
+		done_task = frappe.get_doc(
+			{"doctype": "Task", "subject": "Already done", "project": project, "status": "Completed"}
+		)
+		done_task.flags.ignore_recursion_check = True
+		done_task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": done_task.name, "assign_to": [dev]})
+
+		frappe.set_user(dev)
+		try:
+			backlog = get_developer_backlog()
+		finally:
+			frappe.set_user("Administrator")
+
+		names = [t["name"] for t in backlog]
+		self.assertIn(task.name, names)
+		self.assertNotIn(done_task.name, names)
+
+	def test_get_developer_backlog_denies_viewing_another_users_backlog(self) -> None:
+		dev = self._make_user("dev-backlog-viewee@example.test", ["Dev Team"])
+		outsider = self._make_user("outsider-backlog@example.test", [])
+
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_developer_backlog(user=dev)
 		finally:
 			frappe.set_user("Administrator")

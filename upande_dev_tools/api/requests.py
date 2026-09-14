@@ -267,3 +267,28 @@ def get_my_day(user: str | None = None) -> dict:
 	)
 	meetings = get_upcoming_meetings(for_user=user, within_days=1)
 	return {"date": day, "tasks": tasks, "meetings": meetings}
+
+
+@frappe.whitelist()
+def get_developer_backlog(user: str | None = None, project: str | None = None) -> list[dict]:
+	"""Every open (not Completed/Cancelled) task assigned to a developer, not just today's -
+	the "for more than the day" view My Day deliberately doesn't provide, so a PM can see the
+	whole of someone's plate, not just what's due today."""
+	user = user or frappe.session.user
+	if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	filters: list = [
+		["_assign", "like", f"%{user}%"],
+		["status", "not in", ["Completed", "Cancelled"]],
+	]
+	if project:
+		filters.append(["project", "=", project])
+
+	return frappe.get_all(
+		"Task",
+		filters=filters,
+		fields=["name", "subject", "status", "priority", "project", "custom_planned_for", "exp_end_date"],
+		order_by="custom_planned_for asc, priority desc",
+		ignore_permissions=True,
+	)
