@@ -44,10 +44,16 @@ function boot() {
 
 	const calls = [];
 	window.$ = $;
+
+	// The page loads this file before frappe-web.bundle.js, so nothing may touch
+	// `frappe` at load time.
+	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), { filename: SOURCE });
+	assert.ok(
+		window.upande_dev_tools && window.upande_dev_tools.BacklogBoard,
+		"board must define itself without frappe on the page yet"
+	);
+
 	window.frappe = {
-		provide(namespace) {
-			namespace.split(".").reduce((obj, key) => (obj[key] = obj[key] || {}), window);
-		},
 		call(opts) {
 			calls.push(opts);
 			return Promise.resolve({ message: { items: ITEMS, total: 9, stages: ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"] } });
@@ -58,8 +64,6 @@ function boot() {
 		datetime: { get_today: () => "2026-09-14" },
 	};
 	window.__ = (v) => v;
-
-	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), { filename: SOURCE });
 	return { window, $, calls };
 }
 

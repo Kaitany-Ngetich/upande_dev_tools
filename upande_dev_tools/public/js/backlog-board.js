@@ -1,4 +1,4 @@
-frappe.provide("upande_dev_tools");
+window.upande_dev_tools = window.upande_dev_tools || {};
 
 const DAY = 86400000;
 const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
@@ -338,7 +338,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			}
 		}
 
-		const now = date_of(frappe.datetime.get_today());
+		const now = date_of(today());
 		const today_line =
 			now >= first && now <= last
 				? `<div class="dpx-bb-today" style="left:${x(now)}px"></div>`
@@ -433,7 +433,7 @@ function empty_hint(filters) {
 }
 
 function link(item) {
-	return `/app/${frappe.router.slug(item.doctype)}/${encodeURIComponent(item.name)}`;
+	return `/app/${slug(item.doctype)}/${encodeURIComponent(item.name)}`;
 }
 
 function initials(name) {
@@ -447,6 +447,11 @@ function initials(name) {
 
 function slug(stage) {
 	return stage.toLowerCase().replace(/\s+/g, "-");
+}
+
+function today() {
+	if (frappe.datetime && frappe.datetime.get_today) return frappe.datetime.get_today();
+	return new Date().toISOString().slice(0, 10);
 }
 
 function date_of(value) {
