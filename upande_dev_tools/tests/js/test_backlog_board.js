@@ -13,6 +13,36 @@ try {
 }
 
 const SOURCE = path.join(__dirname, "../../public/js/backlog-board.js");
+const STYLES = path.join(__dirname, "../../public/css/dev-portal.css");
+
+// jsdom does not cascade, so a class defined twice with incompatible layout
+// silently breaks the page and passes every render assertion. Catch it here:
+// the timeline bar and the toolbar were both .dpx-bb-bar, which turned the
+// toolbar into an absolutely positioned 14px strip.
+function assert_no_layout_collisions() {
+	const css = fs.readFileSync(STYLES, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+	const seen = {};
+	let block = 0;
+	for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+		block += 1;
+		if (selectors.includes("@")) continue;
+		const absolute = /(?:^|;)\s*position\s*:\s*(?:absolute|fixed)/.test(body);
+		const flow = /(?:^|;)\s*display\s*:\s*(?!none)[\w-]+/.test(body);
+		if (!absolute && !flow) continue;
+		for (const selector of selectors.split(",")) {
+			const parts = selector.trim().split(/\s+/);
+			const last = parts[parts.length - 1];
+			if (!/^\.[\w-]+$/.test(last)) continue;
+			const rec = (seen[last] = seen[last] || { absolute: new Set(), flow: new Set() });
+			if (absolute) rec.absolute.add(block);
+			if (flow) rec.flow.add(block);
+		}
+	}
+	for (const [cls, rec] of Object.entries(seen)) {
+		const clash = [...rec.absolute].some((b) => [...rec.flow].some((o) => o !== b));
+		assert.ok(!clash, `${cls} is taken out of flow in one rule and laid out in another - two components share the class`);
+	}
+}
 
 const ITEMS = [
 	{
@@ -76,6 +106,8 @@ function boot() {
 }
 
 (async () => {
+	assert_no_layout_collisions();
+
 	const { window, $, calls } = boot();
 	const root = window.document.getElementById("root");
 	const board = new window.upande_dev_tools.BacklogBoard(root, null);
@@ -148,12 +180,12 @@ function boot() {
 	assert.ok($(root).find(".dpx-bb-mo").length >= 2, "month bands span Aug through Oct");
 
 	// Geometry: first row starts left of the second, and bars never run backwards.
-	const lefts = rows.toArray().map((r) => parseInt($(r).find(".dpx-bb-bar").css("left"), 10));
-	const widths = rows.toArray().map((r) => parseInt($(r).find(".dpx-bb-bar").css("width"), 10));
+	const lefts = rows.toArray().map((r) => parseInt($(r).find(".dpx-bb-tlbar").css("left"), 10));
+	const widths = rows.toArray().map((r) => parseInt($(r).find(".dpx-bb-tlbar").css("width"), 10));
 	assert.deepStrictEqual(lefts, [...lefts].sort((a, b) => a - b), "rows sorted by start date");
 	assert.ok(widths.every((w) => w >= 5), "every bar has a visible width");
-	assert.ok($(root).find(".dpx-bb-tl-row .dpx-bb-bar.done").length === 1);
-	assert.ok($(root).find(".dpx-bb-tl-row .dpx-bb-bar.late").length === 1);
+	assert.ok($(root).find(".dpx-bb-tl-row .dpx-bb-tlbar.done").length === 1);
+	assert.ok($(root).find(".dpx-bb-tl-row .dpx-bb-tlbar.late").length === 1);
 
 	// ── Empty state when the filter excludes everything ──
 	$(root).find('[data-f="q"]').val("zzzz").trigger("input");

@@ -59,6 +59,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	render_shell() {
 		$(this.wrapper).html(`
 			<div class="dpx-board">
+				<p class="dpx-bb-lede">Tasks, issues and requests in one pipeline.</p>
 				<div class="dpx-bb-bar">
 					<div class="dpx-bb-views">
 						<button data-view="board" class="on">Board</button>
@@ -515,7 +516,7 @@ function tl_row({ item, start, end }, x, width) {
 			<div class="name"><span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a></div>
 			<div class="track" style="width:${width}px">
-				<div class="dpx-bb-bar ${cls}" style="left:${left}px;width:${bar_w}px"
+				<div class="dpx-bb-tlbar ${cls}" style="left:${left}px;width:${bar_w}px"
 					title="${esc(item.title)} · ${label}"></div>
 				<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>
 			</div>
