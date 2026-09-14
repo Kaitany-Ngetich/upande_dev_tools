@@ -1,4 +1,5 @@
-# Copyright (c) 2026, Upande Limited
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
 
 import frappe
 from frappe.desk.form.assign_to import add as add_assignment
@@ -121,17 +122,11 @@ class IntegrationTestProjectHealthApi(IntegrationTestCase):
 		promote_to_task(created["name"])
 		req_doc = frappe.get_doc("Request", created["name"])
 
-		# add_assignment (like every other use of it in this suite) runs as Administrator -
-		# "Projects Manager" has no DocPerm read access to Task on this bench, and assigning
-		# a task is a real Dev Team/admin action in production, not something this test needs
-		# the PM persona itself to be able to do.
+		# runs as Administrator - Projects Manager has no DocPerm read access to Task here.
 		frappe.set_user("Administrator")
 		add_assignment({"doctype": "Task", "name": req_doc.linked_task, "assign_to": [dev]})
-		# Real dates, not just "any truthy value" - frappe.get_all returns Date-fieldtype
-		# columns as datetime.date, not the string today() gives; a comparison bug that
-		# compares them directly (instead of normalizing both with getdate()) silently never
-		# matches, so exercise it here rather than relying on a synthetic fixture that never
-		# sets these fields at all.
+		# Real dates, not just truthy values - exercises the datetime.date vs string
+		# comparison bug in get_team_workload.
 		frappe.db.set_value("Task", req_doc.linked_task, "custom_planned_for", today())
 		frappe.db.set_value("Task", req_doc.linked_task, "exp_end_date", add_days(today(), -2))
 

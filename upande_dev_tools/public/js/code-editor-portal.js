@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
 let udt_editor = null;
@@ -138,7 +141,7 @@ function load_monaco() {
 
 		require(["vs/editor/editor.main"], function () {
 			udt_editor = monaco.editor.create(document.getElementById("editor"), {
-				value: "# Welcome to Upande Dev Tools Code Editor\n\nSelect an app from the dropdown.\nThen click a file from Explorer to open it here.\n",
+				value: "# Welcome to Dev Tools Code Editor\n\nSelect an app from the dropdown.\nThen click a file from Explorer to open it here.\n",
 				language: "python",
 				theme: "vs-dark",
 				automaticLayout: true,

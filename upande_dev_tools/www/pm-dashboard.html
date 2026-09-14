@@ -99,8 +99,6 @@ frappe.ready(function() {
 			kpiRoot.appendChild(kpiTile("Overdue Tasks", data.total_overdue_tasks));
 			kpiRoot.appendChild(kpiTile("Open Requests", data.total_open_requests));
 
-			// Keep the project filter's option list in sync with what's visible under the
-			// current scope, without clobbering a selection the PM already made.
 			var selected = projectFilter.value;
 			projectFilter.innerHTML = "";
 			var allOpt = document.createElement("option");

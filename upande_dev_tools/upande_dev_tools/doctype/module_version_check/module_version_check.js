@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 frappe.ui.form.on("Module Version Check", {
     refresh(frm) {
         frm.add_custom_button(__("Scan Installed Apps"), function () {

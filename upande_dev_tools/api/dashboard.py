@@ -1,3 +1,6 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+
 import frappe
 from frappe.utils import format_datetime, today, get_datetime
 from upande_dev_tools.api.hooks_summary import get_hooks_summary

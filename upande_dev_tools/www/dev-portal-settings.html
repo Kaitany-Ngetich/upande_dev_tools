@@ -24,8 +24,6 @@
 </div>
 <script>
 frappe.ready(function() {
-	// Roles are a real doctype (Role) - pick them from an actual list of what exists, never
-	// type a role name freehand from memory.
 	frappe.call({
 		method: "frappe.client.get_list",
 		args: {doctype: "Role", filters: {disabled: 0}, fields: ["name"], limit_page_length: 0, order_by: "name asc"}

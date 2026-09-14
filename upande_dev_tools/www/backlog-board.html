@@ -51,7 +51,6 @@ frappe.ready(function() {
 		return line;
 	}
 
-	// ── Tabs (Requests / Backlog) ──
 	document.querySelectorAll("#bb-tabs .dpx-tab").forEach(function(tab) {
 		tab.addEventListener("click", function() {
 			document.querySelectorAll("#bb-tabs .dpx-tab").forEach(function(t) { t.classList.remove("on"); });
@@ -62,7 +61,6 @@ frappe.ready(function() {
 		});
 	});
 
-	// ── View toggle (List / Kanban / Gantt), backlog tab only ──
 	document.querySelectorAll("#bb-view-toggle button").forEach(function(btn) {
 		btn.addEventListener("click", function() {
 			document.querySelectorAll("#bb-view-toggle button").forEach(function(b) { b.classList.remove("on"); });
@@ -72,7 +70,6 @@ frappe.ready(function() {
 		});
 	});
 
-	// ── Requests (list, grouped by workflow_state) ──
 	function renderRequestCard(card, row) {
 		var title = document.createElement("div");
 		title.textContent = [row.title, row.priority].filter(Boolean).join(" — ");
@@ -113,7 +110,6 @@ frappe.ready(function() {
 		root.appendChild(wrap);
 	}
 
-	// ── Backlog (Tasks): List / Kanban / Gantt ──
 	function taskCardLabel(row) {
 		var assignees = row.assigned_to || [];
 		return [row.subject, row.priority].filter(Boolean).join(" — ") +
@@ -219,7 +215,6 @@ frappe.ready(function() {
 		var ends = dated.map(function(t) { return new Date(t.exp_end_date || t.custom_planned_for); });
 		var minDate = new Date(Math.min.apply(null, starts));
 		var maxDate = new Date(Math.max.apply(null, ends));
-		// Pad the range by a day on each side so bars never touch the track's edge.
 		minDate.setDate(minDate.getDate() - 1);
 		maxDate.setDate(maxDate.getDate() + 1);
 		var totalMs = maxDate - minDate || 1;

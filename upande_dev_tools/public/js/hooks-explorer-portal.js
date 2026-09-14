@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
 upande_dev_tools_portal.mount_hooks_explorer = function (root) {

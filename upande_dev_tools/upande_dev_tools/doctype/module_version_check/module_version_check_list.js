@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 frappe.listview_settings["Module Version Check"] = {
     get_indicator: function (doc) {
         if (doc.status === "Stale") {

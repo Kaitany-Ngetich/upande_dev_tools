@@ -1,4 +1,5 @@
-// Copyright (c) 2026, Upande Limited
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
 // Selective Customization Export for Customize Form
 
 frappe.ui.form.on("Customize Form", {
@@ -7,14 +8,9 @@ frappe.ui.form.on("Customize Form", {
 			return;
 		}
 
-		/*
-		 * The standard Customize Form script adds its Export Customizations
-		 * button during refresh. Delay our replacement until that refresh
-		 * handler has finished.
-		 */
+		// The standard Customize Form refresh adds Export Customizations; defer past it.
 		setTimeout(() => {
-			// Read-only: works without developer mode, so it stays visible
-			// on sites (e.g. Frappe Cloud) where the bench isn't in dev mode.
+			// Read-only: works without developer_mode, so it stays visible on non-dev-mode sites.
 			frm.add_custom_button(
 				__("View All Customizations"),
 				() => show_all_customizations_dialog(frm),
@@ -66,9 +62,6 @@ async function show_selective_export_dialog(frm) {
 
 	let dialog;
 
-	// Pre-select the fields already present in the chosen module's files, so the
-	// developer sees what is already there, what is missing, and can uncheck
-	// anything that belongs elsewhere.
 	async function preselect_existing(dialog) {
 		dialog._preselected = [];
 		dialog.set_value("targets", []);

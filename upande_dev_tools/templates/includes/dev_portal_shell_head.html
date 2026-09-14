@@ -1,15 +1,4 @@
-{# Every dev portal page should include this from inside a `head_include` block override, not
-   from the page body: `templates/base.html` (which `templates/web.html` extends) defines a
-   real `head_include` block, so a page can do:
-
-     {% block head_include %}
-     	{{ super() }}
-     	{% include "templates/includes/dev_portal_shell_head.html" %}
-     {% endblock %}
-
-   That puts the stylesheet and font <link> tags in the actual document <head> (so preconnect
-   hints do what they're for, and the stylesheet is requested as early as possible) instead of
-   mid-<body>, where they still work but not as intended. #}
+{# Include from a `head_include` block override (block defined in templates/base.html), not the page body. #}
 <link href="/assets/upande_dev_tools/css/dev-portal.css" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

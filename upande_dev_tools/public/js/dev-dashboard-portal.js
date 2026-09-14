@@ -1,3 +1,6 @@
+// Copyright (c) 2026, Upande LTD and contributors
+// For license information, please see license.txt
+
 window.upande_dev_tools_portal = window.upande_dev_tools_portal || {};
 
 upande_dev_tools_portal.mount_dev_dashboard = function (root) {
@@ -205,7 +208,7 @@ upande_dev_tools_portal.mount_dev_dashboard = function (root) {
 
 		<div class="udt-dashboard">
 			<div class="udt-title">
-				<h2>Upande Dev Tools Dashboard</h2>
+				<h2>Dev Tools Dashboard</h2>
 				<p>Monitor code health, backups, hooks and site differences</p>
 			</div>
 

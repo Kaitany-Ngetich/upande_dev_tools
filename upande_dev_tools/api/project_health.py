@@ -1,3 +1,6 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+
 import json
 
 import frappe
@@ -5,9 +8,7 @@ from frappe.utils import getdate, today
 
 PM_ROLES = {"Projects Manager"}
 
-# Requests already accepted and either scheduled or being worked - the pool that's actually
-# headed to (or already with) a developer, as opposed to "Under Review"/"Deferred" which have
-# no assignee yet.
+# Requests already accepted and either scheduled or being worked (has an assignee).
 INCOMING_REQUEST_STATES = ["Scheduled", "In Progress"]
 
 
@@ -65,10 +66,6 @@ def get_project_health(scope: str | None = None) -> dict:
 
 @frappe.whitelist()
 def get_team_workload(project: str | None = None) -> dict:
-	"""Per-developer workload, open-vs-closed task totals, and incoming (accepted, not yet
-	shown as a specific dev's own day) request counts - the aggregate picture My Day/Backlog
-	Board give one dev or one project at a time, but no view previously gave across the whole
-	team at once."""
 	_require_projects_manager()
 
 	task_filters: dict = {"project": project} if project else {}
@@ -98,11 +95,8 @@ def get_team_workload(project: str | None = None) -> dict:
 		for email in assignees:
 			bucket = _bucket(email)
 			bucket["open_tasks"] += 1
-			# frappe.get_all returns Date-fieldtype columns as datetime.date, not the string
-			# today() gives - normalize both sides with getdate() rather than compare
-			# directly, or these checks silently never match (found against real imported
-			# data, where every row has a real exp_end_date/custom_planned_for; the unit
-			# tests missed it because the synthetic fixtures never set exp_end_date at all).
+			# get_all returns Date columns as datetime.date, not a string - use getdate() on
+			# both sides or these comparisons silently never match.
 			if task.get("custom_planned_for") and getdate(task["custom_planned_for"]) == day:
 				bucket["due_today"] += 1
 			if task.get("exp_end_date") and getdate(task["exp_end_date"]) < day:
