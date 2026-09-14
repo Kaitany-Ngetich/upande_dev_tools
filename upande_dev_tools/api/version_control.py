@@ -50,11 +50,23 @@ def get_repo_path(app_name):
 
 
 def get_current_branch(repo_path):
-	return run_git_command(
+	# `branch --show-current` prints nothing on a detached HEAD, which is how CI
+	# checkouts and tag-based deploys sit. Same DETACHED- shape the Module Version
+	# Check controller reports.
+	branch = run_git_command(
 		repo_path,
 		["branch", "--show-current"],
 		timeout=10,
 	)
+	if branch:
+		return branch
+
+	commit = run_git_command(
+		repo_path,
+		["rev-parse", "--short", "HEAD"],
+		timeout=10,
+	)
+	return f"DETACHED-{commit}"
 
 
 def get_upstream_branch(repo_path):
