@@ -31,7 +31,12 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 				icon.removeClass("spin");
 				$(this.wrapper)
 					.find(".bb-stage")
-					.html(pm_blank("Could not read the portfolio", String((e && e.message) || e) || "Reload to try again."));
+					.html(
+						pm_blank(
+							"Could not read the portfolio",
+							String((e && e.message) || e) || "Reload to try again."
+						)
+					);
 			});
 	}
 
@@ -92,7 +97,8 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 			this.load();
 		});
 		document.addEventListener("keydown", (e) => {
-			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
+			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || ""))
+				return;
 			this.load();
 		});
 	}
@@ -104,10 +110,15 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 	}
 
 	skeleton() {
-		$(this.wrapper).find(".bb-stage").attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true">
-				<div class="pm-kpis">${Array.from({ length: 6 }, () =>
-					`<div class="pm-kpi"><i class="sk w50"></i>
+		$(this.wrapper)
+			.find(".bb-stage")
+			.attr("aria-busy", "true")
+			.html(
+				`<div class="dpx-skel" aria-hidden="true">
+				<div class="pm-kpis">${Array.from(
+					{ length: 6 },
+					() =>
+						`<div class="pm-kpi"><i class="sk w50"></i>
 						<i class="sk" style="width:46%;height:20px;margin-top:9px"></i>
 						<i class="sk w70" style="margin-top:8px"></i></div>`
 				).join("")}</div>
@@ -118,22 +129,22 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 						${[1, 2, 3, 4].map(() => '<i class="sk w90" style="margin-bottom:9px"></i>').join("")}</div>
 				</div>
 			</div>`
-		);
+			);
 	}
 
 	render() {
 		const d = this.data;
-		$(this.wrapper)
-			.find(".pm-window")
-			.text(`${d.period.from} to ${d.period.to}`);
+		$(this.wrapper).find(".pm-window").text(`${d.period.from} to ${d.period.to}`);
 
-		$(this.wrapper).find(".pm-foot").html(
-			`Measured from work that belongs to a project` +
-				(d.period.excluded
-					? `<span class="sep">·</span><b>${d.period.excluded.toLocaleString()}</b> tasks sit outside every project and are not counted`
-					: "") +
-				`<span class="sp">${d.wins.length} shipped in this window</span>`
-		);
+		$(this.wrapper)
+			.find(".pm-foot")
+			.html(
+				`Measured from work that belongs to a project` +
+					(d.period.excluded
+						? `<span class="sep">·</span><b>${d.period.excluded.toLocaleString()}</b> tasks sit outside every project and are not counted`
+						: "") +
+					`<span class="sp">${d.wins.length} shipped in this window</span>`
+			);
 
 		$(this.wrapper).find(".bb-stage").html(`
 			<div class="pm-kpis">${d.kpis.map((k) => pm_kpi(k)).join("")}</div>
@@ -161,8 +172,12 @@ function pm_kpi(k) {
 			<div class="foot">
 				${
 					k.delta === null || k.delta === undefined || k.delta === 0
-						? `<span class="flat">${k.was === null || k.was === undefined ? "right now" : "no change"}</span>`
-						: `<span class="delta">${arrow} ${pm_esc(Math.abs(k.delta))}${pm_esc(k.unit)}</span>
+						? `<span class="flat">${
+								k.was === null || k.was === undefined ? "right now" : "no change"
+						  }</span>`
+						: `<span class="delta">${arrow} ${pm_esc(Math.abs(k.delta))}${pm_esc(
+								k.unit
+						  )}</span>
 							<span class="vs">vs previous ${pm_esc(k.was)}${pm_esc(k.unit)}</span>`
 				}
 			</div>
@@ -179,9 +194,9 @@ function pm_flow(weeks) {
 				<div class="pm-flow">
 					${weeks
 						.map(
-							(w) => `<div class="col" title="Week of ${pm_esc(w.label)}: ${w.raised} raised, ${
-								w.delivered
-							} delivered">
+							(w) => `<div class="col" title="Week of ${pm_esc(w.label)}: ${
+								w.raised
+							} raised, ${w.delivered} delivered">
 								<div class="pair">
 									<i class="in" style="height:${Math.round((w.raised / top) * 100)}%"></i>
 									<i class="out" style="height:${Math.round((w.delivered / top) * 100)}%"></i>
@@ -205,12 +220,16 @@ function pm_risks(risks) {
 					risks.length
 						? risks
 								.map(
-									(r) => `<a class="pm-risk" href="/app/${r.doctype.toLowerCase()}/${encodeURIComponent(
+									(
+										r
+									) => `<a class="pm-risk" href="/app/${r.doctype.toLowerCase()}/${encodeURIComponent(
 										r.name
 									)}">
 										<span class="dpx-bb-chip ${
-											{ "On hold": "st-in-review", "Awaiting you": "st-triage" }[r.kind] ||
-											"st-blocked"
+											{
+												"On hold": "st-in-review",
+												"Awaiting you": "st-triage",
+											}[r.kind] || "st-blocked"
 										}">${pm_esc(r.kind)}</span>
 										<span class="t">${pm_esc(r.title)}</span>
 										<span class="who">${pm_esc(r.who.join(", ") || "Unassigned")}</span>
@@ -240,8 +259,8 @@ function pm_people(people) {
 										<span class="dpx-bb-av">${pm_esc(pm_initials(p.name))}</span>
 										<span class="who">${pm_esc(p.name)}</span>
 										<span class="bar"><i class="${p.overdue ? "bad" : ""}" style="width:${Math.round(
-											(p.open / most) * 100
-										)}%"></i></span>
+										(p.open / most) * 100
+									)}%"></i></span>
 										<span class="n">${p.open} open</span>
 										${p.delivered ? `<span class="tag ok">${p.delivered} shipped</span>` : ""}
 										${p.overdue ? `<span class="tag bad">${p.overdue} late</span>` : ""}
@@ -264,14 +283,18 @@ function pm_people(people) {
 function pm_wins(wins) {
 	return `
 		<div class="dpx-card">
-			<div class="dpx-card-hd"><div class="ttl">Shipped</div><span class="md-n">${wins.length}</span></div>
+			<div class="dpx-card-hd"><div class="ttl">Shipped</div><span class="md-n">${
+				wins.length
+			}</span></div>
 			<div class="dpx-card-body" style="padding:4px 0 6px">
 				${
 					wins.length
 						? wins
 								.slice(0, 8)
 								.map(
-									(w) => `<a class="pm-win" href="/app/task/${encodeURIComponent(w.name)}">
+									(w) => `<a class="pm-win" href="/app/task/${encodeURIComponent(
+										w.name
+									)}">
 										<span class="tick">${pm_ico("check", 11)}</span>
 										<span class="t">${pm_esc(w.subject)}</span>
 										${w.custom_module ? `<span class="mod">${pm_esc(w.custom_module)}</span>` : ""}
@@ -284,7 +307,9 @@ function pm_wins(wins) {
 				}
 				${
 					wins.length > 8
-						? `<a class="pm-more" href="/backlog-board">and ${wins.length - 8} more</a>`
+						? `<a class="pm-more" href="/backlog-board">and ${
+								wins.length - 8
+						  } more</a>`
 						: ""
 				}
 			</div>
@@ -319,7 +344,12 @@ function pm_modules(modules) {
 }
 
 function pm_initials(name) {
-	return String(name || "?").split(/\s+/).slice(0, 2).map((p) => p[0] || "").join("").toUpperCase();
+	return String(name || "?")
+		.split(/\s+/)
+		.slice(0, 2)
+		.map((p) => p[0] || "")
+		.join("")
+		.toUpperCase();
 }
 
 function pm_prefs() {
@@ -338,13 +368,16 @@ function pm_blank(heading, body) {
 const PM_ICONS = {
 	gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
 	check: '<path d="M20 6 9 17l-5-5"/>',
-	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	refresh:
+		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 };
 
 function pm_ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PM_ICONS[name] || ""}</svg>`;
+		stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			PM_ICONS[name] || ""
+		}</svg>`;
 }
 
 function pm_esc(value) {

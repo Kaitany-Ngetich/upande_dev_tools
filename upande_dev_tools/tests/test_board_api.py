@@ -58,9 +58,9 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		project = self._project()
 		self._task(project, subject="A task")
 		self._issue(project, subject="An issue")
-		frappe.get_doc(
-			{"doctype": "Request", "title": "A request", "project": project}
-		).insert(ignore_permissions=True)
+		frappe.get_doc({"doctype": "Request", "title": "A request", "project": project}).insert(
+			ignore_permissions=True
+		)
 
 		items = get_board(project=project)["items"]
 		self.assertEqual({item["doctype"] for item in items}, {"Task", "Issue", "Request"})
@@ -153,9 +153,7 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		self.assertEqual(frappe.db.get_value("Issue", issue, "status"), "On Hold")
 
 	def test_set_stage_refuses_a_workflow_governed_request(self) -> None:
-		request = frappe.get_doc({"doctype": "Request", "title": "Hands off"}).insert(
-			ignore_permissions=True
-		)
+		request = frappe.get_doc({"doctype": "Request", "title": "Hands off"}).insert(ignore_permissions=True)
 		with self.assertRaises(frappe.ValidationError):
 			set_stage("Request", request.name, "Done")
 
@@ -184,9 +182,7 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		issue = self._issue(self._project())
 		set_field("Issue", issue, "end", add_days(today(), 4))
 		self.assertTrue(
-			str(frappe.db.get_value("Issue", issue, "sla_resolution_by")).startswith(
-				add_days(today(), 4)
-			)
+			str(frappe.db.get_value("Issue", issue, "sla_resolution_by")).startswith(add_days(today(), 4))
 		)
 
 	def test_set_field_refuses_a_field_that_is_not_editable(self) -> None:
@@ -195,9 +191,7 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 			set_field("Task", task, "subject", "Renamed from the board")
 
 	def test_set_field_refuses_a_workflow_governed_request(self) -> None:
-		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
-			ignore_permissions=True
-		)
+		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(ignore_permissions=True)
 		with self.assertRaises(frappe.ValidationError):
 			set_field("Request", request.name, "priority", "High")
 

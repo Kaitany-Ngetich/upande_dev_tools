@@ -116,9 +116,7 @@ def get_assignable_users() -> list[dict]:
 	if not set(frappe.get_roles()) & REVIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
 
-	members = frappe.get_all(
-		"Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent"
-	)
+	members = frappe.get_all("Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent")
 	if not members:
 		return []
 	return frappe.get_all(
@@ -130,9 +128,7 @@ def get_assignable_users() -> list[dict]:
 
 
 @frappe.whitelist()
-def accept_request(
-	name: str, project: str, priority: str, assign_to: str | None = None
-) -> dict:
+def accept_request(name: str, project: str, priority: str, assign_to: str | None = None) -> dict:
 	"""Approve a request and schedule it in one step, which is what creates the Task,
 	then hand that Task to whoever will do the work."""
 	from frappe.desk.form.assign_to import add as add_assignment
@@ -154,9 +150,7 @@ def accept_request(
 	doc.reload()
 
 	if assign_to and doc.linked_task:
-		add_assignment(
-			{"doctype": "Task", "name": doc.linked_task, "assign_to": [assign_to], "notify": 0}
-		)
+		add_assignment({"doctype": "Task", "name": doc.linked_task, "assign_to": [assign_to], "notify": 0})
 
 	return {
 		"name": doc.name,

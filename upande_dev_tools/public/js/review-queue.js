@@ -37,7 +37,10 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 			.catch((e) => {
 				icon.removeClass("spin");
 				this.stage().html(
-					blank("Could not load the queue", String((e && e.message) || e) || "Reload to try again.")
+					blank(
+						"Could not load the queue",
+						String((e && e.message) || e) || "Reload to try again."
+					)
 				);
 			});
 	}
@@ -53,8 +56,10 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				)
 				.join("")
 		);
-		this.stage().attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+		this.stage()
+			.attr("aria-busy", "true")
+			.html(
+				`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
 				<div class="sk-head">${["w20", "w10", "w8", "w12", "w10", "w12", "w10"]
 					.map((w) => `<i class="sk ${w}"></i>`)
 					.join("")}</div>
@@ -67,7 +72,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 					)
 					.join("")}
 			</div></div>`
-		);
+			);
 	}
 
 	stage() {
@@ -110,7 +115,8 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		const root = $(this.wrapper);
 		root.on("click", ".rq-reload", () => this.load());
 		document.addEventListener("keydown", (e) => {
-			if (e.key !== "/" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
+			if (e.key !== "/" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || ""))
+				return;
 			e.preventDefault();
 			root.find(".rq-q").trigger("focus").trigger("select");
 		});
@@ -165,26 +171,42 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		const oldest = ages.length ? Math.max(...ages) : 0;
 		const stale = ages.filter((d) => d >= 7).length;
 		const types = {};
-		rows.forEach((r) => (types[r.request_type || "Other"] = (types[r.request_type || "Other"] || 0) + 1));
+		rows.forEach(
+			(r) => (types[r.request_type || "Other"] = (types[r.request_type || "Other"] || 0) + 1)
+		);
 		const spread = Object.entries(types)
 			.sort((a, b) => b[1] - a[1])
 			.slice(0, 3)
 			.map(([k, n]) => `${rq_esc(k)} ${n}`)
 			.join(" · ");
 
-		$(this.wrapper).find(".rq-stats").html(
-			[
-				stat("Awaiting review", rows.length, rows.length ? "" : "Queue is clear"),
-				stat("Longest wait", oldest ? `${oldest}d` : "today", oldest >= 7 ? "Past a week" : "Within a week", oldest >= 7),
-				stat("Waiting over 7 days", stale, stale ? "Needs a decision" : "None", stale > 0),
-				stat("Mix", spread || "—", "By request type", false, true),
-			].join("")
-		);
+		$(this.wrapper)
+			.find(".rq-stats")
+			.html(
+				[
+					stat("Awaiting review", rows.length, rows.length ? "" : "Queue is clear"),
+					stat(
+						"Longest wait",
+						oldest ? `${oldest}d` : "today",
+						oldest >= 7 ? "Past a week" : "Within a week",
+						oldest >= 7
+					),
+					stat(
+						"Waiting over 7 days",
+						stale,
+						stale ? "Needs a decision" : "None",
+						stale > 0
+					),
+					stat("Mix", spread || "—", "By request type", false, true),
+				].join("")
+			);
 
 		$(this.wrapper)
 			.find(".dpx-bb-status")
 			.html(
-				`<b>${rows.length}</b> awaiting review<span class="sep">·</span><b>${this.people.length}</b> ${
+				`<b>${rows.length}</b> awaiting review<span class="sep">·</span><b>${
+					this.people.length
+				}</b> ${
 					this.people.length === 1 ? "person" : "people"
 				} to assign<span class="sp">Rejecting asks twice</span>`
 			);
@@ -197,7 +219,9 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				.concat(
 					list.map(
 						([value, label]) =>
-							`<option value="${rq_esc(value)}"${value === selected ? " selected" : ""}>${rq_esc(label)}</option>`
+							`<option value="${rq_esc(value)}"${
+								value === selected ? " selected" : ""
+							}>${rq_esc(label)}</option>`
 					)
 				)
 				.join("");
@@ -268,37 +292,37 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 						project,
 						priority,
 						assign_to: assign_to || null,
-					})
+				  })
 				: frappe.xcall("upande_dev_tools.api.requests.triage_request", {
 						name,
 						action,
 						project: project || null,
 						priority,
-					});
+				  });
 
-		call
-			.then((r) => {
-				this.requests = this.requests.filter((row) => row.name !== name);
-				this.render();
-				frappe.show_alert({
-					message:
-						action === "accept"
-							? __("Accepted. {0} created{1}.", [
-									r.task || "Task",
-									assign_to ? ` for ${tr.find(".rq-assignee option:selected").text()}` : "",
-								])
-							: __("{0} marked {1}.", [name, action.toLowerCase() + "red"]),
-					indicator: "green",
-				});
-			})
-			.catch((e) => {
-				tr.find("button,select").prop("disabled", false);
-				tr.removeClass("rq-busy");
-				frappe.show_alert({
-					message: String((e && e.message) || e) || __("That decision did not save."),
-					indicator: "red",
-				});
+		call.then((r) => {
+			this.requests = this.requests.filter((row) => row.name !== name);
+			this.render();
+			frappe.show_alert({
+				message:
+					action === "accept"
+						? __("Accepted. {0} created{1}.", [
+								r.task || "Task",
+								assign_to
+									? ` for ${tr.find(".rq-assignee option:selected").text()}`
+									: "",
+						  ])
+						: __("{0} marked {1}.", [name, action.toLowerCase() + "red"]),
+				indicator: "green",
 			});
+		}).catch((e) => {
+			tr.find("button,select").prop("disabled", false);
+			tr.removeClass("rq-busy");
+			frappe.show_alert({
+				message: String((e && e.message) || e) || __("That decision did not save."),
+				indicator: "red",
+			});
+		});
 	}
 };
 
@@ -326,13 +350,16 @@ const RQ_ICONS = {
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
 	clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 	inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
-	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	refresh:
+		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 };
 
 function rq_ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RQ_ICONS[name] || ""}</svg>`;
+		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			RQ_ICONS[name] || ""
+		}</svg>`;
 }
 
 function rq_esc(value) {

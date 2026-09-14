@@ -9,6 +9,7 @@
 	},
 	"extends": "eslint:recommended",
 	"rules": {
+		"no-empty": ["error", { "allowEmptyCatch": true }],
 		"indent": "off",
 		"brace-style": "off",
 		"no-mixed-spaces-and-tabs": "off",
@@ -26,7 +27,9 @@
 	"root": true,
 	"globals": {
 		"frappe": true,
+		"jspreadsheet": true,
 		"monaco": true,
+		"upande_dev_tools": true,
 		"upande_dev_tools_portal": true,
 		"Vue": true,
 		"SetVueGlobals": true,

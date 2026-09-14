@@ -40,35 +40,85 @@ function assert_no_layout_collisions() {
 	}
 	for (const [cls, rec] of Object.entries(seen)) {
 		const clash = [...rec.absolute].some((b) => [...rec.flow].some((o) => o !== b));
-		assert.ok(!clash, `${cls} is taken out of flow in one rule and laid out in another - two components share the class`);
+		assert.ok(
+			!clash,
+			`${cls} is taken out of flow in one rule and laid out in another - two components share the class`
+		);
 	}
 }
 
 const ITEMS = [
 	{
-		doctype: "Task", name: "TASK-01", title: "Bucket reject reconciliation", status: "Working",
-		stage: "In Progress", rank: 4, priority: "Urgent", project: "PROJ-1", module: "Coffee",
-		start: "2026-09-07", end: "2026-09-19", movable: true, assignees: ["Teddy Kaitany"], late: false,
+		doctype: "Task",
+		name: "TASK-01",
+		title: "Bucket reject reconciliation",
+		status: "Working",
+		stage: "In Progress",
+		rank: 4,
+		priority: "Urgent",
+		project: "PROJ-1",
+		module: "Coffee",
+		start: "2026-09-07",
+		end: "2026-09-19",
+		movable: true,
+		assignees: ["Teddy Kaitany"],
+		late: false,
 	},
 	{
-		doctype: "Issue", name: "ISS-02", title: "Label PDF prints blank pages", status: "Open",
-		stage: "Triage", rank: 2, priority: "Medium", project: "PROJ-1", module: "Coffee",
-		start: "2026-08-28", end: "2026-09-02", movable: true, assignees: [], late: true,
+		doctype: "Issue",
+		name: "ISS-02",
+		title: "Label PDF prints blank pages",
+		status: "Open",
+		stage: "Triage",
+		rank: 2,
+		priority: "Medium",
+		project: "PROJ-1",
+		module: "Coffee",
+		start: "2026-08-28",
+		end: "2026-09-02",
+		movable: true,
+		assignees: [],
+		late: true,
 	},
 	{
-		doctype: "Request", name: "REQ-03", title: "Add vase life to quality report", status: "Under Review",
-		stage: "Triage", rank: 1, priority: "Low", project: null, module: null,
-		start: "", end: "", movable: false, assignees: ["Jane Doe", "Sam Otieno"], late: false,
+		doctype: "Request",
+		name: "REQ-03",
+		title: "Add vase life to quality report",
+		status: "Under Review",
+		stage: "Triage",
+		rank: 1,
+		priority: "Low",
+		project: null,
+		module: null,
+		start: "",
+		end: "",
+		movable: false,
+		assignees: ["Jane Doe", "Sam Otieno"],
+		late: false,
 	},
 	{
-		doctype: "Task", name: "TASK-04", title: "Ship picker fairness view", status: "Completed",
-		stage: "Done", rank: 3, priority: "High", project: "PROJ-2", module: "QC",
-		start: "2026-10-05", end: "2026-10-09", movable: true, assignees: ["Teddy Kaitany"], late: false,
+		doctype: "Task",
+		name: "TASK-04",
+		title: "Ship picker fairness view",
+		status: "Completed",
+		stage: "Done",
+		rank: 3,
+		priority: "High",
+		project: "PROJ-2",
+		module: "QC",
+		start: "2026-10-05",
+		end: "2026-10-09",
+		movable: true,
+		assignees: ["Teddy Kaitany"],
+		late: false,
 	},
 ];
 
 function boot() {
-	const dom = new JSDOM(`<!doctype html><body><div id="root"></div></body>`, { pretendToBeVisual: true, runScripts: "outside-only" });
+	const dom = new JSDOM(`<!doctype html><body><div id="root"></div></body>`, {
+		pretendToBeVisual: true,
+		runScripts: "outside-only",
+	});
 	const { window } = dom;
 	const $ = jquery(window);
 
@@ -77,7 +127,9 @@ function boot() {
 
 	// The page loads this file before frappe-web.bundle.js, so nothing may touch
 	// `frappe` at load time.
-	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), { filename: SOURCE });
+	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), {
+		filename: SOURCE,
+	});
 	assert.ok(
 		window.upande_dev_tools && window.upande_dev_tools.BacklogBoard,
 		"board must define itself without frappe on the page yet"
@@ -96,10 +148,21 @@ function boot() {
 					total: 9,
 					stages: ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"],
 				});
-			return Promise.resolve({ name: (args || {}).name, status: "Working", stage: (args || {}).stage });
+			return Promise.resolve({
+				name: (args || {}).name,
+				status: "Working",
+				stage: (args || {}).stage,
+			});
 		},
 		show_alert() {},
-		utils: { escape_html: (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") },
+		utils: {
+			escape_html: (v) =>
+				String(v)
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;"),
+		},
 		router: { slug: (v) => v.toLowerCase().replace(/ /g, "-") },
 		datetime: { get_today: () => "2026-09-14" },
 	};
@@ -126,7 +189,10 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 		calls.some((c) => c.method === "upande_dev_tools.api.board.get_board"),
 		"the board loads its items"
 	);
-	assert.ok(!window.frappe.call, "the board must not use frappe.call, which portal pages do not provide");
+	assert.ok(
+		!window.frappe.call,
+		"the board must not use frappe.call, which portal pages do not provide"
+	);
 	await Promise.resolve();
 	await new Promise((r) => setTimeout(r, 0));
 
@@ -134,9 +200,20 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const cols = $(root).find(".dpx-bb-col");
 	assert.strictEqual(cols.length, 6, "one column per stage");
 	assert.strictEqual($(root).find('.dpx-bb-drop[data-stage="Triage"] .dpx-bb-card').length, 2);
-	assert.strictEqual($(root).find('.dpx-bb-drop[data-stage="Todo"] .dpx-bb-col-blank').length, 1, "empty stage still drawn");
-	assert.strictEqual($(root).find('.dpx-bb-card[data-id="Request:REQ-03"]').attr("draggable"), undefined, "workflow-governed requests are not draggable");
-	assert.strictEqual($(root).find('.dpx-bb-card[data-id="Task:TASK-01"]').attr("draggable"), "true");
+	assert.strictEqual(
+		$(root).find('.dpx-bb-drop[data-stage="Todo"] .dpx-bb-col-blank').length,
+		1,
+		"empty stage still drawn"
+	);
+	assert.strictEqual(
+		$(root).find('.dpx-bb-card[data-id="Request:REQ-03"]').attr("draggable"),
+		undefined,
+		"workflow-governed requests are not draggable"
+	);
+	assert.strictEqual(
+		$(root).find('.dpx-bb-card[data-id="Task:TASK-01"]').attr("draggable"),
+		"true"
+	);
 	assert.strictEqual(
 		$(root).find('.dpx-bb-card[data-id="Task:TASK-01"] .dpx-bb-pri.p3').length,
 		1,
@@ -147,7 +224,11 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	assert.ok(status.includes("4 items"), "counts live in the status bar, not the header");
 	assert.ok(status.includes("1 late"));
 	assert.ok(status.includes("4 of 9 loaded"), "load cap is stated");
-	assert.strictEqual($(root).find(".dpx-bb-tb-hd .dpx-bb-badge").length, 0, "the header carries no counts");
+	assert.strictEqual(
+		$(root).find(".dpx-bb-tb-hd .dpx-bb-badge").length,
+		0,
+		"the header carries no counts"
+	);
 
 	// ── Search ──
 	$(root).find('[data-f="q"]').val("label").trigger("input");
@@ -163,7 +244,11 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	);
 	$(root).find('[data-f="module"]').val("QC").trigger("change");
 	await settle();
-	assert.strictEqual($(root).find(".dpx-bb-card").length, 1, "filtering by module narrows the board");
+	assert.strictEqual(
+		$(root).find(".dpx-bb-card").length,
+		1,
+		"filtering by module narrows the board"
+	);
 	$(root).find('[data-f="module"]').val("").trigger("change");
 	await settle();
 
@@ -185,16 +270,28 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 
 	// ── Per-view tools: each view carries the controls that view needs ──
 	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
-	assert.strictEqual($(root).find('.bb-tool[data-tool="done"]').length, 1, "board can hide done work");
+	assert.strictEqual(
+		$(root).find('.bb-tool[data-tool="done"]').length,
+		1,
+		"board can hide done work"
+	);
 	$(root).find('.bb-tool[data-tool="done"]').trigger("click");
 	assert.strictEqual($(root).find('.dpx-bb-drop[data-stage="Done"] .dpx-bb-card').length, 0);
 	assert.strictEqual($(root).find('.bb-tool[data-tool="done"]').text(), "Show done");
 	$(root).find('.bb-tool[data-tool="done"]').trigger("click");
 
 	$(root).find('.dpx-bb-views button[data-view="list"]').trigger("click");
-	assert.strictEqual($(root).find('.bb-tool[data-tool="collapse"]').length, 1, "list can fold its groups");
+	assert.strictEqual(
+		$(root).find('.bb-tool[data-tool="collapse"]').length,
+		1,
+		"list can fold its groups"
+	);
 	$(root).find('.bb-tool[data-tool="collapse"]').trigger("click");
-	assert.strictEqual($(root).find("tbody .dpx-bb-row").length, 0, "collapse all folds every group");
+	assert.strictEqual(
+		$(root).find("tbody .dpx-bb-row").length,
+		0,
+		"collapse all folds every group"
+	);
 	$(root).find('.bb-tool[data-tool="expand"]').trigger("click");
 	assert.ok($(root).find("tbody .dpx-bb-row").length > 0);
 	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
@@ -205,11 +302,23 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const sheet = window.__sheet;
 	assert.ok(sheet, "sheet view hands its rows to jspreadsheet");
 	assert.strictEqual(sheet.config.data.length, 4);
-	assert.strictEqual(sheet.config.freezeColumns, 2, "work item and stage stay pinned while you scroll");
+	assert.strictEqual(
+		sheet.config.freezeColumns,
+		2,
+		"work item and stage stay pinned while you scroll"
+	);
 	assert.ok(sheet.config.columnSorting, "columns sort");
 	assert.ok(sheet.config.lazyLoading, "only the visible rows render");
-	assert.strictEqual($(root).find('.bb-tool[data-tool="csv"]').length, 1, "the sheet can export");
-	assert.strictEqual(sheet.config.defaultColAlign, "left", "cells read left aligned, not centred");
+	assert.strictEqual(
+		$(root).find('.bb-tool[data-tool="csv"]').length,
+		1,
+		"the sheet can export"
+	);
+	assert.strictEqual(
+		sheet.config.defaultColAlign,
+		"left",
+		"cells read left aligned, not centred"
+	);
 	assert.ok(
 		window.document.body.classList.contains("dpx-menu-skin"),
 		"jsuites appends its menus to body, so body carries the class that styles them"
@@ -223,7 +332,11 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const editable = sheet.config.columns
 		.map((c, i) => (c.readOnly ? null : i))
 		.filter((i) => i !== null && i > 0);
-	assert.strictEqual(editable.join(), "2,3,5,6,7", "stage, priority, module, due and start take an edit");
+	assert.strictEqual(
+		editable.join(),
+		"2,3,5,6,7",
+		"stage, priority, module, due and start take an edit"
+	);
 	assert.strictEqual(
 		sheet.config.columns[2].source.join(),
 		"Triage,Todo,In Progress,In Review,Blocked,Done"
@@ -237,7 +350,11 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const titleCell = td();
 	sheet.config.updateTable(null, titleCell, 1, rowOf("Task:TASK-01"));
 	assert.ok(titleCell.classList.contains("bb-title"));
-	assert.strictEqual(titleCell.querySelectorAll(".dpx-bb-pri.p3").length, 1, "urgent dot rides the title");
+	assert.strictEqual(
+		titleCell.querySelectorAll(".dpx-bb-pri.p3").length,
+		1,
+		"urgent dot rides the title"
+	);
 	assert.ok(titleCell.textContent.includes("Bucket reject"));
 
 	const stageCell = td();
@@ -271,14 +388,27 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
 	const rows = $(root).find(".dpx-bb-tl-row");
 	assert.strictEqual(rows.length, 3, "only dated items are plotted");
-	assert.strictEqual($(root).find(".dpx-bb-today").length, 1, "today is marked inside the range");
+	assert.strictEqual(
+		$(root).find(".dpx-bb-today").length,
+		1,
+		"today is marked inside the range"
+	);
 	assert.ok($(root).find(".dpx-bb-mo").length >= 2, "month bands span Aug through Oct");
 
 	// Geometry: first row starts left of the second, and bars never run backwards.
 	const lefts = rows.toArray().map((r) => parseInt($(r).find(".dpx-bb-tlbar").css("left"), 10));
-	const widths = rows.toArray().map((r) => parseInt($(r).find(".dpx-bb-tlbar").css("width"), 10));
-	assert.deepStrictEqual(lefts, [...lefts].sort((a, b) => a - b), "rows sorted by start date");
-	assert.ok(widths.every((w) => w >= 5), "every bar has a visible width");
+	const widths = rows
+		.toArray()
+		.map((r) => parseInt($(r).find(".dpx-bb-tlbar").css("width"), 10));
+	assert.deepStrictEqual(
+		lefts,
+		[...lefts].sort((a, b) => a - b),
+		"rows sorted by start date"
+	);
+	assert.ok(
+		widths.every((w) => w >= 5),
+		"every bar has a visible width"
+	);
 	assert.ok($(root).find(".dpx-bb-tl-row .dpx-bb-tlbar.done").length === 1);
 	assert.ok($(root).find(".dpx-bb-tl-row .dpx-bb-tlbar.late").length === 1);
 
@@ -319,7 +449,9 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	window.document.dispatchEvent(new window.MouseEvent("pointerup"));
 	await settle();
 
-	const moved = calls.filter((c) => c.method.endsWith("set_field") && ["start", "end"].includes(c.args.field));
+	const moved = calls.filter(
+		(c) => c.method.endsWith("set_field") && ["start", "end"].includes(c.args.field)
+	);
 	assert.strictEqual(moved.length, 2, "moving a bar writes both dates");
 	assert.strictEqual(moved[0].args.value, "2026-09-11", "start shifts by the days dragged");
 	assert.strictEqual(moved[1].args.value, "2026-09-23", "and so does due, by the same amount");

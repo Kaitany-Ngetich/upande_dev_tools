@@ -94,7 +94,10 @@ def _window(scoped: dict, start, end) -> dict:
 
 def _kpis(now: dict, before: dict, scoped: dict, end) -> list[dict]:
 	waiting = frappe.get_all(
-		"Request", filters={**scoped, "workflow_state": DECIDING}, fields=["creation"], ignore_permissions=True
+		"Request",
+		filters={**scoped, "workflow_state": DECIDING},
+		fields=["creation"],
+		ignore_permissions=True,
 	)
 	wait_ages = [(getdate(end) - getdate(r.creation)).days for r in waiting]
 
@@ -105,24 +108,66 @@ def _kpis(now: dict, before: dict, scoped: dict, end) -> list[dict]:
 	net_before = before["raised"] - before["delivered"]
 
 	return [
-		_kpi("delivered", "Delivered", now["delivered"], before["delivered"], "up",
-		     note=f"Tasks completed in the period, against {before['delivered']} in the one before."),
-		_kpi("cycle", "Cycle time", now["cycle"], before["cycle"], "down", unit="d",
-		     note="Median days from a task being raised to being finished."),
-		_kpi("on_time", "Finished on time", now["on_time"], before["on_time"], "up", unit="%",
-		     note=f"Of the {now['datable']} completed tasks that carried a due date."),
-		_kpi("net", "Backlog change", net, net_before, "down", signed=True,
-		     note=f"{now['raised']} raised against {now['delivered']} delivered. Below zero is shrinking."),
-		_kpi("waiting", "Waiting on you", len(waiting), None, "down",
-		     note=f"Requests with no decision yet. Longest has waited {max(wait_ages or [0])} days."),
-		_kpi("risk", "At risk now", overdue + blocked, None, "down",
-		     note=f"{overdue} past due and {blocked} on hold."),
+		_kpi(
+			"delivered",
+			"Delivered",
+			now["delivered"],
+			before["delivered"],
+			"up",
+			note=f"Tasks completed in the period, against {before['delivered']} in the one before.",
+		),
+		_kpi(
+			"cycle",
+			"Cycle time",
+			now["cycle"],
+			before["cycle"],
+			"down",
+			unit="d",
+			note="Median days from a task being raised to being finished.",
+		),
+		_kpi(
+			"on_time",
+			"Finished on time",
+			now["on_time"],
+			before["on_time"],
+			"up",
+			unit="%",
+			note=f"Of the {now['datable']} completed tasks that carried a due date.",
+		),
+		_kpi(
+			"net",
+			"Backlog change",
+			net,
+			net_before,
+			"down",
+			signed=True,
+			note=f"{now['raised']} raised against {now['delivered']} delivered. Below zero is shrinking.",
+		),
+		_kpi(
+			"waiting",
+			"Waiting on you",
+			len(waiting),
+			None,
+			"down",
+			note=f"Requests with no decision yet. Longest has waited {max(wait_ages or [0])} days.",
+		),
+		_kpi(
+			"risk",
+			"At risk now",
+			overdue + blocked,
+			None,
+			"down",
+			note=f"{overdue} past due and {blocked} on hold.",
+		),
 	]
 
 
 def _overdue_filters(scoped: dict, end) -> list:
-	filters = [["Task", key, *(value if isinstance(value, list) else ["=", value])] for key, value in scoped.items()]
-	return filters + [
+	filters = [
+		["Task", key, *(value if isinstance(value, list) else ["=", value])] for key, value in scoped.items()
+	]
+	return [
+		*filters,
 		["Task", "status", "not in", ["Completed", "Cancelled"]],
 		["Task", "exp_end_date", "is", "set"],
 		["Task", "exp_end_date", "<", end],

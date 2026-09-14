@@ -10,7 +10,7 @@
  */
 
 :root {
-    --button-color: #298BA8; 
+    --button-color: #298BA8;
     --active-color: #007aff;
     --safe-area-top: env(safe-area-inset-top);
     --safe-area-bottom: env(safe-area-inset-bottom);
@@ -67,7 +67,7 @@ div[data-before]:before {
 
 .jupload img {
     width: 100%;
-} 
+}
 
 .jupload.input img {
     width: initial;
@@ -99,7 +99,7 @@ div[data-before]:before {
 }
 
 .jupload:not(.input):before {
-    content: "\e2c3"; 
+    content: "\e2c3";
     font-family: "Material Icons";
     font-size: 90px;
     color: #eee;
@@ -285,7 +285,7 @@ div[data-before]:before {
     0% { left: -100%; }
     100% { left: 0%; }
 }
-    
+
 @keyframes slide-left-out {
     0% { left: 0%; }
     100% { left: -100%; }
@@ -307,7 +307,7 @@ div[data-before]:before {
     0% { left: 100%; }
     100% { left: 0%; }
 }
-    
+
 @keyframes slide-right-out {
     0% { left: 0%; }
     100% { left: 100%; }
@@ -328,7 +328,7 @@ div[data-before]:before {
     0% { transform: translateY(-100%); }
     100% { -webkit-transform: translateY(0%); }
 }
-    
+
 @keyframes slide-top-out {
     0% { transform: translateY(0%); }
     100% { transform: translateY(-100%); }
@@ -349,7 +349,7 @@ div[data-before]:before {
     0% { transform: translateY(100%); }
     100% { -webkit-transform: translateY(0%); }
 }
-    
+
 @keyframes slide-bottom-out {
     0% { transform: translateY(0%); }
     100% { transform: translateY(100%); }
@@ -490,7 +490,7 @@ div[data-before]:before {
 
 .jcalendar-months td, .jcalendar-years td {
     height:24px;
-} 
+}
 
 .jcalendar-input {
     padding-right:18px;
@@ -711,7 +711,7 @@ div[data-before]:before {
     padding: 0px;
     z-index: 8000;
     display: none;
-    
+
   -webkit-touch-callout: none; /* iOS Safari */
     -webkit-user-select: none; /* Safari */
      -khtml-user-select: none; /* Konqueror HTML */
@@ -2070,11 +2070,11 @@ div[data-before]:before {
 .jpicker-content::-webkit-scrollbar-track {
     background: #eee;
 }
- 
+
 .jpicker-content::-webkit-scrollbar-thumb {
     background: #888;
 }
- 
+
 .jpicker-content > div {
     padding: 6px;
     padding-left: 15px;
@@ -2221,7 +2221,7 @@ div[data-before]:before {
     user-select: none;
     -webkit-align-items: center;
     align-items: center;
-    
+
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
@@ -2328,7 +2328,7 @@ div[data-before]:before {
     display: flex;
     display: -webkit-flex;
     -webkit-justify-content: center;
-    -webkit-align-items: center;   
+    -webkit-align-items: center;
     -webkit-flex-direction: row;
     justify-content: center;
     align-items: center;
@@ -2676,7 +2676,7 @@ div[data-before]:before {
     padding: 1px;
     border: 1px solid #ccc;
     position: relative;
-} 
+}
 
 .jtags.jtags-empty:not(.jtags-focus)::before {
     position: absolute;
@@ -2795,7 +2795,7 @@ div[data-before]:before {
 .jtoolbar-mobile .jtoolbar-item {
     position: relative;
     flex:1;
-} 
+}
 
 .jtoolbar .jtoolbar-divisor {
     width: 2px;

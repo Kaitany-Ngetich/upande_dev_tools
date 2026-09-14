@@ -13,17 +13,26 @@ class IntegrationTestPortfolioApi(IntegrationTestCase):
 		company = frappe.db.get_value("Company", {}, "name")
 		if not company:
 			self.skipTest("No Company exists on this site.")
-		self.project = frappe.get_doc(
-			{
-				"doctype": "Project",
-				"project_name": frappe.generate_hash(length=10),
-				"company": company,
-			}
-		).insert(ignore_permissions=True).name
+		self.project = (
+			frappe.get_doc(
+				{
+					"doctype": "Project",
+					"project_name": frappe.generate_hash(length=10),
+					"company": company,
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
 
 	def _task(self, **kwargs) -> str:
 		task = frappe.get_doc(
-			{"doctype": "Task", "subject": kwargs.pop("subject", "Measured"), "project": self.project, **kwargs}
+			{
+				"doctype": "Task",
+				"subject": kwargs.pop("subject", "Measured"),
+				"project": self.project,
+				**kwargs,
+			}
 		)
 		task.flags.ignore_recursion_check = True
 		return task.insert(ignore_permissions=True).name
@@ -47,12 +56,16 @@ class IntegrationTestPortfolioApi(IntegrationTestCase):
 
 	def test_on_time_is_measured_only_against_tasks_that_had_a_due_date(self) -> None:
 		self._task(
-			subject="Early", status="Completed",
-			exp_end_date=add_days(today(), -2), completed_on=add_days(today(), -4),
+			subject="Early",
+			status="Completed",
+			exp_end_date=add_days(today(), -2),
+			completed_on=add_days(today(), -4),
 		)
 		self._task(
-			subject="Late", status="Completed",
-			exp_end_date=add_days(today(), -8), completed_on=add_days(today(), -2),
+			subject="Late",
+			status="Completed",
+			exp_end_date=add_days(today(), -8),
+			completed_on=add_days(today(), -2),
 		)
 		self._task(subject="No due date", status="Completed", completed_on=add_days(today(), -2))
 

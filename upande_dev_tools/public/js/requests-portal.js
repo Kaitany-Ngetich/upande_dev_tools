@@ -27,7 +27,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 		if (!this.requests.length) this.skeleton();
 		Promise.all([
 			frappe.xcall("upande_dev_tools.api.requests.get_my_requests"),
-			frappe.xcall("frappe.client.get_list", { doctype: "Request Type", limit_page_length: 0 }),
+			frappe.xcall("frappe.client.get_list", {
+				doctype: "Request Type",
+				limit_page_length: 0,
+			}),
 			frappe.xcall("upande_dev_tools.api.board.get_modules"),
 		])
 			.then(([requests, types, areas]) => {
@@ -41,7 +44,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			.catch((e) => {
 				icon.removeClass("spin");
 				this.stage().html(
-					rp_blank("Could not load your requests", String((e && e.message) || e) || "Reload to try again.")
+					rp_blank(
+						"Could not load your requests",
+						String((e && e.message) || e) || "Reload to try again."
+					)
 				);
 			});
 	}
@@ -103,8 +109,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 	}
 
 	skeleton() {
-		this.stage().attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+		this.stage()
+			.attr("aria-busy", "true")
+			.html(
+				`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
 				${[1, 2, 3, 4]
 					.map(
 						() => `<div class="sk-line" style="padding:13px 14px">
@@ -113,14 +121,18 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 					)
 					.join("")}
 			</div></div>`
-		);
+			);
 	}
 
 	visible() {
 		if (this.filter === "open")
-			return this.requests.filter((r) => !["Completed", "Rejected"].includes(r.workflow_state));
+			return this.requests.filter(
+				(r) => !["Completed", "Rejected"].includes(r.workflow_state)
+			);
 		if (this.filter === "done")
-			return this.requests.filter((r) => ["Completed", "Rejected"].includes(r.workflow_state));
+			return this.requests.filter((r) =>
+				["Completed", "Rejected"].includes(r.workflow_state)
+			);
 		return this.requests;
 	}
 
@@ -132,7 +144,9 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 
 		$(this.wrapper)
 			.find(".rp-count")
-			.html(`<span><b>${this.requests.length}</b> raised · <b>${open}</b> still open</span>`);
+			.html(
+				`<span><b>${this.requests.length}</b> raised · <b>${open}</b> still open</span>`
+			);
 
 		if (!rows.length) {
 			return this.stage().html(
@@ -145,13 +159,12 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			);
 		}
 
-		this.stage().html(
-			`<div class="rp-list">${rows.map((r) => rp_card(r)).join("")}</div>`
-		);
+		this.stage().html(`<div class="rp-list">${rows.map((r) => rp_card(r)).join("")}</div>`);
 	}
 
 	open_form() {
-		const opts = (list) => list.map((v) => `<option value="${rp_esc(v)}">${rp_esc(v)}</option>`).join("");
+		const opts = (list) =>
+			list.map((v) => `<option value="${rp_esc(v)}">${rp_esc(v)}</option>`).join("");
 		$(this.wrapper).find(".rp-sheet").prop("hidden", false).html(`
 			<div class="rp-scrim"></div>
 			<form class="rp-form" role="dialog" aria-label="Raise a request">
@@ -163,7 +176,9 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 					<input class="dpx-bb-field" name="title" required maxlength="140"
 						placeholder="Add a supervisor column to the warehouse list"></label>
 				<div class="rp-two">
-					<label>Kind<select class="dpx-bb-field" name="request_type" required>${opts(this.types)}</select></label>
+					<label>Kind<select class="dpx-bb-field" name="request_type" required>${opts(
+						this.types
+					)}</select></label>
 					<label>Module<select class="dpx-bb-field" name="product_area">
 						<option value="">Not sure</option>${opts(this.areas)}</select></label>
 				</div>
@@ -199,7 +214,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			})
 			.then(() => {
 				this.close_form();
-				frappe.show_alert({ message: __("Sent. The dev team will pick it up."), indicator: "green" });
+				frappe.show_alert({
+					message: __("Sent. The dev team will pick it up."),
+					indicator: "green",
+				});
 				this.load();
 			})
 			.catch((e) => {
@@ -238,14 +256,17 @@ function rp_blank(heading, body) {
 
 const RP_ICONS = {
 	inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
-	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	refresh:
+		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
 };
 
 function rp_ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RP_ICONS[name] || ""}</svg>`;
+		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			RP_ICONS[name] || ""
+		}</svg>`;
 }
 
 function rp_esc(value) {

@@ -23,7 +23,10 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 			.catch((e) => {
 				icon.removeClass("spin");
 				this.stage().html(
-					dd_blank("Could not read the bench", String((e && e.message) || e) || "Reload to try again.")
+					dd_blank(
+						"Could not read the bench",
+						String((e && e.message) || e) || "Reload to try again."
+					)
 				);
 			});
 	}
@@ -78,7 +81,12 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 					});
 					this.load();
 				})
-				.catch(() => frappe.show_alert({ message: __("Could not read the bench."), indicator: "red" }))
+				.catch(() =>
+					frappe.show_alert({
+						message: __("Could not read the bench."),
+						indicator: "red",
+					})
+				)
 				.then(() => btn.prop("disabled", false).text("Scan bench"));
 		});
 		root.on("click", ".dd-tabs button", (e) => {
@@ -89,14 +97,17 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 			this.render();
 		});
 		document.addEventListener("keydown", (e) => {
-			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
+			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || ""))
+				return;
 			this.load();
 		});
 	}
 
 	skeleton() {
-		this.stage().attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
+		this.stage()
+			.attr("aria-busy", "true")
+			.html(
+				`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
 				<div class="sk-head">${["w20", "w12", "w8", "w8", "w12"]
 					.map((w) => `<i class="sk ${w}"></i>`)
 					.join("")}</div>
@@ -109,7 +120,7 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 					)
 					.join("")}
 			</div></div>`
-		);
+			);
 	}
 
 	render() {
@@ -121,19 +132,29 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 			(d.different_type_count || 0) +
 			(d.different_property_count || 0);
 
-		$(this.wrapper).find(".dd-summary").html(
-			`<b>${apps.length}</b> apps<span class="sep">·</span>` +
-				`<b>${d.clean_apps || 0}</b> clean<span class="sep">·</span>` +
-				(d.stale_apps ? `<span class="warn">${d.stale_apps} behind</span><span class="sep">·</span>` : "") +
-				(d.dirty_apps ? `<span class="late">${d.dirty_apps} uncommitted</span>` : "all committed")
-		);
+		$(this.wrapper)
+			.find(".dd-summary")
+			.html(
+				`<b>${apps.length}</b> apps<span class="sep">·</span>` +
+					`<b>${d.clean_apps || 0}</b> clean<span class="sep">·</span>` +
+					(d.stale_apps
+						? `<span class="warn">${d.stale_apps} behind</span><span class="sep">·</span>`
+						: "") +
+					(d.dirty_apps
+						? `<span class="late">${d.dirty_apps} uncommitted</span>`
+						: "all committed")
+			);
 
-		$(this.wrapper).find(".dpx-bb-status").html(
-			`Last backup <b>${dd_esc(d.last_backup_display || "never")}</b><span class="sep">·</span>` +
-				`<b>${d.snapshots_today || 0}</b> snapshots today<span class="sep">·</span>` +
-				`<b>${drift}</b> schema differences` +
-				`<span class="sp">${(d.recent_errors || []).length} recent errors</span>`
-		);
+		$(this.wrapper)
+			.find(".dpx-bb-status")
+			.html(
+				`Last backup <b>${dd_esc(
+					d.last_backup_display || "never"
+				)}</b><span class="sep">·</span>` +
+					`<b>${d.snapshots_today || 0}</b> snapshots today<span class="sep">·</span>` +
+					`<b>${drift}</b> schema differences` +
+					`<span class="sp">${(d.recent_errors || []).length} recent errors</span>`
+			);
 
 		if (this.tab === "apps") return this.render_apps(apps);
 		if (this.tab === "drift") return this.render_drift(d);
@@ -168,10 +189,18 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 	render_drift(d) {
 		const rows = d.field_differences || [];
 		const tiles = [
-			["Missing locally", d.missing_local_count || 0, "On the live site but not in this bench"],
+			[
+				"Missing locally",
+				d.missing_local_count || 0,
+				"On the live site but not in this bench",
+			],
 			["Missing live", d.missing_live_count || 0, "In this bench but not on the live site"],
 			["Different type", d.different_type_count || 0, "Same field, different fieldtype"],
-			["Different property", d.different_property_count || 0, "Same field, different options"],
+			[
+				"Different property",
+				d.different_property_count || 0,
+				"Same field, different options",
+			],
 		];
 
 		this.stage().html(
@@ -200,7 +229,10 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 								.join("")}</tbody>
 						</table>
 					</div></div>`
-					: dd_blank("Local and live agree", "No field differences were found the last time the two were compared."))
+					: dd_blank(
+							"Local and live agree",
+							"No field differences were found the last time the two were compared."
+					  ))
 		);
 	}
 
@@ -220,7 +252,9 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 								.map(
 									(a) => `<tr class="dpx-bb-row"><td class="subj">${dd_esc(
 										a.action_type || a.activity_type || "Change"
-									)}</td><td>${dd_esc(a.document_name || a.reference_name || "")}</td>
+									)}</td><td>${dd_esc(
+										a.document_name || a.reference_name || ""
+									)}</td>
 									<td class="num">${dd_esc(a.creation_display || a.creation || "")}</td></tr>`
 								)
 								.join("")}</tbody></table>`
@@ -231,9 +265,12 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 					errs.length
 						? `<table class="dpx-bb-table"><tbody>${errs
 								.map(
-									(e) => `<tr class="dpx-bb-row"><td class="subj">${dd_esc(
-										e.method || e.title || "Error"
-									)}</td><td class="num late">${dd_esc(e.creation_display || e.creation || "")}</td></tr>`
+									(e) =>
+										`<tr class="dpx-bb-row"><td class="subj">${dd_esc(
+											e.method || e.title || "Error"
+										)}</td><td class="num late">${dd_esc(
+											e.creation_display || e.creation || ""
+										)}</td></tr>`
 								)
 								.join("")}</tbody></table>`
 						: '<div class="dpx-bb-blank"><p>No errors logged. That is the good outcome.</p></div>'
@@ -272,13 +309,16 @@ const DD_ICONS = {
 	layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
 	split: '<path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.17-2.83L3 3"/><path d="m15 9 6-6"/>',
 	clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	refresh:
+		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 };
 
 function dd_ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${DD_ICONS[name] || ""}</svg>`;
+		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			DD_ICONS[name] || ""
+		}</svg>`;
 }
 
 function dd_esc(value) {

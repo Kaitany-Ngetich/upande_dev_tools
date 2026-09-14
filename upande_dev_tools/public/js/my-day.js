@@ -28,7 +28,10 @@ upande_dev_tools.MyDay = class MyDay {
 			.catch((e) => {
 				icon.removeClass("spin");
 				this.stage().html(
-					md_blank("Could not load your day", String((e && e.message) || e) || "Reload to try again.")
+					md_blank(
+						"Could not load your day",
+						String((e && e.message) || e) || "Reload to try again."
+					)
 				);
 			});
 	}
@@ -74,14 +77,17 @@ upande_dev_tools.MyDay = class MyDay {
 		root.on("click", ".md-reload", () => this.load());
 		root.on("click", ".md-check", (e) => this.advance($(e.currentTarget)));
 		document.addEventListener("keydown", (e) => {
-			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
+			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || ""))
+				return;
 			this.load();
 		});
 	}
 
 	skeleton() {
-		this.stage().attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true"><div class="md-split">
+		this.stage()
+			.attr("aria-busy", "true")
+			.html(
+				`<div class="dpx-skel" aria-hidden="true"><div class="md-split">
 				<div class="dpx-card sk-plain">${[1, 2, 3, 4]
 					.map(
 						() => `<div class="sk-line"><i class="sk dot" style="width:16px;height:16px"></i>
@@ -90,11 +96,12 @@ upande_dev_tools.MyDay = class MyDay {
 					.join("")}</div>
 				<div class="dpx-card sk-plain">${[1, 2]
 					.map(
-						() => `<div class="sk-line"><i class="sk w12"></i><i class="sk" style="width:54%"></i></div>`
+						() =>
+							`<div class="sk-line"><i class="sk w12"></i><i class="sk" style="width:54%"></i></div>`
 					)
 					.join("")}</div>
 			</div></div>`
-		);
+			);
 	}
 
 	render() {
@@ -107,20 +114,26 @@ upande_dev_tools.MyDay = class MyDay {
 		);
 		const left = today.filter((t) => t.status !== "Completed").length;
 
-		$(this.wrapper).find(".md-count").html(
-			`<b>${left}</b> still to do today<span class="sep">·</span>` +
-				`<b>${meetings.length}</b> meeting${meetings.length === 1 ? "" : "s"}<span class="sep">·</span>` +
-				`<b>${this.backlog.length}</b> open in total`
-		);
+		$(this.wrapper)
+			.find(".md-count")
+			.html(
+				`<b>${left}</b> still to do today<span class="sep">·</span>` +
+					`<b>${meetings.length}</b> meeting${
+						meetings.length === 1 ? "" : "s"
+					}<span class="sep">·</span>` +
+					`<b>${this.backlog.length}</b> open in total`
+			);
 
-		$(this.wrapper).find(".md-alerts").html(
-			overdue.length
-				? `<a class="pm-alert bad" href="/backlog-board"><span class="dot"></span>
+		$(this.wrapper)
+			.find(".md-alerts")
+			.html(
+				overdue.length
+					? `<a class="pm-alert bad" href="/backlog-board"><span class="dot"></span>
 					<span class="txt">${overdue.length} of your task${
-						overdue.length === 1 ? " is" : "s are"
-					} past due</span><span class="cta">See them</span></a>`
-				: ""
-		);
+							overdue.length === 1 ? " is" : "s are"
+					  } past due</span><span class="cta">See them</span></a>`
+					: ""
+			);
 
 		this.stage().html(`
 			<div class="md-split">
@@ -152,7 +165,10 @@ upande_dev_tools.MyDay = class MyDay {
 						<div class="dpx-card-body" style="padding:4px 0 6px">
 							${
 								later.length
-									? later.slice(0, 8).map((t) => md_small(t)).join("")
+									? later
+											.slice(0, 8)
+											.map((t) => md_small(t))
+											.join("")
 									: '<div class="dpx-bb-blank"><p>Nothing else is assigned to you.</p></div>'
 							}
 						</div>
@@ -180,10 +196,18 @@ upande_dev_tools.MyDay = class MyDay {
 			.xcall("upande_dev_tools.api.board.set_stage", {
 				doctype: "Task",
 				name,
-				stage: next === "Completed" ? "Done" : next === "Working" ? "In Progress" : "In Review",
+				stage:
+					next === "Completed"
+						? "Done"
+						: next === "Working"
+						? "In Progress"
+						: "In Review",
 			})
 			.then(() =>
-				frappe.show_alert({ message: __("{0} is now {1}", [task.subject, next]), indicator: "green" })
+				frappe.show_alert({
+					message: __("{0} is now {1}", [task.subject, next]),
+					indicator: "green",
+				})
 			)
 			.catch(() => {
 				task.status = before;
@@ -203,7 +227,9 @@ function md_task(t) {
 			<span class="dpx-bb-chip st-${md_slug(t.status)}">${md_esc(t.status)}</span>
 			${
 				t.priority && t.priority !== "Low"
-					? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${md_esc(t.priority)}</span>`
+					? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${md_esc(
+							t.priority
+					  )}</span>`
 					: ""
 			}
 		</div>`;
@@ -213,23 +239,25 @@ function md_meeting(m) {
 	const at = new Date(String(m.starts_on).replace(" ", "T"));
 	const to = new Date(String(m.ends_on || "").replace(" ", "T"));
 	const hhmm = (d) =>
-		isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+		isNaN(d)
+			? ""
+			: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 	const soon = !isNaN(at) && at - Date.now() < 15 * 60000 && to - Date.now() > 0;
 
 	return `
 		<div class="md-meet${soon ? " soon" : ""}">
-			<span class="at">${md_esc(hhmm(at))}${to && !isNaN(to) ? `<em>${md_esc(hhmm(to))}</em>` : ""}</span>
+			<span class="at">${md_esc(hhmm(at))}${
+		to && !isNaN(to) ? `<em>${md_esc(hhmm(to))}</em>` : ""
+	}</span>
 			<span class="body">
 				<span class="t">${md_esc(m.subject)}</span>
-				${
-					m.location && !m.google_meet_link
-						? `<span class="where">${md_esc(m.location)}</span>`
-						: ""
-				}
+				${m.location && !m.google_meet_link ? `<span class="where">${md_esc(m.location)}</span>` : ""}
 			</span>
 			${
 				m.google_meet_link
-					? `<a class="md-join" href="${md_esc(m.google_meet_link)}" target="_blank" rel="noopener">
+					? `<a class="md-join" href="${md_esc(
+							m.google_meet_link
+					  )}" target="_blank" rel="noopener">
 						${MEET_MARK}<span>${soon ? "Join now" : "Join"}</span></a>`
 					: ""
 			}
@@ -257,8 +285,9 @@ function md_small(t) {
 
 function md_slug(status) {
 	return (
-		{ Open: "todo", Working: "in-progress", "Pending Review": "in-review", Completed: "done" }[status] ||
-		"todo"
+		{ Open: "todo", Working: "in-progress", "Pending Review": "in-review", Completed: "done" }[
+			status
+		] || "todo"
 	);
 }
 
@@ -270,13 +299,16 @@ function md_blank(heading, body) {
 const MD_ICONS = {
 	sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
 	check: '<path d="M20 6 9 17l-5-5"/>',
-	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	refresh:
+		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 };
 
 function md_ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MD_ICONS[name] || ""}</svg>`;
+		stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			MD_ICONS[name] || ""
+		}</svg>`;
 }
 
 function md_esc(value) {

@@ -45,7 +45,7 @@
 }
 
 @supports (-moz-appearance:none) {
-    .jexcel_content { padding-right:10px; } 
+    .jexcel_content { padding-right:10px; }
 }
 
 .jexcel_content::-webkit-scrollbar {
@@ -56,9 +56,9 @@
 .jexcel_content::-webkit-scrollbar-track {
     background: #eee;
 }
- 
+
 .jexcel_content::-webkit-scrollbar-thumb {
-  background: #666; 
+  background: #666;
 }
 
 .jexcel {
@@ -630,7 +630,7 @@
     display:none;
 }
 
-.jexcel_toolbar i.jexcel_toolbar_item 
+.jexcel_toolbar i.jexcel_toolbar_item
 {
     width:24px;
     height:24px;
@@ -639,12 +639,12 @@
     display:inline-block;
 }
 
-.jexcel_toolbar i.jexcel_toolbar_item:hover 
+.jexcel_toolbar i.jexcel_toolbar_item:hover
 {
     background-color:#ddd;
 }
 
-.jexcel_toolbar select.jexcel_toolbar_item 
+.jexcel_toolbar select.jexcel_toolbar_item
 {
     margin-left:2px;
     margin-right:2px;

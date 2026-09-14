@@ -115,12 +115,16 @@ def asset_version(path: str) -> str:
 		return frappe.utils.random_string(8)
 
 
+# Returns only SVG bodies shipped in nav_icons.json; `name` indexes a dict, never a
+# path, and no site data is exposed.
+# nosemgrep: guest-whitelisted-method
 @frappe.whitelist(allow_guest=True)
 def nav_icon(name: str | None) -> str:
 	"""Inline SVG body for a nav icon. Shipped with the app rather than pulled from
 	frappe's lucide sprite, which a portal page only fetches after first paint."""
 	icons = frappe.cache.get_value("udt_nav_icons")
 	if icons is None:
+		# nosemgrep: frappe-security-file-traversal - fixed filename inside this app, no user input.
 		with open(frappe.get_app_path("upande_dev_tools", "nav_icons.json")) as f:
 			icons = json.load(f)
 		frappe.cache.set_value("udt_nav_icons", icons)

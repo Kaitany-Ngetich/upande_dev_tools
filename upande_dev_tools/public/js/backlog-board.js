@@ -2,7 +2,20 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 
 const DAY = 86400000;
 const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = [
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec",
+];
 const SHORT = {
 	"In Progress": "WIP",
 	"In Review": "Review",
@@ -12,7 +25,20 @@ const SHORT = {
 	Done: "Done",
 };
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
-const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS_LONG = [
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December",
+];
 const ZOOM = { days: 34, weeks: 15, months: 5 };
 const PAGE = 60;
 const PREFS = "dpx-backlog";
@@ -35,7 +61,9 @@ const SKELETON = {
 		const card = (n) =>
 			`<div class="sk-card">${`<i class="sk w40"></i><i class="sk w90"></i><i class="sk w70"></i>`}
 				<div class="sk-row"><i class="sk dot"></i><i class="sk w30"></i><i class="sk w20 right"></i></div></div>`;
-		return `<div class="dpx-skel" aria-hidden="true"><div class="dpx-bb-cols">${[3, 4, 2, 3, 1, 2]
+		return `<div class="dpx-skel" aria-hidden="true"><div class="dpx-bb-cols">${[
+			3, 4, 2, 3, 1, 2,
+		]
 			.map(
 				(n) => `<div class="dpx-bb-col">
 					<div class="sk-colhd"><i class="sk w50"></i><i class="sk w10 right"></i></div>
@@ -71,9 +99,18 @@ const SKELETON = {
 			`<div class="sk-tlrow"><div class="sk-gutter"><i class="sk dot"></i><i class="sk w70"></i></div>
 				<div class="sk-track"><i class="sk bar ${tone}" style="left:${left}%;width:${width}%"></i></div></div>`;
 		const plan = [
-			[8, 18, ""], [14, 26, "a"], [22, 14, ""], [18, 32, "b"], [34, 20, "a"],
-			[30, 12, ""], [42, 24, "b"], [38, 16, ""], [50, 28, "a"], [46, 14, ""],
-			[58, 22, "b"], [64, 18, ""],
+			[8, 18, ""],
+			[14, 26, "a"],
+			[22, 14, ""],
+			[18, 32, "b"],
+			[34, 20, "a"],
+			[30, 12, ""],
+			[42, 24, "b"],
+			[38, 16, ""],
+			[50, 28, "a"],
+			[46, 14, ""],
+			[58, 22, "b"],
+			[64, 18, ""],
 		];
 		return `<div class="dpx-skel" aria-hidden="true"><div class="dpx-bb-tl sk-plain">
 			<div class="sk-tlhead"><div class="sk-gutter"><i class="sk w40"></i></div>
@@ -108,7 +145,8 @@ const ICONS = {
 	clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 	table: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
 	trello: '<rect width="18" height="18" x="3" y="3" rx="2"/><rect width="3" height="9" x="7" y="7"/><rect width="3" height="5" x="14" y="7"/>',
-	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	refresh:
+		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 };
 
 function load_jspreadsheet() {
@@ -155,15 +193,15 @@ function paint_cell(cell, x, item) {
 		cell.innerHTML = item.priority
 			? `<span class="cellwrap"><span class="dpx-bb-chip pr-${slug(item.priority)}">${esc(
 					item.priority
-				)}</span></span>`
+			  )}</span></span>`
 			: "";
 	} else if (x === 4) {
 		cell.innerHTML = item.assignees.length
 			? `<span class="cellwrap"><span class="dpx-bb-av">${esc(
 					initials(item.assignees[0])
-				)}</span><span class="txt">${esc(item.assignees[0])}${
+			  )}</span><span class="txt">${esc(item.assignees[0])}${
 					item.assignees.length > 1 ? ` +${item.assignees.length - 1}` : ""
-				}</span></span>`
+			  }</span></span>`
 			: '<span class="cellwrap" style="color:var(--ink-faint)">Unassigned</span>';
 	} else if (x === 5) {
 		cell.classList.add("bb-quiet");
@@ -180,7 +218,9 @@ function paint_cell(cell, x, item) {
 function ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			ICONS[name] || ""
+		}</svg>`;
 }
 const RANK = { Low: 1, Medium: 2, High: 3, Urgent: 4 };
 
@@ -246,7 +286,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	skeleton() {
 		const stage = $(this.wrapper).find(".bb-stage");
-		stage.attr("aria-busy", "true").html(SKELETON[this.view] ? SKELETON[this.view]() : SKELETON.list());
+		stage
+			.attr("aria-busy", "true")
+			.html(SKELETON[this.view] ? SKELETON[this.view]() : SKELETON.list());
 
 		clearTimeout(this.slow);
 		this.slow = setTimeout(() => {
@@ -262,7 +304,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	fail(e) {
 		$(this.wrapper)
 			.find(".bb-stage")
-			.html(blank("Could not load the board", String(e && e.message ? e.message : e) || "Reload the page to try again."));
+			.html(
+				blank(
+					"Could not load the board",
+					String(e && e.message ? e.message : e) || "Reload the page to try again."
+				)
+			);
 	}
 
 	render_shell() {
@@ -278,13 +325,33 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<div class="dpx-bb-tb-sub">Tasks, issues and requests in one pipeline</div>
 						</div>
 						<div class="dpx-bb-tb-act">
-							<button class="dpx-bb-ico bb-reload" type="button" title="Refresh" aria-label="Refresh">${ico("refresh")}</button>
+							<button class="dpx-bb-ico bb-reload" type="button" title="Refresh" aria-label="Refresh">${ico(
+								"refresh"
+							)}</button>
 							<span class="dpx-bb-div"></span>
 							<div class="dpx-bb-views" role="tablist">
-								<button data-view="board" class="${this.view === "board" ? "on" : ""}" role="tab" title="Board">${ico("board", 13)}<span>Board</span></button>
-								<button data-view="list" class="${this.view === "list" ? "on" : ""}" role="tab" title="List">${ico("list", 13)}<span>List</span></button>
-								<button data-view="timeline" class="${this.view === "timeline" ? "on" : ""}" role="tab" title="Timeline">${ico("clock", 13)}<span>Timeline</span></button>
-								<button data-view="sheet" class="${this.view === "sheet" ? "on" : ""}" role="tab" title="Sheet">${ico("table", 13)}<span>Sheet</span></button>
+								<button data-view="board" class="${
+									this.view === "board" ? "on" : ""
+								}" role="tab" title="Board">${ico(
+			"board",
+			13
+		)}<span>Board</span></button>
+								<button data-view="list" class="${this.view === "list" ? "on" : ""}" role="tab" title="List">${ico(
+			"list",
+			13
+		)}<span>List</span></button>
+								<button data-view="timeline" class="${
+									this.view === "timeline" ? "on" : ""
+								}" role="tab" title="Timeline">${ico(
+			"clock",
+			13
+		)}<span>Timeline</span></button>
+								<button data-view="sheet" class="${
+									this.view === "sheet" ? "on" : ""
+								}" role="tab" title="Sheet">${ico(
+			"table",
+			13
+		)}<span>Sheet</span></button>
 							</div>
 						</div>
 					</div>
@@ -510,18 +577,46 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const scroll = $(this.wrapper).find(".dpx-bb-tl-scroll")[0];
 			const mark = $(this.wrapper).find(".dpx-bb-today")[0];
 			if (scroll && mark)
-				scroll.scrollTo({ left: Math.max(0, mark.offsetLeft - scroll.clientWidth / 2), behavior: "smooth" });
+				scroll.scrollTo({
+					left: Math.max(0, mark.offsetLeft - scroll.clientWidth / 2),
+					behavior: "smooth",
+				});
 			return;
 		}
-		if (name === "fit" && this.sheet) return this.render_sheet($(this.wrapper).find(".bb-stage"), this.visible());
+		if (name === "fit" && this.sheet)
+			return this.render_sheet($(this.wrapper).find(".bb-stage"), this.visible());
 		if (name === "csv") return this.export_csv();
 	}
 
 	export_csv() {
-		const head = ["Type", "ID", "Work item", "Stage", "Priority", "Assignee", "Module", "Start", "Due", "Project", "Status"];
+		const head = [
+			"Type",
+			"ID",
+			"Work item",
+			"Stage",
+			"Priority",
+			"Assignee",
+			"Module",
+			"Start",
+			"Due",
+			"Project",
+			"Status",
+		];
 		const cell = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
 		const body = this.visible().map((i) =>
-			[i.doctype, i.name, i.title, i.stage, i.priority, i.assignees.join("; "), i.module, i.start, i.end, i.project, i.status]
+			[
+				i.doctype,
+				i.name,
+				i.title,
+				i.stage,
+				i.priority,
+				i.assignees.join("; "),
+				i.module,
+				i.start,
+				i.end,
+				i.project,
+				i.status,
+			]
 				.map(cell)
 				.join(",")
 		);
@@ -535,7 +630,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		a.click();
 		a.remove();
 		setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-		frappe.show_alert({ message: __("Exported {0} rows.", [body.length]), indicator: "green" });
+		frappe.show_alert({
+			message: __("Exported {0} rows.", [body.length]),
+			indicator: "green",
+		});
 	}
 
 	render_extra() {
@@ -558,7 +656,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			parts.push(`<span class="sp">${this.items.length} of ${this.total} loaded</span>`);
 
 		$(this.wrapper).find(".dpx-bb-status").html(parts.join("<span>·</span>"));
-		$(this.wrapper).find(".bb-hint-txt").text(HINTS[this.view] || "");
+		$(this.wrapper)
+			.find(".bb-hint-txt")
+			.text(HINTS[this.view] || "");
 	}
 
 	group(rows) {
@@ -574,11 +674,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				rows.filter((item) => (item.priority || "None") === p),
 			]);
 		}
-		const blank = { assignee: "Unassigned", module: "No module", project: "No project" }[this.group_by];
+		const blank = { assignee: "Unassigned", module: "No module", project: "No project" }[
+			this.group_by
+		];
 		const keys = new Set();
 		rows.forEach((item) => {
 			if (this.group_by === "assignee")
-				item.assignees.length ? item.assignees.forEach((a) => keys.add(a)) : keys.add(blank);
+				item.assignees.length
+					? item.assignees.forEach((a) => keys.add(a))
+					: keys.add(blank);
 			else keys.add(item[this.group_by] || blank);
 		});
 		const has = (item, key) =>
@@ -597,24 +701,32 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		if (!rows.length) return stage.html(blank("Nothing here yet", empty_hint(this.filters)));
 
 		const groups = this.group(rows);
-		stage.html(`<div class="dpx-bb-cols">${groups
-			.map(([key, items]) => {
-				const cap = this.caps[key] || COLUMN_CAP;
-				const shown = items.slice(0, cap);
-				return `
+		stage.html(
+			`<div class="dpx-bb-cols">${groups
+				.map(([key, items]) => {
+					const cap = this.caps[key] || COLUMN_CAP;
+					const shown = items.slice(0, cap);
+					return `
 			<div class="dpx-bb-col">
 				<div class="dpx-bb-col-hd"><span>${esc(key)}</span><span class="n">${items.length}</span></div>
 				<div class="dpx-bb-drop" data-stage="${esc(key)}">
-					${items.length
-						? shown.map((item) => card(item)).join("")
-						: '<div class="dpx-bb-col-blank">Nothing in this stage</div>'}
-					${items.length > shown.length
-						? `<button class="dpx-bb-colmore" data-col="${esc(key)}">${items.length - shown.length} more</button>`
-						: ""}
+					${
+						items.length
+							? shown.map((item) => card(item)).join("")
+							: '<div class="dpx-bb-col-blank">Nothing in this stage</div>'
+					}
+					${
+						items.length > shown.length
+							? `<button class="dpx-bb-colmore" data-col="${esc(key)}">${
+									items.length - shown.length
+							  } more</button>`
+							: ""
+					}
 				</div>
 			</div>`;
-			})
-			.join("")}</div>`);
+				})
+				.join("")}</div>`
+		);
 
 		stage.find(".dpx-bb-colmore").on("click", (e) => {
 			const key = $(e.currentTarget).data("col");
@@ -631,7 +743,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			e.originalEvent.dataTransfer.setData("text/plain", card.data("id"));
 			card.addClass("dragging");
 		});
-		stage.find(".dpx-bb-card").on("dragend", (e) => $(e.currentTarget).removeClass("dragging"));
+		stage
+			.find(".dpx-bb-card")
+			.on("dragend", (e) => $(e.currentTarget).removeClass("dragging"));
 
 		stage.find(".dpx-bb-drop").on("dragover", (e) => {
 			e.preventDefault();
@@ -698,7 +812,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						<th class="opt">Module</th><th style="text-align:right">Due</th></tr></thead>
 					<tbody>${body}</tbody>
 				</table>
-				${shown < rows.length ? `<button class="dpx-bb-more">Show more — ${rows.length - shown} remaining</button>` : ""}
+				${
+					shown < rows.length
+						? `<button class="dpx-bb-more">Show more — ${
+								rows.length - shown
+						  } remaining</button>`
+						: ""
+				}
 			</div></div>
 		`);
 	}
@@ -709,10 +829,19 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		stage.attr("aria-busy", "true").html(SKELETON.sheet());
 		load_jspreadsheet()
 			.then(() => {
-				stage.removeAttr("aria-busy").html('<div class="dpx-bb-sheet"><div class="host"></div></div>');
+				stage
+					.removeAttr("aria-busy")
+					.html('<div class="dpx-bb-sheet"><div class="host"></div></div>');
 				this.mount_sheet(stage.find(".host")[0], rows);
 			})
-			.catch(() => stage.html(blank("Sheet could not load", "The spreadsheet library did not load. Reload the page, or use the List view.")));
+			.catch(() =>
+				stage.html(
+					blank(
+						"Sheet could not load",
+						"The spreadsheet library did not load. Reload the page, or use the List view."
+					)
+				)
+			);
 	}
 
 	mount_sheet(host, rows) {
@@ -749,11 +878,21 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ type: "hidden", title: "id" },
 				{ type: "text", title: "Work item", width: 372, ...locked },
 				{ type: "dropdown", title: "Stage", width: 124, source: this.stages },
-				{ type: "dropdown", title: "Priority", width: 104, source: ["", "Low", "Medium", "High", "Urgent"] },
+				{
+					type: "dropdown",
+					title: "Priority",
+					width: 104,
+					source: ["", "Low", "Medium", "High", "Urgent"],
+				},
 				{ type: "text", title: "Assignee", width: 142, ...locked },
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
-				{ type: "calendar", title: "Start", width: 100, options: { format: "YYYY-MM-DD" } },
+				{
+					type: "calendar",
+					title: "Start",
+					width: 100,
+					options: { format: "YYYY-MM-DD" },
+				},
 				{ type: "text", title: "Status", width: 104, ...locked },
 				{ type: "text", title: "Project", width: 102, ...locked },
 				{ type: "text", title: "ID", width: 118, ...locked },
@@ -937,7 +1076,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const at = i * day_w;
 			if (d.getUTCDate() === 1) {
 				months.push(
-					`<div class="dpx-bb-mo" style="left:${at}px">${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}</div>`
+					`<div class="dpx-bb-mo" style="left:${at}px">${
+						MONTHS_LONG[d.getUTCMonth()]
+					} ${d.getUTCFullYear()}</div>`
 				);
 				rules.push(`<div class="mo" style="left:${at}px"></div>`);
 			} else if (this.zoom === "days") {
@@ -951,14 +1092,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				rules.push(`<div class="wk" style="left:${at}px"></div>`);
 				ticks.push(`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`);
 			}
-			if (d.getUTCDay() === 6) rules.push(`<div class="we" style="left:${at}px;width:${day_w * 2}px"></div>`);
+			if (d.getUTCDay() === 6)
+				rules.push(`<div class="we" style="left:${at}px;width:${day_w * 2}px"></div>`);
 		}
 
 		const now = date_of(today());
 		const inside = now >= first && now <= last;
-		const marker = inside
-			? `<div class="dpx-bb-today" style="left:${x(now)}px"></div>`
-			: "";
+		const marker = inside ? `<div class="dpx-bb-today" style="left:${x(now)}px"></div>` : "";
 		const tag = inside
 			? `<div class="dpx-bb-todaytag" style="left:${x(now)}px">Today</div>`
 			: "";
@@ -970,7 +1110,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					.map(([key, items]) => {
 						const own = spans.filter((s) => items.includes(s.item));
 						if (!own.length) return "";
-						return lane_head(key, own) + own.map((span) => tl_row(span, x, width)).join("");
+						return (
+							lane_head(key, own) +
+							own.map((span) => tl_row(span, x, width)).join("")
+						);
 					})
 					.join("")
 			: spans.map((span) => tl_row(span, x, width)).join("");
@@ -1045,7 +1188,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			}
 			drag.bar.style.left = `${left}px`;
 			drag.bar.style.width = `${width}px`;
-			drag.readout.textContent = `${fmt(add_days(drag.start, start))} → ${fmt(add_days(drag.end, end))}`;
+			drag.readout.textContent = `${fmt(add_days(drag.start, start))} → ${fmt(
+				add_days(drag.end, end)
+			)}`;
 			drag.readout.style.left = `${left}px`;
 		};
 
@@ -1074,7 +1219,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			if (!item) return;
 
 			const box = bar.getBoundingClientRect();
-			const edge = e.clientX - box.left < 7 ? "start" : box.right - e.clientX < 7 ? "end" : "move";
+			const edge =
+				e.clientX - box.left < 7 ? "start" : box.right - e.clientX < 7 ? "end" : "move";
 			const readout = document.createElement("div");
 			readout.className = "dpx-bb-readout";
 			bar.parentNode.appendChild(readout);
@@ -1158,7 +1304,9 @@ function list_row(item) {
 			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>
 			<td>${
 				item.priority
-					? `<span class="dpx-bb-chip pr-${slug(item.priority)}">${esc(item.priority)}</span>`
+					? `<span class="dpx-bb-chip pr-${slug(item.priority)}">${esc(
+							item.priority
+					  )}</span>`
 					: '<span class="muted">—</span>'
 			}</td>
 			<td class="opt">${people(item)}</td>
@@ -1177,28 +1325,33 @@ function tl_row({ item, start, end }, x, width) {
 	// The bar carries its own name once it is wide enough to hold one, so the
 	// eye reads the schedule without travelling back to the gutter.
 	const inside = bar_w > 70 ? `<span class="lb">${esc(item.title)}</span>` : "";
-	const outside = bar_w > 70 ? "" : `<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>`;
+	const outside =
+		bar_w > 70 ? "" : `<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>`;
 
 	return `
 		<div class="dpx-bb-tl-row${done ? " done" : ""}">
 			<div class="name">
 				<span class="dpx-bb-pri p${item.rank - 1}" title="${esc(item.priority || "No priority")}"></span>
 				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a>
-				<span class="dpx-bb-chip st-${slug(item.stage)} tiny">${esc(SHORT[item.stage] || item.stage)}</span>
+				<span class="dpx-bb-chip st-${slug(item.stage)} tiny">${esc(
+		SHORT[item.stage] || item.stage
+	)}</span>
 				${
 					item.assignees.length
 						? `<span class="dpx-bb-av" title="${esc(item.assignees.join(", "))}">${esc(
 								initials(item.assignees[0])
-							)}</span>`
+						  )}</span>`
 						: ""
 				}
 			</div>
 			<div class="track" style="width:${width}px">
-				<a class="dpx-bb-tlbar ${cls}" href="${link(item)}" data-id="${esc(item.doctype)}:${esc(item.name)}"
+				<a class="dpx-bb-tlbar ${cls}" href="${link(item)}" data-id="${esc(item.doctype)}:${esc(
+		item.name
+	)}"
 					${item.movable ? "data-movable" : ""} style="left:${left}px;width:${bar_w}px"
-					title="${esc(item.title)} · ${esc(item.stage)} · ${label} · ${days} day${
-						days === 1 ? "" : "s"
-					}${item.assignees.length ? ` · ${esc(item.assignees.join(", "))}` : ""}">${inside}</a>
+					title="${esc(item.title)} · ${esc(item.stage)} · ${label} · ${days} day${days === 1 ? "" : "s"}${
+		item.assignees.length ? ` · ${esc(item.assignees.join(", "))}` : ""
+	}">${inside}</a>
 				${outside}
 			</div>
 		</div>`;
