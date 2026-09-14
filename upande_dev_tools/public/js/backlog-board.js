@@ -181,6 +181,7 @@ function paint_cell(cell, x, item) {
 
 	if (x === 1) {
 		cell.classList.add("bb-title");
+		cell.setAttribute("data-id", `${item.doctype}:${item.name}`);
 		cell.innerHTML = `<span class="cellwrap"><span class="dpx-bb-pri p${item.rank - 1}"
 			title="${esc(item.priority || "No priority")}"></span><span class="dpx-bb-src">${
 			SOURCES[item.doctype]
@@ -456,6 +457,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		});
 
 		root.on("click", ".bb-tool", (e) => this.tool($(e.currentTarget).data("tool")));
+
+		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
 
 		this.bind_keys(root);
 	}
@@ -1298,7 +1301,7 @@ function list_row(item) {
 	const cls = ["dpx-bb-row"];
 	if (item.stage === "Done") cls.push("done");
 	return `
-		<tr class="${cls.join(" ")}">
+		<tr class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}">
 			<td><div class="subj">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				<a href="${link(item)}">${esc(item.title)}</a></div></td>
 			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>

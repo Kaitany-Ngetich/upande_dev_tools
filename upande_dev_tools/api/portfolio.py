@@ -43,14 +43,32 @@ def get_portfolio(days: int = 30, scope: str | None = None) -> dict:
 	now = _window(scoped, start, end)
 	before = _window(scoped, prev_start, start)
 
+	open_total = frappe.db.count("Task", {**scoped, "status": OPEN_TASK})
+	# Little's law, stated plainly: at the rate of the period just measured, how
+	# long until the open pile is gone. Only meaningful if anything shipped.
+	rate = now["delivered"] / days if now["delivered"] else 0
+	forecast = round(open_total / rate) if rate else None
+
 	return {
-		"period": {"days": days, "from": str(start), "to": str(end), "excluded": loose},
+		"period": {
+			"days": days,
+			"from": str(start),
+			"to": str(end),
+			"excluded": loose,
+			"open": open_total,
+			"clears_in": forecast,
+			"clears_on": str(add_days(end, forecast)) if forecast and forecast < 3650 else None,
+		},
 		"kpis": _kpis(now, before, scoped, end),
 		"flow": _flow(scoped, end),
 		"wins": _wins(scoped, start),
 		"risks": _risks(scoped, end),
 		"people": _people(scoped, end),
-		"modules": _modules(scoped, start),
+		"modules": _modules(scoped, start, end),
+		"ageing": _ageing(scoped, end),
+		"projects": _projects_roll(projects, end),
+		"requests": _requests(scoped, end),
+		"stalled": _stalled(scoped, end),
 	}
 
 
@@ -320,15 +338,21 @@ def _people(scoped: dict, end) -> list[dict]:
 	return sorted(buckets.values(), key=lambda b: (-b["open"], -b["delivered"]))
 
 
-def _modules(scoped: dict, start) -> list[dict]:
-	counts: dict[str, dict] = defaultdict(lambda: {"open": 0, "delivered": 0})
+def _modules(scoped: dict, start, end) -> list[dict]:
+	"""A dot per task, so the size of a module and its mix read at once rather
+	than as a bar whose proportions have to be decoded."""
+	counts: dict[str, dict] = defaultdict(lambda: {"open": 0, "late": 0, "delivered": 0})
 	for task in frappe.get_all(
 		"Task",
 		filters={**scoped, "status": OPEN_TASK},
-		fields=["custom_module"],
+		fields=["custom_module", "exp_end_date"],
 		ignore_permissions=True,
 	):
-		counts[task.custom_module or "No module"]["open"] += 1
+		bucket = counts[task.custom_module or "No module"]
+		if task.exp_end_date and getdate(task.exp_end_date) < getdate(end):
+			bucket["late"] += 1
+		else:
+			bucket["open"] += 1
 	for task in frappe.get_all(
 		"Task",
 		filters={**scoped, "status": "Completed", "completed_on": [">=", start]},
@@ -337,8 +361,93 @@ def _modules(scoped: dict, start) -> list[dict]:
 	):
 		counts[task.custom_module or "No module"]["delivered"] += 1
 
-	rows = [{"module": key, **value} for key, value in counts.items()]
-	return sorted(rows, key=lambda r: -(r["open"] + r["delivered"]))[:8]
+	rows = [{"module": key, **value, "total": sum(value.values())} for key, value in counts.items()]
+	return sorted(rows, key=lambda r: -r["total"])[:10]
+
+
+AGE_BANDS = [("Under a week", 7), ("One to two weeks", 14), ("Two to four weeks", 30), ("Over a month", None)]
+
+
+def _ageing(scoped: dict, end) -> list[dict]:
+	"""How long open work has been open. A backlog that is merely large is one
+	thing; a backlog that is old is another."""
+	bands = [{"label": label, "count": 0} for label, _ in AGE_BANDS]
+	for task in frappe.get_all(
+		"Task", filters={**scoped, "status": OPEN_TASK}, fields=["creation"], ignore_permissions=True
+	):
+		age = (getdate(end) - getdate(task.creation)).days
+		for index, (_, ceiling) in enumerate(AGE_BANDS):
+			if ceiling is None or age < ceiling:
+				bands[index]["count"] += 1
+				break
+	return bands
+
+
+def _projects_roll(projects: list[str] | None, end) -> list[dict]:
+	filters = {"status": ["!=", "Cancelled"]}
+	if projects is not None:
+		filters["name"] = ["in", projects]
+
+	rows = frappe.get_all(
+		"Project",
+		filters=filters,
+		fields=["name", "project_name", "custom_project_scope"],
+		order_by="project_name asc",
+		limit=10,
+		ignore_permissions=True,
+	)
+	for row in rows:
+		row["total"] = frappe.db.count("Task", {"project": row.name})
+		row["done"] = frappe.db.count("Task", {"project": row.name, "status": "Completed"})
+		row["overdue"] = frappe.db.count("Task", _overdue_filters({"project": row.name}, end))
+		row["requests"] = frappe.db.count(
+			"Request", {"project": row.name, "workflow_state": ["not in", ["Completed", "Rejected"]]}
+		)
+	return [row for row in rows if row["total"]]
+
+
+def _requests(scoped: dict, end) -> dict:
+	"""What happens to what people ask for. A team that rejects nothing is not
+	triaging, and one that answers nothing is a black hole."""
+	states = defaultdict(int)
+	ages = []
+	for req in frappe.get_all(
+		"Request", filters=scoped, fields=["workflow_state", "creation"], ignore_permissions=True
+	):
+		state = req.workflow_state or "Under Review"
+		states[state] += 1
+		if state in ("", "Under Review"):
+			ages.append((getdate(end) - getdate(req.creation)).days)
+
+	accepted = states["Approved"] + states["Scheduled"] + states["In Progress"] + states["Completed"]
+	return {
+		"total": sum(states.values()),
+		"accepted": accepted,
+		"rejected": states["Rejected"],
+		"deferred": states["Deferred"],
+		"waiting": states["Under Review"],
+		"oldest_wait": max(ages) if ages else 0,
+	}
+
+
+def _stalled(scoped: dict, end) -> list[dict]:
+	"""Open work nobody has touched in a fortnight. Distinct from old work: this
+	is work that started and then stopped."""
+	rows = frappe.get_all(
+		"Task",
+		filters={**scoped, "status": OPEN_TASK, "modified": ["<", add_days(end, -14)]},
+		fields=["name", "subject", "status", "modified", "custom_module", "_assign"],
+		order_by="modified asc",
+		limit=8,
+		ignore_permissions=True,
+	)
+	names = _names({who for row in rows for who in _assignees(row)})
+	for row in rows:
+		row["who"] = [names.get(w, w) for w in _assignees(row)] or ["Unassigned"]
+		row["quiet"] = (getdate(end) - getdate(row.modified)).days
+		row["modified"] = str(row["modified"])[:10]
+		row.pop("_assign", None)
+	return rows
 
 
 def _assignees(row) -> list[str]:

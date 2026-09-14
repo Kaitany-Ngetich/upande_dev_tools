@@ -7,6 +7,7 @@
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
 <div id="udt-pm-dashboard"></div>
+<script src="/assets/upande_dev_tools/js/work-preview.js?v={{ asset_version('js/work-preview.js') }}"></script>
 <script src="/assets/upande_dev_tools/js/pm-dashboard.js?v={{ asset_version('js/pm-dashboard.js') }}"></script>
 <script>
 frappe.ready(function() {

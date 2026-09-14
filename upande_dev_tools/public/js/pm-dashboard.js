@@ -6,9 +6,10 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 	constructor(wrapper) {
 		this.wrapper = wrapper;
 		this.data = null;
+		const url = new URLSearchParams(location.search);
 		const kept = pm_prefs();
-		this.days = kept.days || 30;
-		this.scope = kept.scope || "";
+		this.days = Number(url.get("days")) || kept.days || 30;
+		this.scope = url.get("scope") || kept.scope || "";
 		this.render_shell();
 		this.load();
 	}
@@ -53,6 +54,10 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 							<div class="dpx-bb-tb-sub">What the team shipped, how fast, and what needs you</div>
 						</div>
 						<div class="dpx-bb-tb-act">
+							<button class="dpx-bb-btn pm-export" type="button">Export</button>
+							<button class="dpx-bb-btn pm-print" type="button">Print</button>
+							<button class="dpx-bb-btn pm-share" type="button">Copy link</button>
+							<span class="dpx-bb-div"></span>
 							<button class="dpx-bb-ico pm-reload" type="button" title="Refresh">${pm_ico("refresh")}</button>
 						</div>
 					</div>
@@ -84,6 +89,14 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 		root.find(`.pm-days button[data-days="${this.days}"]`).addClass("on");
 		root.find(".pm-scope").val(this.scope);
 		root.on("click", ".pm-reload", () => this.load());
+		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
+		root.on("click", ".pm-print", () => window.print());
+		root.on("click", ".pm-export", () => this.export());
+		root.on("click", ".pm-share", () => {
+			const share = () => frappe.show_alert({ message: __("Link copied."), indicator: "green" });
+			if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(share, () => {});
+			else share();
+		});
 		root.on("click", ".pm-days button", (e) => {
 			this.days = Number($(e.currentTarget).data("days"));
 			root.find(".pm-days button").removeClass("on");
@@ -107,9 +120,53 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 		try {
 			localStorage.setItem(PM_PREFS, JSON.stringify({ days: this.days, scope: this.scope }));
 		} catch (e) {}
+		const url = new URL(location.href);
+		url.searchParams.set("days", this.days);
+		if (this.scope) url.searchParams.set("scope", this.scope);
+		else url.searchParams.delete("scope");
+		history.replaceState(null, "", url);
+	}
+
+	// A board pack wants a file, not a screenshot of a browser tab.
+	export() {
+		const d = this.data;
+		if (!d) return;
+		const cell = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+		const row = (...v) => v.map(cell).join(",");
+		const lines = [
+			row("Upande dev portfolio"),
+			row("Period", `${d.period.from} to ${d.period.to}`, `${d.period.days} days`),
+			row("Scope", this.scope || "All projects"),
+			row(""),
+			row("Measure", "Value", "Previous", "Change"),
+			...d.kpis.map((k) => row(k.label, k.value, k.was, k.delta)),
+			row(""),
+			row("Week", "Raised", "Delivered"),
+			...d.flow.map((w) => row(w.label, w.raised, w.delivered)),
+			row(""),
+			row("Person", "Open", "Overdue", "Shipped (30d)"),
+			...d.people.map((p) => row(p.name, p.open, p.overdue, p.delivered)),
+			row(""),
+			row("Module", "Delivered", "Open", "Overdue"),
+			...d.modules.map((m) => row(m.module, m.delivered, m.open, m.late)),
+			row(""),
+			row("Shipped", "Module", "By", "On"),
+			...d.wins.map((w) => row(w.subject, w.custom_module, w.by.join("; "), w.completed_on)),
+		];
+
+		const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(blob);
+		a.download = `portfolio-${d.period.from}-to-${d.period.to}.csv`;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+		frappe.show_alert({ message: __("Exported the report."), indicator: "green" });
 	}
 
 	skeleton() {
+<<<<<<< HEAD
 		$(this.wrapper)
 			.find(".bb-stage")
 			.attr("aria-busy", "true")
@@ -122,11 +179,32 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 						<i class="sk" style="width:46%;height:20px;margin-top:9px"></i>
 						<i class="sk w70" style="margin-top:8px"></i></div>`
 				).join("")}</div>
+=======
+		$(this.wrapper).find(".bb-stage").attr("aria-busy", "true").html(
+			`<div class="dpx-skel" aria-hidden="true">
+				<div class="dpx-card sk-plain pm-hero">
+					<div class="pm-hero-fig"><i class="sk w50"></i>
+						<i class="sk" style="width:70%;height:38px;margin-top:8px"></i>
+						<i class="sk w90" style="margin-top:10px"></i></div>
+					<i class="sk" style="height:118px"></i>
+				</div>
+				<div class="dpx-card sk-plain pm-measures">
+					${[1, 2, 3]
+						.map(
+							() => `<div class="m"><i class="sk w50"></i>
+								<i class="sk" style="width:40%;height:18px"></i><i class="sk w70"></i></div>`
+						)
+						.join("")}
+				</div>
+>>>>>>> d5cb6bf621c53c8c2327acdac51bde1330e649e2
 				<div class="pm-grid">
-					<div class="dpx-card sk-plain" style="padding:14px">
-						<i class="sk w30"></i><i class="sk" style="height:120px;margin-top:12px"></i></div>
-					<div class="dpx-card sk-plain" style="padding:14px">
-						${[1, 2, 3, 4].map(() => '<i class="sk w90" style="margin-bottom:9px"></i>').join("")}</div>
+					${[1, 2]
+						.map(
+							() => `<div class="dpx-card sk-plain" style="padding:14px">${[1, 2, 3, 4]
+								.map(() => '<i class="sk w90" style="margin-bottom:9px"></i>')
+								.join("")}</div>`
+						)
+						.join("")}
 				</div>
 			</div>`
 			);
@@ -146,31 +224,40 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 					`<span class="sp">${d.wins.length} shipped in this window</span>`
 			);
 
+		const by = Object.fromEntries(d.kpis.map((k) => [k.key, k]));
+
 		$(this.wrapper).find(".bb-stage").html(`
-			<div class="pm-kpis">${d.kpis.map((k) => pm_kpi(k)).join("")}</div>
-			<div class="pm-grid wide">
-				${pm_flow(d.flow)}
-				${pm_risks(d.risks)}
+			${pm_hero(by.delivered, d.flow, d.period)}
+			${pm_measures([by.cycle, by.on_time, by.net])}
+			<div class="pm-grid">
+				${pm_risks(d.risks, by.waiting, by.risk)}
+				${pm_people(d.people)}
 			</div>
 			<div class="pm-grid">
-				${pm_people(d.people)}
 				${pm_wins(d.wins)}
+				${pm_modules(d.modules)}
 			</div>
-			${pm_modules(d.modules)}
+			<div class="pm-grid">
+				${pm_ageing(d.ageing, d.period)}
+				${pm_requests(d.requests)}
+			</div>
+			${pm_projects(d.projects)}
+			${pm_stalled(d.stalled)}
 		`);
 	}
 };
 
-function pm_kpi(k) {
-	const value = k.value === null || k.value === undefined ? "—" : k.value;
-	const shown = k.signed && typeof value === "number" && value > 0 ? `+${value}` : value;
-	const arrow = k.delta > 0 ? "▲" : k.delta < 0 ? "▼" : "";
+// The headline number and the history behind it belong together; splitting them
+// into a tile and a chart makes a reader carry the figure across the page.
+function pm_hero(k, flow, period) {
 	return `
-		<div class="pm-kpi ${k.direction}" title="${pm_esc(k.note)}">
-			<div class="lbl">${pm_esc(k.label)}</div>
-			<div class="val">${pm_esc(shown)}<span class="unit">${pm_esc(k.unit)}</span></div>
-			<div class="foot">
+		<div class="dpx-card pm-hero">
+			<div class="pm-hero-fig">
+				<div class="lbl">Delivered</div>
+				<div class="val">${pm_esc(k.value === null ? "—" : k.value)}</div>
+				<div class="sub">${pm_esc(pm_change(k, `in the previous ${period.days} days`))}</div>
 				${
+<<<<<<< HEAD
 					k.delta === null || k.delta === undefined || k.delta === 0
 						? `<span class="flat">${
 								k.was === null || k.was === undefined ? "right now" : "no change"
@@ -179,18 +266,50 @@ function pm_kpi(k) {
 								k.unit
 						  )}</span>
 							<span class="vs">vs previous ${pm_esc(k.was)}${pm_esc(k.unit)}</span>`
+=======
+					period.clears_on
+						? `<div class="fore">At this rate the ${period.open} open clear around
+							<b>${pm_esc(period.clears_on)}</b></div>`
+						: ""
+>>>>>>> d5cb6bf621c53c8c2327acdac51bde1330e649e2
 				}
+				<div class="key"><span><i class="out"></i>delivered</span><span><i class="in"></i>raised</span></div>
 			</div>
+			${pm_flow(flow)}
 		</div>`;
+}
+
+function pm_measures(list) {
+	return `
+		<div class="dpx-card pm-measures">
+			${list
+				.map(
+					(k) => `<div class="m" title="${pm_esc(k.note)}">
+						<span class="lbl">${pm_esc(k.label)}</span>
+						<span class="val">${pm_esc(pm_value(k))}<em>${pm_esc(k.unit)}</em></span>
+						<span class="chg ${k.direction}">${pm_esc(pm_change(k, "before"))}</span>
+					</div>`
+				)
+				.join("")}
+		</div>`;
+}
+
+function pm_value(k) {
+	if (k.value === null || k.value === undefined) return "—";
+	return k.signed && k.value > 0 ? `+${k.value}` : k.value;
+}
+
+function pm_change(k, tail) {
+	if (k.delta === null || k.delta === undefined) return "measured right now";
+	if (!k.delta) return `unchanged ${tail}`;
+	const arrow = k.delta > 0 ? "▲" : "▼";
+	return `${arrow} ${Math.abs(k.delta)}${k.unit} against ${k.was}${k.unit} ${tail}`;
 }
 
 function pm_flow(weeks) {
 	const top = Math.max(1, ...weeks.map((w) => Math.max(w.raised, w.delivered)));
 	return `
-		<div class="dpx-card">
-			<div class="dpx-card-hd"><div class="ttl">Raised against delivered</div>
-				<span class="pm-key"><i class="in"></i>raised<i class="out"></i>delivered</span></div>
-			<div class="dpx-card-body">
+		<div class="pm-flow-wrap">
 				<div class="pm-flow">
 					${weeks
 						.map(
@@ -206,15 +325,18 @@ function pm_flow(weeks) {
 						)
 						.join("")}
 				</div>
-			</div>
 		</div>`;
 }
 
-function pm_risks(risks) {
+function pm_risks(risks, waiting, risk) {
 	return `
 		<div class="dpx-card">
 			<div class="dpx-card-hd"><div class="ttl">Needs attention</div>
-				<span class="md-n">${risks.length}</span></div>
+				<span class="pm-tally">${
+					waiting && waiting.value ? `<b>${waiting.value}</b> awaiting you` : ""
+				}${waiting && waiting.value && risk && risk.value ? "<i></i>" : ""}${
+					risk && risk.value ? `<b>${risk.value}</b> at risk` : ""
+				}</span></div>
 			<div class="dpx-card-body" style="padding:4px 0 6px">
 				${
 					risks.length
@@ -316,29 +438,172 @@ function pm_wins(wins) {
 		</div>`;
 }
 
+// A dot per task. Size and mix read at once, where a bar makes you decode
+// proportions - and a module with forty open items should look like forty.
 function pm_modules(modules) {
 	if (!modules.length) return "";
-	const top = Math.max(1, ...modules.map((m) => m.open + m.delivered));
+	const dots = (n, cls) => Array.from({ length: n }, () => `<i class="${cls}"></i>`).join("");
 	return `
 		<div class="dpx-card">
-			<div class="dpx-card-hd"><div class="ttl">Where the work is</div></div>
+			<div class="dpx-card-hd"><div class="ttl">Where the work is</div>
+				<span class="pm-tally"><b>${modules.length}</b> modules</span></div>
 			<div class="dpx-card-body">
-				<div class="pm-mods">
+				<div class="pm-units">
 					${modules
-						.map(
-							(m) => `<div class="mod">
+						.map((m) => {
+							const cap = 48;
+							const total = m.total;
+							const scale = total > cap ? cap / total : 1;
+							const at = (n) => Math.round(n * scale);
+							return `<div class="u" title="${pm_esc(m.module)}: ${m.delivered} delivered, ${
+								m.open
+							} open, ${m.late} overdue">
 								<span class="nm">${pm_esc(m.module)}</span>
-								<span class="bar">
-									<i class="out" style="width:${Math.round((m.delivered / top) * 100)}%"
-										title="${m.delivered} delivered"></i>
-									<i class="in" style="width:${Math.round((m.open / top) * 100)}%"
-										title="${m.open} open"></i>
-								</span>
-								<span class="n">${m.delivered} / ${m.open + m.delivered}</span>
+								<span class="dots">${dots(at(m.delivered), "done")}${dots(at(m.open), "open")}${dots(
+									at(m.late),
+									"late"
+								)}</span>
+								<span class="n">${total > cap ? `${total}` : ""}</span>
+							</div>`;
+						})
+						.join("")}
+				</div>
+				<div class="pm-units-key">
+					<span><i class="done"></i>delivered this period</span>
+					<span><i class="open"></i>open</span>
+					<span><i class="late"></i>overdue</span>
+				</div>
+			</div>
+		</div>`;
+}
+
+// A backlog that is merely large is one thing. A backlog that is old is another.
+function pm_ageing(bands, period) {
+	const total = bands.reduce((n, b) => n + b.count, 0) || 1;
+	const stale = bands.slice(2).reduce((n, b) => n + b.count, 0);
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">How old the open work is</div>
+				<span class="pm-tally"><b>${period.open}</b> open</span></div>
+			<div class="dpx-card-body">
+				<div class="pm-age-bar">
+					${bands
+						.map(
+							(b, i) =>
+								`<i class="b${i}" style="width:${(b.count / total) * 100}%"
+									title="${pm_esc(b.label)}: ${b.count}"></i>`
+						)
+						.join("")}
+				</div>
+				<div class="pm-age-key">
+					${bands
+						.map(
+							(b, i) => `<span><i class="b${i}"></i>${pm_esc(b.label)}<b>${b.count}</b></span>`
+						)
+						.join("")}
+				</div>
+				<p class="pm-note">${
+					stale
+						? `${stale} ${stale === 1 ? "item has" : "items have"} been open longer than a fortnight.`
+						: "Nothing has been sitting longer than a fortnight."
+				}</p>
+			</div>
+		</div>`;
+}
+
+// What happens to what people ask for. A team that rejects nothing is not
+// triaging; one that answers nothing is a black hole.
+function pm_requests(r) {
+	const decided = r.accepted + r.rejected + r.deferred;
+	const share = (n) => (r.total ? Math.round((n / r.total) * 100) : 0);
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">What people asked for</div>
+				<span class="pm-tally"><b>${r.total}</b> raised</span></div>
+			<div class="dpx-card-body">
+				<div class="pm-req">
+					${[
+						["Accepted", r.accepted, "ok"],
+						["Deferred", r.deferred, "warn"],
+						["Turned down", r.rejected, "bad"],
+						["Still waiting", r.waiting, "calm"],
+					]
+						.map(
+							([label, n, tone]) => `<div class="r ${tone}">
+								<span class="n">${n}</span>
+								<span class="l">${pm_esc(label)}</span>
+								<span class="bar"><i style="width:${share(n)}%"></i></span>
 							</div>`
 						)
 						.join("")}
 				</div>
+				<p class="pm-note">${
+					r.waiting
+						? `Longest wait is ${r.oldest_wait} days.`
+						: decided
+							? "Everything raised has had an answer."
+							: "Nothing has been raised yet."
+				}</p>
+			</div>
+		</div>`;
+}
+
+function pm_stalled(rows) {
+	if (!rows.length) return "";
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Started and gone quiet</div>
+				<span class="pm-tally"><b>${rows.length}</b> untouched for a fortnight</span></div>
+			<div class="dpx-card-body" style="padding:4px 0 6px">
+				${rows
+					.map(
+						(r) => `<a class="pm-win pm-stall" href="/app/task/${encodeURIComponent(r.name)}"
+							data-id="Task:${pm_esc(r.name)}">
+							<span class="dpx-bb-chip st-${String(r.status).toLowerCase().replace(/\s+/g, "-")}">${pm_esc(
+								r.status
+							)}</span>
+							<span class="t">${pm_esc(r.subject)}</span>
+							${r.custom_module ? `<span class="mod">${pm_esc(r.custom_module)}</span>` : ""}
+							<span class="by">${pm_esc(r.who.join(", "))}</span>
+							<span class="on">${r.quiet}d quiet</span>
+						</a>`
+					)
+					.join("")}
+			</div>
+		</div>`;
+}
+
+function pm_projects(rows) {
+	if (!rows.length) return "";
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">By project</div></div>
+			<div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
+				<table class="dpx-bb-table">
+					<colgroup><col><col style="width:104px"><col style="width:220px"><col style="width:94px"><col style="width:104px"></colgroup>
+					<thead><tr><th>Project</th><th>Scope</th><th>Finished</th><th>Overdue</th><th>Open requests</th></tr></thead>
+					<tbody>${rows
+						.map((p) => {
+							const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+							return `<tr class="dpx-bb-row">
+								<td><div class="subj"><a href="/app/project/${encodeURIComponent(p.name)}">${pm_esc(
+									p.project_name || p.name
+								)}</a></div></td>
+								<td>${
+									p.custom_project_scope
+										? `<span class="dpx-bb-chip ${
+												p.custom_project_scope === "External" ? "st-triage" : "st-todo"
+											}">${pm_esc(p.custom_project_scope === "External" ? "Client" : "Internal")}</span>`
+										: '<span class="muted">—</span>'
+								}</td>
+								<td><div class="pm-prog"><span class="bar"><i style="width:${pct}%"></i></span>
+									<span class="pct">${pct}%</span><span class="of">${p.done}/${p.total}</span></div></td>
+								<td class="num${p.overdue ? " late" : ""}">${p.overdue}</td>
+								<td class="num">${p.requests}</td>
+							</tr>`;
+						})
+						.join("")}</tbody>
+				</table>
 			</div>
 		</div>`;
 }

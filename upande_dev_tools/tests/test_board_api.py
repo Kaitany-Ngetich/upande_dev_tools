@@ -4,7 +4,14 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
-from upande_dev_tools.api.board import STAGES, get_board, get_modules, set_field, set_stage
+from upande_dev_tools.api.board import (
+	STAGES,
+	get_board,
+	get_modules,
+	get_preview,
+	set_field,
+	set_stage,
+)
 
 
 class IntegrationTestBoardApi(IntegrationTestCase):
@@ -122,6 +129,56 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 
 	def test_get_modules_lists_master_data(self) -> None:
 		self.assertEqual(get_modules(), frappe.get_all("Product Area", pluck="name", order_by="name asc"))
+
+	def test_preview_carries_enough_to_decide_without_opening(self) -> None:
+		project = self._project()
+		task = self._task(project, subject="Bench is slow", description="<p>It hangs on save.</p>")
+
+		preview = get_preview("Task", task)
+		self.assertEqual(preview["title"], "Bench is slow")
+		self.assertEqual(preview["summary"], "It hangs on save.")
+		self.assertIsNone(preview["image"], "nothing was attached")
+
+	def test_preview_trims_a_long_description_on_a_word(self) -> None:
+		body = "<p>" + ("reconciliation " * 60) + "</p>"
+		task = self._task(self._project(), description=body)
+
+		summary = get_preview("Task", task)["summary"]
+		self.assertTrue(summary.endswith("…"))
+		self.assertLess(len(summary), 300)
+		self.assertNotIn("  ", summary)
+
+	def test_preview_points_at_an_attached_screenshot(self) -> None:
+		issue = self._issue(self._project())
+		frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": f"{frappe.generate_hash(length=8)}-screenshot.png",
+				"is_private": 1,
+				"attached_to_doctype": "Issue",
+				"attached_to_name": issue,
+				"content": b"\x89PNG\r\n\x1a\n",
+			}
+		).insert(ignore_permissions=True)
+
+		image = get_preview("Issue", issue)["image"]
+		# served through this app, never linked straight at a private file
+		self.assertIn("upande_dev_tools.api.board.preview_image", image)
+		self.assertNotIn("/private/files/", image)
+
+	def test_preview_refuses_a_doctype_that_is_not_work(self) -> None:
+		with self.assertRaises(frappe.ValidationError):
+			get_preview("User", "Administrator")
+
+	def test_preview_denies_someone_without_a_board_role(self) -> None:
+		task = self._task(self._project())
+		outsider = self._user("preview-outsider@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				get_preview("Task", task)
+		finally:
+			frappe.set_user("Administrator")
 
 	def test_board_reports_total_beyond_the_limit(self) -> None:
 		project = self._project()

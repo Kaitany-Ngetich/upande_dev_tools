@@ -20,7 +20,20 @@ const STYLES = path.join(__dirname, "../../public/css/dev-portal.css");
 // the timeline bar and the toolbar were both .dpx-bb-bar, which turned the
 // toolbar into an absolutely positioned 14px strip.
 function assert_no_layout_collisions() {
-	const css = fs.readFileSync(STYLES, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+	let css = fs.readFileSync(STYLES, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+	// Rules inside @media and friends are deliberate overrides of the same
+	// component, not two components sharing a class, so they are not collisions.
+	for (let at = css.indexOf("@"); at !== -1; at = css.indexOf("@", at)) {
+		const open = css.indexOf("{", at);
+		if (open === -1) break;
+		let depth = 0;
+		let end = open;
+		for (; end < css.length; end++) {
+			if (css[end] === "{") depth += 1;
+			else if (css[end] === "}" && --depth === 0) break;
+		}
+		css = css.slice(0, at) + css.slice(end + 1);
+	}
 	const seen = {};
 	let block = 0;
 	for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
