@@ -1,42 +1,38 @@
 window.upande_dev_tools = window.upande_dev_tools || {};
 
+const PM_PREFS = "dpx-portfolio";
+
 upande_dev_tools.PmDashboard = class PmDashboard {
 	constructor(wrapper) {
 		this.wrapper = wrapper;
-		this.health = null;
-		this.team = null;
-		this.scope = "";
-		this.tab = "people";
+		this.data = null;
+		const kept = pm_prefs();
+		this.days = kept.days || 30;
+		this.scope = kept.scope || "";
 		this.render_shell();
 		this.load();
 	}
 
 	load() {
 		const icon = $(this.wrapper).find(".pm-reload").addClass("spin");
-		if (!this.health) this.skeleton();
-		Promise.all([
-			frappe.xcall("upande_dev_tools.api.project_health.get_project_health", {
+		if (!this.data) this.skeleton();
+		frappe
+			.xcall("upande_dev_tools.api.portfolio.get_portfolio", {
+				days: this.days,
 				scope: this.scope || null,
-			}),
-			frappe.xcall("upande_dev_tools.api.project_health.get_team_workload"),
-		])
-			.then(([health, team]) => {
-				this.health = health || {};
-				this.team = team || {};
-				this.stage().removeAttr("aria-busy");
+			})
+			.then((data) => {
+				this.data = data;
+				$(this.wrapper).find(".bb-stage").removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
 			})
 			.catch((e) => {
 				icon.removeClass("spin");
-				this.stage().html(
-					pm_blank("Could not read the portfolio", String((e && e.message) || e) || "Reload to try again.")
-				);
+				$(this.wrapper)
+					.find(".bb-stage")
+					.html(pm_blank("Could not read the portfolio", String((e && e.message) || e) || "Reload to try again."));
 			});
-	}
-
-	stage() {
-		return $(this.wrapper).find(".bb-stage");
 	}
 
 	render_shell() {
@@ -49,18 +45,20 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 								<span class="dpx-bb-mark">${pm_ico("gauge", 14)}</span>
 								<h2>Portfolio</h2>
 							</div>
-							<div class="dpx-bb-tb-sub">Who is loaded, what is slipping, what is waiting on you</div>
+							<div class="dpx-bb-tb-sub">What the team shipped, how fast, and what needs you</div>
 						</div>
 						<div class="dpx-bb-tb-act">
 							<button class="dpx-bb-ico pm-reload" type="button" title="Refresh">${pm_ico("refresh")}</button>
-							<span class="dpx-bb-div"></span>
-							<div class="dpx-bb-views pm-tabs" role="tablist">
-								<button data-tab="people" class="on" role="tab">${pm_ico("users", 12)}<span>People</span></button>
-								<button data-tab="projects" role="tab">${pm_ico("folder", 12)}<span>Projects</span></button>
-							</div>
 						</div>
 					</div>
 					<div class="dpx-bb-tb-cmd">
+						<div class="dpx-bb-grp">
+							<span class="dpx-bb-grp-lbl">Period</span>
+							<div class="dpx-bb-views pm-days">
+								${[7, 30, 90].map((d) => `<button data-days="${d}">${d} days</button>`).join("")}
+							</div>
+						</div>
+						<span class="dpx-bb-sep"></span>
 						<div class="dpx-bb-grp">
 							<span class="dpx-bb-grp-lbl">Scope</span>
 							<select class="dpx-bb-field pm-scope" aria-label="Project scope">
@@ -69,27 +67,29 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 								<option value="External">Client</option>
 							</select>
 						</div>
-						<span class="dpx-bb-hint"><span class="dpx-bb-kbd">r</span><span>refresh</span></span>
+						<span class="dpx-bb-hint pm-window"></span>
 					</div>
 				</div>
-				<div class="pm-alerts"></div>
 				<div class="bb-stage"></div>
-				<div class="dpx-bb-status"></div>
+				<div class="dpx-bb-status pm-foot"></div>
 			</div>
 		`);
 
 		const root = $(this.wrapper);
+		root.find(`.pm-days button[data-days="${this.days}"]`).addClass("on");
+		root.find(".pm-scope").val(this.scope);
 		root.on("click", ".pm-reload", () => this.load());
-		root.on("change", ".pm-scope", (e) => {
-			this.scope = $(e.currentTarget).val();
+		root.on("click", ".pm-days button", (e) => {
+			this.days = Number($(e.currentTarget).data("days"));
+			root.find(".pm-days button").removeClass("on");
+			$(e.currentTarget).addClass("on");
+			this.save();
 			this.load();
 		});
-		root.on("click", ".pm-tabs button", (e) => {
-			const btn = $(e.currentTarget);
-			root.find(".pm-tabs button").removeClass("on");
-			btn.addClass("on");
-			this.tab = btn.data("tab");
-			this.render();
+		root.on("change", ".pm-scope", (e) => {
+			this.scope = $(e.currentTarget).val();
+			this.save();
+			this.load();
 		});
 		document.addEventListener("keydown", (e) => {
 			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
@@ -97,161 +97,237 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 		});
 	}
 
+	save() {
+		try {
+			localStorage.setItem(PM_PREFS, JSON.stringify({ days: this.days, scope: this.scope }));
+		} catch (e) {}
+	}
+
 	skeleton() {
-		$(this.wrapper).find(".pm-alerts").html(
-			`<div class="dpx-skel" aria-hidden="true"><i class="sk" style="height:35px;border-radius:9px"></i></div>`
-		);
-		this.stage().attr("aria-busy", "true").html(
-			`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">
-				${[92, 74, 58, 40, 26]
-					.map(
-						(w) => `<div class="sk-line" style="padding:11px 14px;gap:10px">
-							<i class="sk dot" style="width:18px;height:18px"></i>
-							<i class="sk" style="width:110px"></i>
-							<i class="sk" style="flex:1;width:${w}%;height:7px"></i>
-							<i class="sk w8 right"></i></div>`
-					)
-					.join("")}
-			</div></div>`
+		$(this.wrapper).find(".bb-stage").attr("aria-busy", "true").html(
+			`<div class="dpx-skel" aria-hidden="true">
+				<div class="pm-kpis">${Array.from({ length: 6 }, () =>
+					`<div class="pm-kpi"><i class="sk w50"></i>
+						<i class="sk" style="width:46%;height:20px;margin-top:9px"></i>
+						<i class="sk w70" style="margin-top:8px"></i></div>`
+				).join("")}</div>
+				<div class="pm-grid">
+					<div class="dpx-card sk-plain" style="padding:14px">
+						<i class="sk w30"></i><i class="sk" style="height:120px;margin-top:12px"></i></div>
+					<div class="dpx-card sk-plain" style="padding:14px">
+						${[1, 2, 3, 4].map(() => '<i class="sk w90" style="margin-bottom:9px"></i>').join("")}</div>
+				</div>
+			</div>`
 		);
 	}
 
 	render() {
-		const h = this.health;
-		const t = this.team;
-		const done = t.closed_tasks || 0;
-		const open = t.open_tasks || 0;
-		const total = open + done || 1;
+		const d = this.data;
+		$(this.wrapper)
+			.find(".pm-window")
+			.text(`${d.period.from} to ${d.period.to}`);
 
-		// What needs a decision leads. A number nobody has to act on is not an alert.
-		const alerts = [
-			h.total_overdue_tasks
-				? ["bad", `${h.total_overdue_tasks} task${h.total_overdue_tasks === 1 ? "" : "s"} past due`, "/backlog-board", "Open the board"]
-				: null,
-			h.total_open_requests
-				? ["warn", `${h.total_open_requests} request${h.total_open_requests === 1 ? "" : "s"} waiting on a decision`, "/review-queue", "Review them"]
-				: null,
-		].filter(Boolean);
-
-		$(this.wrapper).find(".pm-alerts").html(
-			alerts.length
-				? alerts
-						.map(
-							([tone, text, href, cta]) => `<a class="pm-alert ${tone}" href="${href}">
-								<span class="dot"></span><span class="txt">${pm_esc(text)}</span>
-								<span class="cta">${pm_esc(cta)}</span></a>`
-						)
-						.join("")
-				: `<div class="pm-alert calm"><span class="dot"></span>
-					<span class="txt">Nothing overdue and no request waiting. The queue is yours.</span></div>`
+		$(this.wrapper).find(".pm-foot").html(
+			`Measured from work that belongs to a project` +
+				(d.period.excluded
+					? `<span class="sep">·</span><b>${d.period.excluded.toLocaleString()}</b> tasks sit outside every project and are not counted`
+					: "") +
+				`<span class="sp">${d.wins.length} shipped in this window</span>`
 		);
 
-		$(this.wrapper).find(".dpx-bb-status").html(
-			`<b>${h.project_count || 0}</b> active projects<span class="sep">·</span>` +
-				`<b>${open}</b> open tasks<span class="sep">·</span><b>${done}</b> closed` +
-				`<span class="sp">${Math.round((done / total) * 100)}% of all work is finished</span>`
-		);
-
-		if (this.tab === "people") return this.render_people(t);
-		return this.render_projects(h);
-	}
-
-	render_people(t) {
-		const all = (t.developers || []).filter((d) => d.open_tasks);
-		// Unassigned is not a person. Left in the list it is always the longest bar
-		// and every real workload reads as a hairline beside it.
-		const nobody = all.find((d) => d.full_name === "Unassigned");
-		const devs = all.filter((d) => d !== nobody);
-
-		if (!devs.length && !nobody) {
-			return this.stage().html(
-				pm_blank("Nobody has open work", "Every task is either finished or waiting to be assigned.")
-			);
-		}
-
-		const most = devs.length ? Math.max(...devs.map((d) => d.open_tasks)) : 0;
-		this.stage().html(
-			(devs.length
-				? `<div class="dpx-card"><div class="dpx-card-body" style="padding:4px 0">
-						${devs.map((d) => pm_person(d, most)).join("")}
-					</div></div>`
-				: pm_blank("Nothing is assigned", "Every open task is still waiting for someone to take it.")) +
-				(nobody
-					? `<a class="pm-orphans" href="/backlog-board">
-							<span class="n">${nobody.open_tasks.toLocaleString()}</span>
-							<span class="txt">open tasks have nobody on them${
-								nobody.overdue ? `, and ${nobody.overdue} are already overdue` : ""
-							}</span>
-							<span class="cta">Assign them</span>
-						</a>`
-					: "")
-		);
-	}
-
-	render_projects(h) {
-		const rows = h.projects || [];
-		if (!rows.length) {
-			return this.stage().html(
-				pm_blank("No project in this scope", "Change the scope, or create a project to plan work against.")
-			);
-		}
-
-		this.stage().html(
-			`<div class="dpx-card"><div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
-				<table class="dpx-bb-table">
-					<colgroup><col><col style="width:110px"><col style="width:190px"><col style="width:96px"><col style="width:104px"></colgroup>
-					<thead><tr><th>Project</th><th>Scope</th><th>Progress</th><th>Overdue</th><th>Requests</th></tr></thead>
-					<tbody>${rows.map((p) => pm_project(p)).join("")}</tbody>
-				</table>
-			</div></div>`
-		);
+		$(this.wrapper).find(".bb-stage").html(`
+			<div class="pm-kpis">${d.kpis.map((k) => pm_kpi(k)).join("")}</div>
+			<div class="pm-grid wide">
+				${pm_flow(d.flow)}
+				${pm_risks(d.risks)}
+			</div>
+			<div class="pm-grid">
+				${pm_people(d.people)}
+				${pm_wins(d.wins)}
+			</div>
+			${pm_modules(d.modules)}
+		`);
 	}
 };
 
-function pm_person(d, most) {
-	const share = Math.round((d.open_tasks / (most || 1)) * 100);
-	const tone = d.overdue ? "bad" : d.due_today ? "warn" : "ok";
+function pm_kpi(k) {
+	const value = k.value === null || k.value === undefined ? "—" : k.value;
+	const shown = k.signed && typeof value === "number" && value > 0 ? `+${value}` : value;
+	const arrow = k.delta > 0 ? "▲" : k.delta < 0 ? "▼" : "";
 	return `
-		<div class="pm-person">
-			<span class="dpx-bb-av">${pm_esc(pm_initials(d.full_name))}</span>
-			<span class="who">${pm_esc(d.full_name)}</span>
-			<span class="bar"><i class="${tone}" style="width:${share}%"></i></span>
-			<span class="n">${d.open_tasks} open</span>
-			${d.due_today ? `<span class="tag warn">${d.due_today} due today</span>` : ""}
-			${d.overdue ? `<span class="tag bad">${d.overdue} overdue</span>` : ""}
-			${d.incoming_requests ? `<span class="tag calm">${d.incoming_requests} incoming</span>` : ""}
+		<div class="pm-kpi ${k.direction}" title="${pm_esc(k.note)}">
+			<div class="lbl">${pm_esc(k.label)}</div>
+			<div class="val">${pm_esc(shown)}<span class="unit">${pm_esc(k.unit)}</span></div>
+			<div class="foot">
+				${
+					k.delta === null || k.delta === undefined || k.delta === 0
+						? `<span class="flat">${k.was === null || k.was === undefined ? "right now" : "no change"}</span>`
+						: `<span class="delta">${arrow} ${pm_esc(Math.abs(k.delta))}${pm_esc(k.unit)}</span>
+							<span class="vs">vs previous ${pm_esc(k.was)}${pm_esc(k.unit)}</span>`
+				}
+			</div>
 		</div>`;
 }
 
-function pm_project(p) {
-	const pct = p.total_tasks ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0;
+function pm_flow(weeks) {
+	const top = Math.max(1, ...weeks.map((w) => Math.max(w.raised, w.delivered)));
 	return `
-		<tr class="dpx-bb-row">
-			<td><div class="subj"><a href="/app/project/${encodeURIComponent(p.name)}">${pm_esc(
-				p.project_name || p.name
-			)}</a></div></td>
-			<td>${
-				p.custom_project_scope
-					? `<span class="dpx-bb-chip ${
-							p.custom_project_scope === "External" ? "st-triage" : "st-todo"
-						}">${pm_esc(p.custom_project_scope === "External" ? "Client" : "Internal")}</span>`
-					: "—"
-			}</td>
-			<td><div class="pm-prog"><span class="bar"><i style="width:${pct}%"></i></span>
-				<span class="pct">${pct}%</span>
-				<span class="of">${p.completed_tasks}/${p.total_tasks}</span></div></td>
-			<td class="num${p.overdue_tasks ? " late" : ""}">${p.overdue_tasks || 0}</td>
-			<td class="num">${p.open_requests || 0}</td>
-		</tr>`;
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Raised against delivered</div>
+				<span class="pm-key"><i class="in"></i>raised<i class="out"></i>delivered</span></div>
+			<div class="dpx-card-body">
+				<div class="pm-flow">
+					${weeks
+						.map(
+							(w) => `<div class="col" title="Week of ${pm_esc(w.label)}: ${w.raised} raised, ${
+								w.delivered
+							} delivered">
+								<div class="pair">
+									<i class="in" style="height:${Math.round((w.raised / top) * 100)}%"></i>
+									<i class="out" style="height:${Math.round((w.delivered / top) * 100)}%"></i>
+								</div>
+								<span class="lbl">${pm_esc(w.label)}</span>
+							</div>`
+						)
+						.join("")}
+				</div>
+			</div>
+		</div>`;
+}
+
+function pm_risks(risks) {
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Needs attention</div>
+				<span class="md-n">${risks.length}</span></div>
+			<div class="dpx-card-body" style="padding:4px 0 6px">
+				${
+					risks.length
+						? risks
+								.map(
+									(r) => `<a class="pm-risk" href="/app/${r.doctype.toLowerCase()}/${encodeURIComponent(
+										r.name
+									)}">
+										<span class="dpx-bb-chip ${
+											{ "On hold": "st-in-review", "Awaiting you": "st-triage" }[r.kind] ||
+											"st-blocked"
+										}">${pm_esc(r.kind)}</span>
+										<span class="t">${pm_esc(r.title)}</span>
+										<span class="who">${pm_esc(r.who.join(", ") || "Unassigned")}</span>
+										<span class="days">${r.days}d</span>
+									</a>`
+								)
+								.join("")
+						: '<div class="dpx-bb-blank"><p>Nothing is overdue or on hold.</p></div>'
+				}
+			</div>
+		</div>`;
+}
+
+function pm_people(people) {
+	const real = people.filter((p) => p.name !== "Unassigned");
+	const nobody = people.find((p) => p.name === "Unassigned");
+	const most = Math.max(1, ...real.map((p) => p.open));
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Who is carrying what</div></div>
+			<div class="dpx-card-body" style="padding:4px 0 6px">
+				${
+					real.length
+						? real
+								.map(
+									(p) => `<div class="pm-person">
+										<span class="dpx-bb-av">${pm_esc(pm_initials(p.name))}</span>
+										<span class="who">${pm_esc(p.name)}</span>
+										<span class="bar"><i class="${p.overdue ? "bad" : ""}" style="width:${Math.round(
+											(p.open / most) * 100
+										)}%"></i></span>
+										<span class="n">${p.open} open</span>
+										${p.delivered ? `<span class="tag ok">${p.delivered} shipped</span>` : ""}
+										${p.overdue ? `<span class="tag bad">${p.overdue} late</span>` : ""}
+									</div>`
+								)
+								.join("")
+						: '<div class="dpx-bb-blank"><p>Nobody has open work.</p></div>'
+				}
+				${
+					nobody && nobody.open
+						? `<a class="pm-orphans" href="/backlog-board"><span class="n">${nobody.open}</span>
+							<span class="txt">open tasks have nobody on them</span>
+							<span class="cta">Assign them</span></a>`
+						: ""
+				}
+			</div>
+		</div>`;
+}
+
+function pm_wins(wins) {
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Shipped</div><span class="md-n">${wins.length}</span></div>
+			<div class="dpx-card-body" style="padding:4px 0 6px">
+				${
+					wins.length
+						? wins
+								.slice(0, 8)
+								.map(
+									(w) => `<a class="pm-win" href="/app/task/${encodeURIComponent(w.name)}">
+										<span class="tick">${pm_ico("check", 11)}</span>
+										<span class="t">${pm_esc(w.subject)}</span>
+										${w.custom_module ? `<span class="mod">${pm_esc(w.custom_module)}</span>` : ""}
+										<span class="by">${pm_esc(w.by.join(", "))}</span>
+										<span class="on">${pm_esc(w.completed_on)}</span>
+									</a>`
+								)
+								.join("")
+						: '<div class="dpx-bb-blank"><p>Nothing finished in this window yet.</p></div>'
+				}
+				${
+					wins.length > 8
+						? `<a class="pm-more" href="/backlog-board">and ${wins.length - 8} more</a>`
+						: ""
+				}
+			</div>
+		</div>`;
+}
+
+function pm_modules(modules) {
+	if (!modules.length) return "";
+	const top = Math.max(1, ...modules.map((m) => m.open + m.delivered));
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Where the work is</div></div>
+			<div class="dpx-card-body">
+				<div class="pm-mods">
+					${modules
+						.map(
+							(m) => `<div class="mod">
+								<span class="nm">${pm_esc(m.module)}</span>
+								<span class="bar">
+									<i class="out" style="width:${Math.round((m.delivered / top) * 100)}%"
+										title="${m.delivered} delivered"></i>
+									<i class="in" style="width:${Math.round((m.open / top) * 100)}%"
+										title="${m.open} open"></i>
+								</span>
+								<span class="n">${m.delivered} / ${m.open + m.delivered}</span>
+							</div>`
+						)
+						.join("")}
+				</div>
+			</div>
+		</div>`;
 }
 
 function pm_initials(name) {
-	return String(name || "?")
-		.split(/\s+/)
-		.slice(0, 2)
-		.map((part) => part[0] || "")
-		.join("")
-		.toUpperCase();
+	return String(name || "?").split(/\s+/).slice(0, 2).map((p) => p[0] || "").join("").toUpperCase();
+}
+
+function pm_prefs() {
+	try {
+		return JSON.parse(localStorage.getItem(PM_PREFS) || "{}") || {};
+	} catch (e) {
+		return {};
+	}
 }
 
 function pm_blank(heading, body) {
@@ -261,15 +337,14 @@ function pm_blank(heading, body) {
 
 const PM_ICONS = {
 	gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
-	users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-	folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+	check: '<path d="M20 6 9 17l-5-5"/>',
 	refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
 };
 
 function pm_ico(name, size) {
 	const s = size || 15;
 	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
-		stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PM_ICONS[name] || ""}</svg>`;
+		stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PM_ICONS[name] || ""}</svg>`;
 }
 
 function pm_esc(value) {

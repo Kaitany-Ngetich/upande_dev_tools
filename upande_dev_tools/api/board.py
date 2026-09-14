@@ -2,7 +2,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, today
+from frappe.utils import getdate, nowdate, today
 
 BOARD_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
 
@@ -247,6 +247,17 @@ def set_stage(doctype: str, name: str, stage: str) -> dict:
 
 	doc = frappe.get_doc(doctype, name)
 	doc.set(fieldname, status)
+
+	# Stamp when the work actually finished. Nothing recorded this before, so no
+	# measure of delivery or cycle time could ever be computed from it.
+	if doctype == "Task" and doc.meta.has_field("completed_on"):
+		if stage == "Done":
+			doc.completed_on = doc.completed_on or nowdate()
+			if doc.meta.has_field("completed_by"):
+				doc.completed_by = doc.completed_by or frappe.session.user
+		else:
+			doc.completed_on = None
+
 	doc.save()
 	return {"name": name, "status": status, "stage": stage}
 
