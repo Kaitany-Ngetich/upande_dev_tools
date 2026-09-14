@@ -100,8 +100,16 @@ def _pin_resolved_home_page_on_login(login_manager=None, **kwargs):
 
 	from upande_dev_tools.portal import resolve_home_route
 
-	if login_manager is not None:
+	if login_manager is None:
+		return
+	try:
 		frappe.local.flags.home_page = resolve_home_route(login_manager.user)
+	except Exception:
+		# Never let a problem resolving this app's own home-route registry (e.g. mid-
+		# migration, a missing Dev Portal Page row) break login sitewide for every app
+		# on this bench - falling through to Frappe's normal home-page resolution is
+		# always safe, this pin is a pure enhancement on top of it.
+		frappe.log_error(title="upande_dev_tools: failed to pin resolved home page on login")
 
 
 on_login = ["upande_dev_tools.hooks._pin_resolved_home_page_on_login"]
@@ -213,25 +221,19 @@ after_migrate = "upande_dev_tools.setup.run_setup"
 # 		"upande_dev_tools.tasks.monthly"
 # 	],
 # }
-#scheduler_events = {
+# scheduler_events = {
 #    "cron": {
 #        "0 */4 * * *": [
 #           "upande_dev_tools.backup.scheduler.run_code_backup"
 #        ]
 #    }
-#}
+# }
 # Testing
 # -------
 
 # before_tests = "upande_dev_tools.install.before_tests"
 
-scheduler_events = {
-    "cron": {
-        "*/5 * * * *": [
-            "upande_dev_tools.backup.scheduler.run_code_backup"
-        ]
-    }
-}
+scheduler_events = {"cron": {"*/5 * * * *": ["upande_dev_tools.backup.scheduler.run_code_backup"]}}
 # Extend DocType Class
 # ------------------------------
 #
