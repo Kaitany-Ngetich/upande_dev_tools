@@ -3,7 +3,7 @@ frappe.provide("upande_dev_tools");
 const DAY = 86400000;
 const SOURCES = { Task: "TASK", Issue: "ISSUE", Request: "REQ" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const ZOOM = { weeks: 15, months: 5 };
+const ZOOM = { weeks: 13, months: 4 };
 const PAGE = 60;
 
 upande_dev_tools.BacklogBoard = class BacklogBoard {
@@ -283,10 +283,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			.join("");
 
 		stage.html(`
-			<div class="dpx-card"><div class="dpx-card-body" style="padding:0 0 4px">
+			<div class="dpx-card"><div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
 				<table class="dpx-bb-table">
-					<colgroup><col><col style="width:130px"><col style="width:110px"><col style="width:170px"><col style="width:110px"></colgroup>
-					<thead><tr><th>Work item</th><th>Stage</th><th>Priority</th><th>Assigned to</th><th style="text-align:right">Due</th></tr></thead>
+					<colgroup><col><col style="width:116px"><col class="opt" style="width:96px"><col class="opt" style="width:150px"><col style="width:96px"></colgroup>
+					<thead><tr><th>Work item</th><th>Stage</th><th class="opt">Priority</th><th class="opt">Assigned to</th><th style="text-align:right">Due</th></tr></thead>
 					<tbody>${body}</tbody>
 				</table>
 				${shown < rows.length ? `<button class="dpx-bb-more">Show more — ${rows.length - shown} remaining</button>` : ""}
@@ -333,7 +333,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				rules.push(`<div class="mo" style="left:${i * day_w}px"></div>`);
 			} else if (d.getUTCDay() === 1) {
 				rules.push(`<div class="wk" style="left:${i * day_w}px"></div>`);
-				if (day_w >= 10)
+				if (day_w >= 9)
 					ticks.push(`<div class="dpx-bb-tk" style="left:${i * day_w}px">${d.getUTCDate()}</div>`);
 			}
 		}
@@ -388,8 +388,8 @@ function list_row(item) {
 			<td><div class="subj"><span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				<a href="${link(item)}">${esc(item.title)}</a></div></td>
 			<td><span class="dpx-bb-dot st-${slug(item.stage)}"></span>${esc(item.stage)}</td>
-			<td>${esc(item.priority || "—")}</td>
-			<td>${people(item)}</td>
+			<td class="opt">${esc(item.priority || "—")}</td>
+			<td class="opt">${people(item)}</td>
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
 		</tr>`;
 }
