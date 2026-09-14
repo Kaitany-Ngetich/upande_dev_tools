@@ -13,6 +13,9 @@ def create_request(
 	project: str | None = None,
 	source: str = "Desk",
 ) -> dict:
+	if project and not frappe.has_permission("Project", "read", project):
+		frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "Request",

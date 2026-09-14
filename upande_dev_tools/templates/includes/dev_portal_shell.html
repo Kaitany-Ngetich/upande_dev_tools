@@ -12,7 +12,7 @@
 {% macro dpx_shell() %}
 <div class="dpx">
 	<aside class="dpx-side">
-		<a class="brand" href="{{ frappe.utils.get_url() }}">
+		<a class="brand" href="{{ resolve_home_route() }}">
 			<span class="name">Upande Dev Tools<small>Dev Portal</small></span>
 		</a>
 		<nav class="nav">

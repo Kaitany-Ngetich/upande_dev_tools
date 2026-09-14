@@ -9,6 +9,7 @@ from upande_dev_tools import portal
 from upande_dev_tools.api.code_editor import get_installed_apps as code_editor_get_installed_apps
 from upande_dev_tools.api.dashboard import get_dashboard_data
 from upande_dev_tools.api.hooks_explorer import get_installed_apps as hooks_explorer_get_installed_apps
+from upande_dev_tools.api.requests import create_request, get_my_requests
 from upande_dev_tools.portal import enforce_page_access, get_nav_items, resolve_home_route
 from upande_dev_tools.setup import register_dev_portal_page
 from upande_dev_tools.www.activity_log import get_context as activity_log_get_context
@@ -616,3 +617,20 @@ class IntegrationTestPortal(IntegrationTestCase):
 		for user in (dev, pm, plain):
 			groups = {item["nav_group"] for item in get_nav_items(user)}
 			self.assertIn("Requests", groups)
+
+	def test_requests_portal_end_to_end_for_a_zero_role_user(self) -> None:
+		plain = self._make_user("requests-portal-e2e@example.test", [])
+		frappe.set_user(plain)
+		try:
+			create_request(title="Portal E2E test request", request_type="Feature", source="Web Portal")
+			my_requests = get_my_requests()
+		finally:
+			frappe.set_user("Administrator")
+
+		titles = [r["title"] for r in my_requests]
+		self.assertIn("Portal E2E test request", titles)
+		matching = [r for r in my_requests if r["title"] == "Portal E2E test request"]
+		self.assertEqual(len(matching), 1)
+		created = frappe.get_doc("Request", matching[0]["name"])
+		self.assertEqual(created.raised_by_user, plain)
+		self.assertEqual(created.source, "Web Portal")

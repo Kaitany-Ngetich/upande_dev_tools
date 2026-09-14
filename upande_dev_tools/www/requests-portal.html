@@ -25,7 +25,7 @@
 					<option value="Bug">Bug</option>
 					<option value="Master Data">Master Data</option>
 					<option value="Question">Question</option>
-					<option value="Note">Note</option>
+					{% if can_raise_note %}<option value="Note">Note</option>{% endif %}
 				</select>
 				<input type="text" id="rp-product-area" placeholder="Product area (optional)"
 					style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);">
@@ -77,7 +77,8 @@ frappe.ready(function() {
 				title: document.querySelector("#rp-title").value,
 				request_type: document.querySelector("#rp-request-type").value,
 				product_area: document.querySelector("#rp-product-area").value || undefined,
-				description: document.querySelector("#rp-description").value || undefined
+				description: document.querySelector("#rp-description").value || undefined,
+				source: "Web Portal"
 			}
 		}).then(function() {
 			document.querySelector("#rp-submit-form").reset();

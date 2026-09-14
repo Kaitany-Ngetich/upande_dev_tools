@@ -64,6 +64,48 @@ required_apps = ["erpnext"]
 # 	"Role": "home_page"
 # }
 
+# website user home page (called by frappe.website.utils.get_home_page as
+# frappe.get_attr(hook)(frappe.session.user) — this is what actually drives the
+# post-login redirect, unlike the vanity /dev-tools route or the denied-access
+# redirect, which are the only two callers of resolve_home_route before this hook)
+get_website_user_home_page = "upande_dev_tools.portal.resolve_home_route"
+
+
+def _pin_resolved_home_page_on_login(login_manager=None, **kwargs):
+	"""`on_login` handler (registered below) - deliberately lives in this module, not
+	portal.py, since this file is the one place a hook-collision workaround like this
+	belongs.
+
+	`get_website_user_home_page` above is Frappe's own hook for exactly this, but it is
+	single-valued: frappe/website/utils.py's get_home_page_via_hooks() calls only the
+	LAST app's registration for that hook name (`frappe.get_attr(home_page_method[-1])(...)`,
+	not "first truthy result wins"). On this bench the `builder` app is installed after
+	upande_dev_tools and also registers `get_website_user_home_page` (returning a falsy
+	value whenever "Builder Settings".home_page is unset, which it is here) - so ours is
+	silently shadowed and never even invoked. Confirmed live: a fresh login for a Dev
+	Team/Projects Manager user came back with home_page "desk", not resolve_home_route's
+	"/dev-dashboard"/"/pm-dashboard", until this handler was added.
+
+	`on_login` doesn't have that problem: frappe/auth.py's LoginManager.run_trigger calls
+	every app's registered handler, not just the last. And frappe/website/utils.py's
+	get_home_page() checks `frappe.local.flags.home_page` before any role/hook/website-
+	settings lookup, so pinning it here guarantees resolve_home_route's route wins
+	regardless of what any other installed app does with the get_website_user_home_page
+	hook name. frappe.session.user is not yet switched to the newly authenticated user
+	when on_login fires (that happens later in the same login request, in make_session),
+	so this uses login_manager.user - passed in by run_trigger - instead of
+	resolve_home_route's own frappe.session.user default.
+	"""
+	import frappe
+
+	from upande_dev_tools.portal import resolve_home_route
+
+	if login_manager is not None:
+		frappe.local.flags.home_page = resolve_home_route(login_manager.user)
+
+
+on_login = ["upande_dev_tools.hooks._pin_resolved_home_page_on_login"]
+
 # Generators
 # ----------
 
@@ -78,7 +120,10 @@ required_apps = ["erpnext"]
 
 # add methods and filters to jinja environment
 jinja = {
-	"methods": ["upande_dev_tools.portal.get_nav_items"],
+	"methods": [
+		"upande_dev_tools.portal.get_nav_items",
+		"upande_dev_tools.portal.resolve_home_route",
+	],
 }
 
 # Installation
