@@ -1,0 +1,94 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+<div class="dpx-page-hd">
+	<div class="eyebrow">Requests</div>
+	<div class="ttl">My Requests</div>
+	<div class="sub">Submit a request and track its status.</div>
+</div>
+<div class="dpx-card">
+	<div class="dpx-card-hd"><div class="ttl">Submit a Request</div></div>
+	<div class="dpx-card-body">
+		<form id="rp-submit-form">
+			<div style="margin-bottom:10px;">
+				<input type="text" id="rp-title" placeholder="Title" required
+					style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);">
+			</div>
+			<div style="margin-bottom:10px;">
+				<select id="rp-request-type" style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);">
+					<option value="Feature">Feature</option>
+					<option value="Bug">Bug</option>
+					<option value="Master Data">Master Data</option>
+					<option value="Question">Question</option>
+					<option value="Note">Note</option>
+				</select>
+				<input type="text" id="rp-product-area" placeholder="Product area (optional)"
+					style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);">
+			</div>
+			<div style="margin-bottom:10px;">
+				<textarea id="rp-description" placeholder="Description (optional)" rows="3"
+					style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);"></textarea>
+			</div>
+			<button type="submit" class="pill" style="cursor:pointer;border:1px solid var(--hairline);background:none;">Submit</button>
+			<span id="rp-submit-error" style="color:#c4302b;margin-left:10px;"></span>
+		</form>
+	</div>
+</div>
+<div class="dpx-card" style="margin-top: 18px;">
+	<div class="dpx-card-hd"><div class="ttl">My Requests</div></div>
+	<div class="dpx-card-body">
+		<table id="rp-requests-table">
+			<thead><tr><th>Title</th><th>Type</th><th>Priority</th><th>Status</th><th>Submitted</th></tr></thead>
+			<tbody></tbody>
+		</table>
+	</div>
+</div>
+<script>
+frappe.ready(function() {
+	function loadMyRequests() {
+		frappe.call({method: "upande_dev_tools.api.requests.get_my_requests"}).then(function(r) {
+			var tbody = document.querySelector("#rp-requests-table tbody");
+			tbody.innerHTML = "";
+			(r.message || []).forEach(function(request) {
+				var tr = document.createElement("tr");
+				[request.title, request.request_type, request.priority || "", request.workflow_state, request.creation].forEach(function(v) {
+					var td = document.createElement("td");
+					td.textContent = v || "";
+					tr.appendChild(td);
+				});
+				tbody.appendChild(tr);
+			});
+		});
+	}
+
+	document.querySelector("#rp-submit-form").addEventListener("submit", function(e) {
+		e.preventDefault();
+		var errorEl = document.querySelector("#rp-submit-error");
+		errorEl.textContent = "";
+
+		frappe.call({
+			method: "upande_dev_tools.api.requests.create_request",
+			args: {
+				title: document.querySelector("#rp-title").value,
+				request_type: document.querySelector("#rp-request-type").value,
+				product_area: document.querySelector("#rp-product-area").value || undefined,
+				description: document.querySelector("#rp-description").value || undefined
+			}
+		}).then(function() {
+			document.querySelector("#rp-submit-form").reset();
+			loadMyRequests();
+		}).catch(function() {
+			errorEl.textContent = "Could not submit — check the form and try again.";
+		});
+	});
+
+	loadMyRequests();
+});
+</script>
+{% endcall %}
+{% endblock %}

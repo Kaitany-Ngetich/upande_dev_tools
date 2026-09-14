@@ -20,6 +20,7 @@ from upande_dev_tools.www.dev_tools import get_context
 from upande_dev_tools.www.hooks_explorer import get_context as hooks_explorer_get_context
 from upande_dev_tools.www.my_day import get_context as my_day_get_context
 from upande_dev_tools.www.pm_dashboard import get_context as pm_dashboard_get_context
+from upande_dev_tools.www.requests_portal import get_context as requests_portal_get_context
 from upande_dev_tools.www.review_queue import get_context as review_queue_get_context
 
 
@@ -580,3 +581,38 @@ class IntegrationTestPortal(IntegrationTestCase):
 		# both nav groups now.
 		self.assertEqual(pm_groups, {"Developer", "Management"})
 		self.assertEqual(both_groups, {"Developer", "Management"})
+
+	def test_requests_portal_permits_any_authenticated_user(self) -> None:
+		other = self._make_user("requests-portal-other@example.test", [])
+		frappe.set_user(other)
+		try:
+			requests_portal_get_context({})  # must not raise
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_requests_portal_denies_guest(self) -> None:
+		frappe.set_user("Guest")
+		try:
+			with self.assertRaises(frappe.Redirect):
+				requests_portal_get_context({})
+			self.assertEqual(frappe.local.flags.redirect_location, "/login?redirect-to=/requests-portal")
+		finally:
+			frappe.set_user("Administrator")
+			frappe.local.flags.redirect_location = None
+
+	def test_requests_portal_page_is_registered_with_correct_attributes(self) -> None:
+		doc = frappe.get_doc("Dev Portal Page", "requests-portal")
+		self.assertEqual(doc.title, "My Requests")
+		self.assertEqual(doc.icon, "inbox")
+		self.assertEqual(doc.nav_group, "Requests")
+		self.assertEqual(doc.sort_order, 10)
+		self.assertEqual({row.role for row in doc.allowed_roles}, {"All"})
+
+	def test_requests_nav_group_is_visible_to_every_audience(self) -> None:
+		dev = self._make_user("requests-nav-dev@example.test", ["Dev Team"])
+		pm = self._make_user("requests-nav-pm@example.test", ["Projects Manager"])
+		plain = self._make_user("requests-nav-plain@example.test", [])
+
+		for user in (dev, pm, plain):
+			groups = {item["nav_group"] for item in get_nav_items(user)}
+			self.assertIn("Requests", groups)

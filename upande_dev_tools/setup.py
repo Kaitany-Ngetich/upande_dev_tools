@@ -135,6 +135,14 @@ def register_dev_portal_pages() -> None:
 		sort_order=20,
 		roles=["Projects Manager"],
 	)
+	register_dev_portal_page(
+		route="requests-portal",
+		title="My Requests",
+		icon="inbox",
+		nav_group="Requests",
+		sort_order=10,
+		roles=["All"],
+	)
 
 
 def run_setup() -> None:
