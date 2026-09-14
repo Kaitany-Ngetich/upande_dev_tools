@@ -8,6 +8,7 @@ from frappe.utils import add_to_date, now_datetime, today
 
 from upande_dev_tools.api.requests import (
 	create_request,
+	get_backlog_board,
 	get_customer_workload,
 	get_developer_backlog,
 	get_my_day,
