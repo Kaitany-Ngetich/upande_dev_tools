@@ -13,7 +13,9 @@
 <div class="dpx">
 	<aside class="dpx-side">
 		<a class="brand" href="{{ resolve_home_route() }}">
-			<span class="name">Upande Dev Tools<small>Dev Portal</small></span>
+			<img class="mark" src="/assets/upande_dev_tools/images/upande-mark.png?v={{ asset_version('images/upande-mark.png') }}"
+				alt="Upande" width="26" height="26">
+			<span class="name">Upande<small>Dev Portal</small></span>
 		</a>
 		<nav class="nav">
 			{% set nav_items = get_nav_items() %}

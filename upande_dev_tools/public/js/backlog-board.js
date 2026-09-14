@@ -691,17 +691,50 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	// (on selection, which fires at mousedown) opens and shuts it in one gesture.
 	// jspreadsheet draws its filter row as bare inputs with no placeholder and no
 	// affordance, so nobody discovers them. Name them after their column.
+	// A filter belongs to its column, not to a row of its own. jspreadsheet draws
+	// the filters as a second header row; that row is folded away and each header
+	// grows a funnel that opens the filter cell underneath it.
 	label_filters(host) {
 		const titles = this.sheet.options.columns.map((c) => c.title);
-		// The filter cells start as &nbsp; and only grow an input on click, so the
-		// affordance has to be drawn into the cell itself.
+		const filters = {};
 		host.querySelectorAll("td.jexcel_column_filter").forEach((td) => {
-			const x = Number(td.getAttribute("data-x"));
-			const title = titles[x];
-			if (!title || td.style.display === "none") return;
-			td.classList.add("has-filter");
-			td.textContent = "All";
-			td.setAttribute("title", `Filter by ${title}`);
+			filters[td.getAttribute("data-x")] = td;
+		});
+
+		host.querySelectorAll("thead tr:first-child > td[data-x]").forEach((head) => {
+			const x = head.getAttribute("data-x");
+			const cell = filters[x];
+			if (!cell || !titles[x] || head.style.display === "none") return;
+
+			const btn = document.createElement("button");
+			btn.className = "dpx-bb-funnel";
+			btn.type = "button";
+			btn.title = `Filter by ${titles[x]}`;
+			btn.setAttribute("aria-label", `Filter by ${titles[x]}`);
+			btn.addEventListener("mousedown", (e) => {
+				e.stopPropagation();
+				e.preventDefault();
+				host.classList.remove("filters-folded");
+				cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+				cell.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+				const input = cell.querySelector("input");
+				if (input) input.focus();
+			});
+			head.appendChild(btn);
+			head.classList.add("has-funnel");
+		});
+
+		host.classList.add("filters-folded");
+
+		// Fold the row away again once you are done with it, unless a filter is set.
+		host.addEventListener("focusout", () => {
+			setTimeout(() => {
+				if (host.contains(document.activeElement)) return;
+				const active = [...host.querySelectorAll("td.jexcel_column_filter input")].some(
+					(i) => i.value
+				);
+				if (!active) host.classList.add("filters-folded");
+			}, 120);
 		});
 	}
 
@@ -856,6 +889,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			<div class="dpx-bb-legend">
 				<span><i class="prog"></i>In progress</span>
 				<span><i class="rev"></i>In review</span>
+				<span><i class="tri"></i>Triage</span>
 				<span><i></i>Queued</span>
 				<span><i class="late"></i>Past due</span>
 				<span><i class="done"></i>Done</span>
@@ -864,9 +898,26 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			</div></div>
 		`);
 
-		if (inside) {
-			const scroll = stage.find(".dpx-bb-tl-scroll")[0];
-			if (scroll) scroll.scrollLeft = Math.max(0, x(now) - scroll.clientWidth / 2);
+		const scroll = stage.find(".dpx-bb-tl-scroll")[0];
+		if (scroll) {
+			if (this.tl_scroll) {
+				scroll.scrollLeft = this.tl_scroll.left;
+				scroll.scrollTop = this.tl_scroll.top;
+			} else if (inside) {
+				scroll.scrollLeft = Math.max(0, x(now) - scroll.clientWidth / 2);
+			}
+			scroll.addEventListener("scroll", () => {
+				this.tl_scroll = { left: scroll.scrollLeft, top: scroll.scrollTop };
+			});
+		}
+
+		if (this.moved) {
+			const bar = stage.find(`.dpx-bb-tlbar[data-id="${this.moved}"]`);
+			bar.addClass("just-moved");
+			if (bar[0] && bar[0].scrollIntoView)
+				bar[0].scrollIntoView({ block: "nearest", inline: "nearest" });
+			setTimeout(() => bar.removeClass("just-moved"), 1400);
+			this.moved = null;
 		}
 
 		this.bind_drag_bars(stage, day_w, first);
@@ -952,6 +1003,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	reschedule(item, moves) {
 		const before = { start: item.start, end: item.end };
 		moves.forEach(([field, value]) => (item[field] = value));
+		this.moved = `${item.doctype}:${item.name}`;
 		this.render();
 
 		Promise.all(
@@ -964,9 +1016,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				})
 			)
 		)
-			.then(() => this.load())
+			// The board is already showing the new dates, so there is nothing to fetch.
+			// Reloading here was what threw you to a different part of the schedule.
+			.then(() =>
+				frappe.show_alert({
+					message: __("{0} moved to {1}", [item.title, item.start]),
+					indicator: "green",
+				})
+			)
 			.catch(() => {
 				Object.assign(item, before);
+				this.moved = null;
 				this.render();
 				frappe.show_alert({ message: __("Could not move that work."), indicator: "red" });
 			});
