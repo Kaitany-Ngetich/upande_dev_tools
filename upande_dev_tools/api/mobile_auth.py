@@ -4,6 +4,9 @@ from frappe.auth import LoginManager
 from frappe.twofactor import should_run_2fa
 
 
+# A login endpoint is necessarily callable before a session exists; the guards
+# LoginManager.login() applies (disable_user_pass_login, 2FA) are reproduced below.
+# nosemgrep: guest-whitelisted-method
 @frappe.whitelist(allow_guest=True)
 def mobile_login(usr: str, pwd: str) -> dict:
 	"""Authenticates usr/pwd and returns the session id directly in the response body.
