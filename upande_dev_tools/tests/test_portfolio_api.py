@@ -13,12 +13,15 @@ class IntegrationTestPortfolioApi(IntegrationTestCase):
 		company = frappe.db.get_value("Company", {}, "name")
 		if not company:
 			self.skipTest("No Company exists on this site.")
+		from upande_dev_tools.setup import DEV_TOOLS_PROJECT_TYPE
+
 		self.project = (
 			frappe.get_doc(
 				{
 					"doctype": "Project",
 					"project_name": frappe.generate_hash(length=10),
 					"company": company,
+					"project_type": DEV_TOOLS_PROJECT_TYPE,
 				}
 			)
 			.insert(ignore_permissions=True)

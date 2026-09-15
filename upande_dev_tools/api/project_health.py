@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, today
 
+from upande_dev_tools.setup import DEV_TOOLS_PROJECT_TYPE
+
 PM_ROLES = {"Projects Manager"}
 
 # Requests already accepted and either scheduled or being worked (has an assignee).
@@ -29,7 +31,7 @@ def _resolve_user_display_names(emails: set[str]) -> dict[str, str]:
 def get_project_health(scope: str | None = None) -> dict:
 	_require_projects_manager()
 
-	filters: dict = {"status": ["!=", "Cancelled"]}
+	filters: dict = {"status": ["!=", "Cancelled"], "project_type": DEV_TOOLS_PROJECT_TYPE}
 	if scope:
 		if scope not in ("Internal", "External"):
 			frappe.throw(_("scope must be 'Internal' or 'External'."), frappe.ValidationError)
@@ -69,7 +71,15 @@ def get_project_health(scope: str | None = None) -> dict:
 def get_team_workload(project: str | None = None) -> dict:
 	_require_projects_manager()
 
-	task_filters: dict = {"project": project} if project else {}
+	if project:
+		task_filters: dict = {"project": project}
+	else:
+		# No single project requested - restrict to the Dev Tools-flagged set, same baseline
+		# every other dashboard aggregate applies, rather than every project in the ERP.
+		dev_tools_projects = frappe.get_all(
+			"Project", filters={"project_type": DEV_TOOLS_PROJECT_TYPE}, pluck="name", ignore_permissions=True
+		)
+		task_filters = {"project": ["in", dev_tools_projects or [""]]}
 	day = getdate()
 
 	open_tasks = frappe.get_all(

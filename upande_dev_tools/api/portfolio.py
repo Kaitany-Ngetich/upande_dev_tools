@@ -13,6 +13,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, getdate, today
 
+from upande_dev_tools.setup import DEV_TOOLS_PROJECT_TYPE
+
 MANAGER_ROLES = {"Projects Manager", "System Manager"}
 # An unset Date column is stored as 0000-00-00, which is "<" any real date, so a
 # task that never had a due date counts as overdue unless it is excluded first.
@@ -34,10 +36,11 @@ def get_portfolio(days: int = 30, scope: str | None = None) -> dict:
 	prev_start = add_days(start, -days)
 
 	projects = _projects(scope)
-	# A portfolio measures work that belongs to a project. Tasks imported without
-	# one - on this bench, an agronomy backlog of over a thousand rows - are not
-	# the dev team's and would swamp every count, so they are excluded and said so.
-	scoped = {"project": ["in", projects]} if projects is not None else {"project": ["is", "set"]}
+	# A portfolio measures work that belongs to a Dev Tools-flagged project. Tasks imported
+	# without any project at all - on this bench, an agronomy backlog of over a thousand rows -
+	# are excluded and said so; tasks that DO have a project, but one not flagged for Dev Tools
+	# tracking, are equally excluded by _projects()'s own baseline filter.
+	scoped = {"project": ["in", projects]}
 	loose = frappe.db.count("Task", {"project": ["is", "not set"]})
 
 	now = _window(scoped, start, end)
@@ -72,14 +75,17 @@ def get_portfolio(days: int = 30, scope: str | None = None) -> dict:
 	}
 
 
-def _projects(scope: str | None) -> list[str] | None:
-	if not scope:
-		return None
-	if scope not in ("Internal", "External"):
-		frappe.throw(_("scope must be Internal or External."), frappe.ValidationError)
-	return frappe.get_all(
-		"Project", filters={"custom_project_scope": scope}, pluck="name", ignore_permissions=True
-	) or [""]
+def _projects(scope: str | None) -> list[str]:
+	"""Every project this portfolio measures always starts from the Dev Tools-flagged set -
+	otherwise every project in the whole ERP (this bench has 27, most not software work)
+	would be aggregated together, distorting every count. `scope` (Internal/External) only
+	narrows further within that set; it never widens back out to everything."""
+	filters: dict = {"project_type": DEV_TOOLS_PROJECT_TYPE}
+	if scope:
+		if scope not in ("Internal", "External"):
+			frappe.throw(_("scope must be Internal or External."), frappe.ValidationError)
+		filters["custom_project_scope"] = scope
+	return frappe.get_all("Project", filters=filters, pluck="name", ignore_permissions=True) or [""]
 
 
 def _window(scoped: dict, start, end) -> dict:
@@ -383,10 +389,8 @@ def _ageing(scoped: dict, end) -> list[dict]:
 	return bands
 
 
-def _projects_roll(projects: list[str] | None, end) -> list[dict]:
-	filters = {"status": ["!=", "Cancelled"]}
-	if projects is not None:
-		filters["name"] = ["in", projects]
+def _projects_roll(projects: list[str], end) -> list[dict]:
+	filters = {"status": ["!=", "Cancelled"], "name": ["in", projects]}
 
 	rows = frappe.get_all(
 		"Project",
