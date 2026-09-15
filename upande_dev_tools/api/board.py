@@ -4,6 +4,8 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, today
 
+from upande_dev_tools.setup import DEV_TOOLS_PROJECT_TYPE
+
 BOARD_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
 
 STAGES = ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"]
@@ -83,7 +85,15 @@ def get_board(project: str | None = None, limit: int = BOARD_LIMIT) -> dict:
 	elif not set(frappe.get_roles()) & BOARD_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
 
-	filters = {"project": project} if project else {}
+	if project:
+		filters = {"project": project}
+	else:
+		# No single project requested - restrict to the Dev Tools-flagged set, same baseline
+		# every other dashboard aggregate applies, rather than every project in the ERP.
+		dev_tools_projects = frappe.get_all(
+			"Project", filters={"project_type": DEV_TOOLS_PROJECT_TYPE}, pluck="name", ignore_permissions=True
+		)
+		filters = {"project": ["in", dev_tools_projects or [""]]}
 	items = _tasks(filters) + _issues(filters) + _requests(filters)
 	_resolve_people(items)
 

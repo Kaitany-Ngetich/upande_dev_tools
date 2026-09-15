@@ -21,6 +21,8 @@ class IntegrationTestProjectHealthApi(IntegrationTestCase):
 		return email
 
 	def _make_project(self, scope: str = "Internal") -> str:
+		from upande_dev_tools.setup import DEV_TOOLS_PROJECT_TYPE
+
 		name = f"Team Workload Test Project ({scope})"
 		existing = frappe.db.exists("Project", {"project_name": name})
 		if existing:
@@ -35,6 +37,7 @@ class IntegrationTestProjectHealthApi(IntegrationTestCase):
 					"project_name": name,
 					"company": company,
 					"custom_project_scope": scope,
+					"project_type": DEV_TOOLS_PROJECT_TYPE,
 				}
 			)
 			.insert(ignore_permissions=True)
