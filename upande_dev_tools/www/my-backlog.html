@@ -6,12 +6,13 @@
 {% block page_content %}
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
-<div id="udt-my-day"></div>
+<div id="udt-my-backlog"></div>
+<script src="/assets/upande_dev_tools/js/toast.js?v={{ asset_version('js/toast.js') }}"></script>
 <script src="/assets/upande_dev_tools/js/work-preview.js?v={{ asset_version('js/work-preview.js') }}"></script>
-<script src="/assets/upande_dev_tools/js/my-day.js?v={{ asset_version('js/my-day.js') }}"></script>
+<script src="/assets/upande_dev_tools/js/my-backlog.js?v={{ asset_version('js/my-backlog.js') }}"></script>
 <script>
 frappe.ready(function() {
-	new upande_dev_tools.MyDay(document.getElementById("udt-my-day"));
+	new upande_dev_tools.MyBacklog(document.getElementById("udt-my-backlog"));
 });
 </script>
 {% endcall %}

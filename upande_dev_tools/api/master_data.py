@@ -11,7 +11,7 @@ MASTER_DATA_DOCTYPES: dict[str, tuple[str, str]] = {
 	"request_type": ("Request Type", "type_name"),
 	"priority_level": ("Priority Level", "level_name"),
 	"product_area": ("Product Area", "area_name"),
-	"request_tag": ("Request Tag", "tag_name"),
+	"tag": ("Work Tag", "tag_name"),
 }
 
 
@@ -34,7 +34,7 @@ def get_master_data_kinds() -> list[dict]:
 		{"key": "request_type", "label": "Request Types", "has_sort_order": False},
 		{"key": "priority_level", "label": "Priority Levels", "has_sort_order": True},
 		{"key": "product_area", "label": "Product Areas", "has_sort_order": False},
-		{"key": "request_tag", "label": "Request Tags", "has_sort_order": False},
+		{"key": "tag", "label": "Tags", "has_sort_order": False},
 	]
 
 

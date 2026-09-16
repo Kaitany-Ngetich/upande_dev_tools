@@ -1,14 +1,14 @@
 window.upande_dev_tools = window.upande_dev_tools || {};
 
-const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
-
 upande_dev_tools.ReviewQueue = class ReviewQueue {
 	constructor(wrapper) {
 		this.wrapper = wrapper;
 		this.requests = [];
 		this.projects = [];
 		this.people = [];
+		this.priorities = [];
 		this.q = "";
+		this.filters = { project: "", priority: "", type: "", module: "", tag: "", raised_by: "", assignee: "" };
 		this.render_shell();
 		this.load();
 	}
@@ -25,11 +25,15 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				limit_page_length: 0,
 			}),
 			frappe.xcall("upande_dev_tools.api.requests.get_assignable_users"),
+			// Priority Level is Master Data page-editable - read it live rather than
+			// hardcoding the list, so a level added there shows up here immediately.
+			frappe.xcall("upande_dev_tools.api.master_data.get_master_data", { key: "priority_level" }),
 		])
-			.then(([requests, projects, people]) => {
+			.then(([requests, projects, people, priorities]) => {
 				this.requests = requests || [];
 				this.projects = projects || [];
 				this.people = people || [];
+				this.priorities = (priorities || []).filter((p) => !p.disabled).map((p) => p.name);
 				this.stage().removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
@@ -100,6 +104,32 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 							<input type="search" class="dpx-bb-field dpx-bb-search rq-q"
 								placeholder="Search requests" aria-label="Search requests">
 						</div>
+						<span class="dpx-bb-sep"></span>
+						<div class="dpx-bb-grp">
+							<span class="dpx-bb-grp-lbl">Filter</span>
+							<select class="dpx-bb-field" data-f="type" aria-label="Request type">
+								<option value="">Any type</option>
+							</select>
+							<select class="dpx-bb-field" data-f="module" aria-label="Module">
+								<option value="">All modules</option>
+							</select>
+							<select class="dpx-bb-field" data-f="project" aria-label="Project">
+								<option value="">All projects</option>
+							</select>
+							<select class="dpx-bb-field" data-f="priority" aria-label="Priority">
+								<option value="">Any priority</option>
+							</select>
+							<select class="dpx-bb-field" data-f="tag" aria-label="Tag">
+								<option value="">Any tag</option>
+							</select>
+							<select class="dpx-bb-field" data-f="raised_by" aria-label="Raised by">
+								<option value="">Anyone raised</option>
+							</select>
+							<select class="dpx-bb-field" data-f="assignee" aria-label="Requested for">
+								<option value="">Any requested-for</option>
+							</select>
+							<button class="dpx-bb-btn rq-clear" type="button">Clear filters</button>
+						</div>
 						<span class="dpx-bb-hint">
 							<span>Set a project, pick who takes it, then accept</span>
 							<span class="dpx-bb-kbd">/</span><span>search</span>
@@ -125,29 +155,57 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 			clearTimeout(this.typing);
 			this.typing = setTimeout(() => this.render(), 180);
 		});
+		root.on("change", "[data-f]", (e) => {
+			const el = $(e.currentTarget);
+			this.filters[el.data("f")] = el.val();
+			this.render();
+		});
+		root.on("click", ".rq-clear", () => {
+			this.filters = { project: "", priority: "", type: "", module: "", tag: "", raised_by: "", assignee: "" };
+			this.q = "";
+			root.find(".rq-q").val("");
+			this.render();
+		});
 		root.on("click", ".rq-act", (e) => this.act($(e.currentTarget)));
 		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
 	}
 
 	visible() {
-		if (!this.q) return this.requests;
-		return this.requests.filter((r) =>
-			[r.title, r.name, r.product_area, r.raised_by_user, r.request_type]
-				.filter(Boolean)
-				.some((v) => String(v).toLowerCase().includes(this.q))
-		);
+		return this.requests.filter((r) => {
+			if (this.filters.project && r.project !== this.filters.project) return false;
+			if (this.filters.priority && (r.priority || "") !== this.filters.priority) return false;
+			if (this.filters.type && (r.request_type || "") !== this.filters.type) return false;
+			if (this.filters.module && (r.product_area || "") !== this.filters.module) return false;
+			if (this.filters.tag && !(r.tags || []).includes(this.filters.tag)) return false;
+			if (this.filters.raised_by && r.owner !== this.filters.raised_by) return false;
+			if (this.filters.assignee) {
+				if (this.filters.assignee === "__none") {
+					if (r.requested_assignee) return false;
+				} else if (r.requested_assignee !== this.filters.assignee) return false;
+			}
+			if (
+				this.q &&
+				![r.title, r.name, r.product_area, r.owner, r.request_type]
+					.filter(Boolean)
+					.some((v) => String(v).toLowerCase().includes(this.q))
+			)
+				return false;
+			return true;
+		});
 	}
 
 	render() {
+		this.render_filters();
 		const rows = this.visible();
 		this.render_stats(rows);
 
+		const filtered = this.q || Object.values(this.filters).some(Boolean);
 		if (!rows.length) {
 			return this.stage().html(
 				blank(
-					this.q ? "No request matches that search" : "Nothing waiting",
-					this.q
-						? "Clear the search to see the whole queue."
+					filtered ? "No request matches that search or filter" : "Nothing waiting",
+					filtered
+						? "Clear the search or filters to see the whole queue."
 						: "Requests raised from the portal land here for a decision. When one arrives you can set its project, pick who takes it, and accept in a single row."
 				)
 			);
@@ -156,14 +214,73 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		this.stage().html(
 			`<div class="dpx-card"><div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
 				<table class="dpx-bb-table rq-table">
-					<colgroup><col><col style="width:104px"><col style="width:74px"><col style="width:158px"><col style="width:132px"><col style="width:150px"><col style="width:132px"></colgroup>
+					<colgroup><col><col style="width:104px"><col style="width:74px"><col style="width:158px"><col style="width:132px"><col style="width:150px"><col style="width:132px"><col style="width:140px"><col style="width:160px"></colgroup>
 					<thead><tr>
 						<th>Request</th><th>Raised by</th><th>Waiting</th>
-						<th>Project</th><th>Priority</th><th>Assign to</th><th>Decision</th>
+						<th>Project</th><th>Priority</th><th>Assign to</th><th>Due</th><th>Comment</th><th>Decision</th>
 					</tr></thead>
 					<tbody>${rows.map((r) => this.row(r)).join("")}</tbody>
 				</table>
 			</div></div>`
+		);
+	}
+
+	render_filters() {
+		const root = $(this.wrapper);
+		const fill = (selector, blankLabel, names, held) => {
+			const field = root.find(selector);
+			if (field.children().length === names.length + 1) return;
+			const keep = held !== undefined ? held : field.val();
+			field.html(
+				[`<option value="">${rq_esc(blankLabel)}</option>`]
+					.concat(names.map((n) => `<option value="${rq_esc(n.value)}">${rq_esc(n.label)}</option>`))
+					.join("")
+			);
+			if (keep) field.val(keep);
+		};
+
+		fill(
+			'[data-f="type"]',
+			"Any type",
+			[...new Set(this.requests.map((r) => r.request_type).filter(Boolean))]
+				.sort()
+				.map((v) => ({ value: v, label: v }))
+		);
+		fill(
+			'[data-f="module"]',
+			"All modules",
+			[...new Set(this.requests.map((r) => r.product_area).filter(Boolean))]
+				.sort()
+				.map((v) => ({ value: v, label: v }))
+		);
+		fill(
+			'[data-f="project"]',
+			"All projects",
+			this.projects.map((p) => ({ value: p.name, label: p.project_name || p.name }))
+		);
+		fill(
+			'[data-f="priority"]',
+			"Any priority",
+			this.priorities.map((p) => ({ value: p, label: p }))
+		);
+		fill(
+			'[data-f="tag"]',
+			"Any tag",
+			[...new Set(this.requests.flatMap((r) => r.tags || []))].sort().map((v) => ({ value: v, label: v }))
+		);
+		fill(
+			'[data-f="raised_by"]',
+			"Anyone raised",
+			[...new Set(this.requests.map((r) => r.owner).filter(Boolean))]
+				.sort()
+				.map((v) => ({ value: v, label: v.split("@")[0] }))
+		);
+		fill(
+			'[data-f="assignee"]',
+			"Any requested-for",
+			[{ value: "__none", label: "Unassigned" }].concat(
+				this.people.map((p) => ({ value: p.name, label: p.full_name || p.name }))
+			)
 		);
 	}
 
@@ -235,7 +352,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 						${r.product_area ? `<span>${rq_esc(r.product_area)}</span>` : ""}
 						<span class="rq-id">${rq_esc(r.name)}</span></div>
 				</div></td>
-				<td class="rq-from">${rq_esc((r.raised_by_user || "—").split("@")[0])}</td>
+				<td class="rq-from">${rq_esc((r.owner || "—").split("@")[0])}</td>
 				<td><span class="rq-age${days >= 7 ? " hot" : ""}">${days === 0 ? "today" : days + "d"}</span></td>
 				<td><select class="dpx-bb-field rq-project">${opts(
 					this.projects.map((p) => [p.name, p.project_name || p.name]),
@@ -243,15 +360,17 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 					"Pick a project"
 				)}</select></td>
 				<td><select class="dpx-bb-field rq-priority">${opts(
-					PRIORITIES.map((p) => [p, p]),
+					this.priorities.map((p) => [p, p]),
 					r.priority || "Medium",
 					null
 				)}</select></td>
 				<td><select class="dpx-bb-field rq-assignee">${opts(
 					this.people.map((p) => [p.name, p.full_name || p.name]),
-					null,
+					r.requested_assignee || null,
 					"Unassigned"
 				)}</select></td>
+				<td><input type="date" class="dpx-bb-field rq-complete-by" title="Complete by"></td>
+				<td><input type="text" class="dpx-bb-field rq-comment" placeholder="Comment / reason"></td>
 				<td class="rq-decide">
 					<button class="rq-btn accept rq-act" data-act="accept" title="Accept and assign"
 						aria-label="Accept and assign">${rq_ico("check", 14)}</button>
@@ -270,6 +389,8 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		const project = tr.find(".rq-project").val();
 		const priority = tr.find(".rq-priority").val();
 		const assign_to = tr.find(".rq-assignee").val();
+		const complete_by = tr.find(".rq-complete-by").val();
+		const comment = tr.find(".rq-comment").val();
 
 		if (action === "Reject" && !btn.hasClass("armed")) {
 			btn.addClass("armed").attr("title", "Click again to reject");
@@ -279,11 +400,26 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		}
 
 		if (action === "accept" && !project) {
-			frappe.show_alert({ message: __("Pick a project first."), indicator: "orange" });
+			upande_dev_tools.toast(__("Pick a project first."), "orange");
 			return tr.find(".rq-project").trigger("focus");
 		}
 
-		tr.find("button,select").prop("disabled", true);
+		if (action === "accept" && !complete_by) {
+			upande_dev_tools.toast(__("Set a due date first."), "orange");
+			return tr.find(".rq-complete-by").trigger("focus");
+		}
+
+		if (action === "accept" && !assign_to) {
+			upande_dev_tools.toast(__("Pick who this goes to first."), "orange");
+			return tr.find(".rq-assignee").trigger("focus");
+		}
+
+		if ((action === "Reject" || action === "Defer") && !comment.trim()) {
+			upande_dev_tools.toast(__("Give a reason first."), "orange");
+			return tr.find(".rq-comment").trigger("focus");
+		}
+
+		tr.find("button,select,input").prop("disabled", true);
 		tr.addClass("rq-busy");
 
 		const call =
@@ -292,11 +428,14 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 						name,
 						project,
 						priority,
+						complete_by,
 						assign_to: assign_to || null,
+						comment: comment || null,
 				  })
 				: frappe.xcall("upande_dev_tools.api.requests.triage_request", {
 						name,
 						action,
+						reason: comment || null,
 						project: project || null,
 						priority,
 				  });
@@ -304,25 +443,19 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		call.then((r) => {
 			this.requests = this.requests.filter((row) => row.name !== name);
 			this.render();
-			frappe.show_alert({
-				message:
-					action === "accept"
-						? __("Accepted. {0} created{1}.", [
-								r.task || "Task",
-								assign_to
-									? ` for ${tr.find(".rq-assignee option:selected").text()}`
-									: "",
-						  ])
-						: __("{0} marked {1}.", [name, action.toLowerCase() + "red"]),
-				indicator: "green",
-			});
+			upande_dev_tools.toast(
+				action === "accept"
+					? __("Accepted. {0} created{1}.", [
+							r.task || "Task",
+							assign_to ? ` for ${tr.find(".rq-assignee option:selected").text()}` : "",
+					  ])
+					: __("{0} marked {1}.", [name, action.toLowerCase() + "red"]),
+				"green"
+			);
 		}).catch((e) => {
-			tr.find("button,select").prop("disabled", false);
+			tr.find("button,select,input").prop("disabled", false);
 			tr.removeClass("rq-busy");
-			frappe.show_alert({
-				message: String((e && e.message) || e) || __("That decision did not save."),
-				indicator: "red",
-			});
+			upande_dev_tools.toast(String((e && e.message) || e) || __("That decision did not save."), "red");
 		});
 	}
 };
