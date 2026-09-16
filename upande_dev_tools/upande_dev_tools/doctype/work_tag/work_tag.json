@@ -2,12 +2,11 @@
  "actions": [],
  "allow_rename": 0,
  "autoname": "field:tag_name",
- "creation": "2026-09-14 00:00:00.000000",
+ "creation": "2026-09-16 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "tag_name",
-  "color",
   "disabled"
  ],
  "fields": [
@@ -20,11 +19,6 @@
    "unique": 1
   },
   {
-   "fieldname": "color",
-   "fieldtype": "Color",
-   "label": "Color"
-  },
-  {
    "default": "0",
    "fieldname": "disabled",
    "fieldtype": "Check",
@@ -34,10 +28,10 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-14 00:00:00.000000",
+ "modified": "2026-09-16 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Dev Tools",
- "name": "Request Tag",
+ "name": "Work Tag",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [

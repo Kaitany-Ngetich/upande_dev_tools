@@ -6,7 +6,82 @@ import json
 import frappe
 from frappe import _
 
+from upande_dev_tools.api.board import _attach_tags, _set_doc_tags, _validate_tags, normalize_priority
+
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
+
+
+def _assign(doctype: str, name: str, assign_to: str, date=None, priority=None, description=None) -> None:
+	"""Writes the ToDo and _assign directly instead of frappe.desk.form.assign_to.add():
+	that helper also tries to auto-share the document with the assignee when they can't
+	already read it, and that share call does its own permission check against the CALLER
+	(not the assignee) - the same class of permission mismatch already hit once with a
+	broken User Permission elsewhere in this app. This app's own role checks are what govern
+	visibility, not Frappe's sharing model, so skipping the share step is correct here, not a
+	shortcut."""
+	from frappe.utils import nowdate
+
+	if frappe.db.exists(
+		"ToDo",
+		{"reference_type": doctype, "reference_name": name, "allocated_to": assign_to, "status": "Open"},
+	):
+		return
+
+	frappe.get_doc(
+		{
+			"doctype": "ToDo",
+			"allocated_to": assign_to,
+			"reference_type": doctype,
+			"reference_name": name,
+			"description": description or _("Assignment for {0} {1}").format(doctype, name),
+			"priority": normalize_priority("ToDo", "priority", priority) or "Medium",
+			"status": "Open",
+			"date": date or nowdate(),
+			"assigned_by": frappe.session.user,
+		}
+	).insert(ignore_permissions=True)
+
+	current = json.loads(frappe.db.get_value(doctype, name, "_assign") or "[]")
+	if assign_to not in current:
+		current.append(assign_to)
+		frappe.db.set_value(doctype, name, "_assign", json.dumps(current), update_modified=False)
+
+
+def _is_raiser_or_on_whose_behalf(doc) -> bool:
+	"""The literal submitter, or the employee it was raised on behalf of - a PM/dev raising
+	something for a colleague shouldn't leave that colleague locked out of withdrawing or
+	confirming their own request just because someone else clicked submit for them."""
+	if doc.owner == frappe.session.user:
+		return True
+	if not doc.raised_by_employee:
+		return False
+	return frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name") == doc.raised_by_employee
+
+
+def _transition_workflow_state(doc, allowed_from: set[str], to_state: str) -> None:
+	"""Applies the transition directly rather than through frappe.model.workflow.apply_workflow:
+	that helper's own permission check only recognises the literal doc owner (via the if_owner
+	DocPerm), not "raised on behalf of", so it would block exactly the person this function
+	exists to let through. The state-machine guarantee apply_workflow would have given -
+	only a legal transition succeeds - is preserved by the allowed_from check below."""
+	if doc.workflow_state not in allowed_from:
+		frappe.throw(
+			_("{0} can't be done from {1}.").format(to_state, doc.workflow_state), frappe.ValidationError
+		)
+	doc.db_set("workflow_state", to_state, update_modified=False)
+	doc.reload()
+
+
+def _unassign(doctype: str, name: str, user: str) -> None:
+	frappe.db.sql(
+		"""update `tabToDo` set status='Cancelled'
+		   where reference_type=%s and reference_name=%s and allocated_to=%s and status='Open'""",
+		(doctype, name, user),
+	)
+	current = json.loads(frappe.db.get_value(doctype, name, "_assign") or "[]")
+	if user in current:
+		current.remove(user)
+		frappe.db.set_value(doctype, name, "_assign", json.dumps(current), update_modified=False)
 
 
 def _resolve_user_display_names(emails: set[str]) -> dict[str, str]:
@@ -24,9 +99,27 @@ def create_request(
 	product_area: str | None = None,
 	project: str | None = None,
 	source: str = "Desk",
+	raised_by_employee: str | None = None,
+	requested_assignee: str | None = None,
+	tags: list[str] | str | None = None,
 ) -> dict:
+	"""raised_by_employee defaults to the submitter's own Employee record (Request.before_insert)
+	- pass it explicitly when a PM/dev is raising something on a colleague's behalf. Everyone
+	using this app is staff, so "who is this for" is always an Employee, never the ERP's own
+	Customer/Contact master data. requested_assignee is a suggestion only (a developer naming
+	themselves, or naming who they'd like to handle it) - it never creates a real assignment;
+	the PM's accept_request call is the only place that ever happens. tags is mandatory - every
+	request needs at least one, since that's the one classification carried forward onto the
+	Task it becomes and the only thing the backlog board can filter on across both."""
 	if project and not frappe.has_permission("Project", "read", project):
 		frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
+
+	if isinstance(tags, str):
+		tags = [t.strip() for t in tags.split(",")]
+	tags = [t for t in (tags or []) if t and t.strip()]
+	if not tags:
+		frappe.throw(_("Add at least one tag before raising this."), frappe.ValidationError)
+	_validate_tags(tags)
 
 	doc = frappe.get_doc(
 		{
@@ -37,19 +130,66 @@ def create_request(
 			"product_area": product_area,
 			"project": project,
 			"source": source,
+			"raised_by_employee": raised_by_employee,
+			"requested_assignee": requested_assignee,
 		}
 	)
 	doc.insert(ignore_permissions=True)
+	_set_doc_tags("Request", doc.name, tags)
 	return doc.as_dict()
 
 
 @frappe.whitelist()
+def create_requests_bulk(titles: list[str] | str) -> dict:
+	"""Creates one Request per title in a single call, so a client capturing several
+	quick-capture notes at once doesn't need N sequential round-trips (and the
+	partial-failure risk that comes with them - a flaky connection silently dropping some
+	of N separate calls). Best-effort, not all-or-nothing: each title is inserted
+	independently, and a failure on one title never rolls back the others - the caller
+	gets back exactly which titles succeeded and which didn't, and can retry just the
+	failed ones.
+	"""
+	if "Dev Team" not in frappe.get_roles():
+		frappe.throw(_("Only Dev Team members can use quick capture."), frappe.PermissionError)
+
+	if isinstance(titles, str):
+		titles = json.loads(titles)
+
+	created: list[str] = []
+	failed: list[dict] = []
+	for raw_title in titles:
+		title = (raw_title or "").strip()
+		if not title:
+			continue
+		try:
+			doc = frappe.get_doc(
+				{
+					"doctype": "Request",
+					"title": title,
+					"request_type": "Note",
+					"source": "Mobile App",
+				}
+			)
+			doc.insert(ignore_permissions=True)
+			created.append(doc.name)
+		except Exception as e:
+			failed.append({"title": title, "error": str(e)})
+
+	return {"created": created, "failed": failed}
+
+
+@frappe.whitelist()
 def get_my_requests(status: str | None = None) -> list[dict]:
-	filters: dict[str, str] = {"raised_by_user": frappe.session.user}
+	"""A plain user sees only what they raised. A PM/Dev Team member sees every request, so
+	they can filter by who raised it or who's working it - the same broader visibility they
+	already have in Review Queue and Backlog Board."""
+	filters: dict[str, str] = {}
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		filters["owner"] = frappe.session.user
 	if status:
 		filters["workflow_state"] = status
 
-	return frappe.get_all(
+	requests = frappe.get_all(
 		"Request",
 		filters=filters,
 		fields=[
@@ -60,11 +200,81 @@ def get_my_requests(status: str | None = None) -> list[dict]:
 			"priority",
 			"project",
 			"linked_task",
+			"owner",
 			"creation",
 		],
 		order_by="creation desc",
 		ignore_permissions=True,
 	)
+
+	requester_names = _resolve_user_display_names({r["owner"] for r in requests if r.get("owner")})
+	linked_task_names = [r["linked_task"] for r in requests if r.get("linked_task")]
+	task_assignees: dict[str, list[str]] = {}
+	if linked_task_names:
+		rows = frappe.get_all("Task", filters={"name": ["in", linked_task_names]}, fields=["name", "_assign"])
+		task_assignees = {row.name: (json.loads(row["_assign"]) if row.get("_assign") else []) for row in rows}
+	assignee_emails: set[str] = {e for emails in task_assignees.values() for e in emails}
+	assignee_names = _resolve_user_display_names(assignee_emails)
+
+	for r in requests:
+		r["raised_by_name"] = requester_names.get(r["owner"], r["owner"])
+		emails = task_assignees.get(r.get("linked_task"), [])
+		r["assignees"] = [assignee_names.get(e, e) for e in emails]
+
+	return requests
+
+
+@frappe.whitelist()
+def withdraw_request(name: str) -> dict:
+	"""The raiser, or whoever it was raised on behalf of, cancelling something no longer
+	needed - a distinct terminal state from Rejected, so the history is honest about who
+	ended it."""
+	doc = frappe.get_doc("Request", name)
+	if not _is_raiser_or_on_whose_behalf(doc):
+		frappe.throw(
+			_("Only the person who raised this, or who it was raised for, can withdraw it."),
+			frappe.PermissionError,
+		)
+
+	_transition_workflow_state(
+		doc, {"Under Review", "Approved", "Deferred", "Scheduled", "In Progress"}, "Withdrawn"
+	)
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def confirm_request_complete(name: str) -> dict:
+	"""The raiser, or whoever it was raised on behalf of, signing off that finished work is
+	actually acceptable - distinct from a developer marking the Task Completed, which only
+	says the work was done, not accepted."""
+	doc = frappe.get_doc("Request", name)
+	if not _is_raiser_or_on_whose_behalf(doc):
+		frappe.throw(
+			_("Only the person who raised this, or who it was raised for, can confirm it's complete."),
+			frappe.PermissionError,
+		)
+
+	_transition_workflow_state(doc, {"Completed"}, "Closed")
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def delete_request(name: str) -> None:
+	doc = frappe.get_doc("Request", name)
+	is_reviewer = set(frappe.get_roles()) & REVIEWER_ROLES - {"Dev Team"}
+
+	if is_reviewer:
+		pass  # Projects Manager / System Manager: any Request, any state.
+	elif "Dev Team" in frappe.get_roles() and doc.owner == frappe.session.user:
+		if doc.workflow_state != "Under Review":
+			frappe.throw(
+				_("You can only delete your own requests while they're still Under Review."),
+				frappe.PermissionError,
+			)
+	else:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	frappe.delete_doc("Request", name, ignore_permissions=True)
 
 
 @frappe.whitelist()
@@ -72,7 +282,7 @@ def get_review_queue() -> list[dict]:
 	if not set(frappe.get_roles()) & REVIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"Request",
 		filters={"workflow_state": "Under Review"},
 		fields=[
@@ -82,12 +292,15 @@ def get_review_queue() -> list[dict]:
 			"product_area",
 			"project",
 			"priority",
-			"raised_by_user",
+			"owner",
+			"requested_assignee",
 			"creation",
 		],
 		order_by="creation asc",
 		ignore_permissions=True,
 	)
+	_attach_tags("Request", rows)
+	return rows
 
 
 @frappe.whitelist()
@@ -96,8 +309,12 @@ def triage_request(
 	action: str,
 	project: str | None = None,
 	priority: str | None = None,
+	reason: str | None = None,
 ) -> dict:
 	from frappe.model.workflow import apply_workflow
+
+	if action in ("Reject", "Defer") and not (reason or "").strip():
+		frappe.throw(_("Give a reason before you {0} this.").format(action.lower()), frappe.ValidationError)
 
 	doc = frappe.get_doc("Request", name)
 	if project:
@@ -108,14 +325,15 @@ def triage_request(
 		doc.save()
 
 	updated = apply_workflow(doc, action)
+	if reason:
+		updated.add_comment("Comment", reason)
 	return updated.as_dict()
 
 
 @frappe.whitelist()
 def get_assignable_users() -> list[dict]:
-	if not set(frappe.get_roles()) & REVIEWER_ROLES:
-		frappe.throw(_("Not permitted."), frappe.PermissionError)
-
+	"""Names and emails only, not sensitive - open to any logged-in user so a customer can
+	name who they'd like to handle their request, same list a PM picks a real assignee from."""
 	members = frappe.get_all("Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent")
 	if not members:
 		return []
@@ -128,19 +346,48 @@ def get_assignable_users() -> list[dict]:
 
 
 @frappe.whitelist()
-def accept_request(name: str, project: str, priority: str, assign_to: str | None = None) -> dict:
-	"""Approve a request and schedule it in one step, which is what creates the Task,
-	then hand that Task to whoever will do the work."""
-	from frappe.desk.form.assign_to import add as add_assignment
+def get_employees() -> list[dict]:
+	"""Names only, not sensitive - lets anyone raising a request pick who it's really for
+	(a PM/dev raising on a colleague's behalf), same as get_assignable_users for developers."""
+	return frappe.get_all(
+		"Employee",
+		filters={"status": "Active"},
+		fields=["name", "employee_name"],
+		order_by="employee_name asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def accept_request(
+	name: str,
+	project: str,
+	priority: str,
+	complete_by: str,
+	assign_to: str | None = None,
+	comment: str | None = None,
+) -> dict:
+	"""Approve a request and schedule it in one step, which is what creates the Task, then
+	hand that Task to whoever will do the work - the one and only point in the whole lifecycle
+	where a real assignment is ever created (never on the Request itself), so reassigning later
+	never has to clean up a second, stale ToDo.
+
+	complete_by/assign_to/comment mirror Frappe's own native Assign-To dialog fields (Complete
+	By / Assign To / Comment) exactly, because that's what this call turns into under the hood.
+	"""
 	from frappe.model.workflow import apply_workflow
 
 	if not set(frappe.get_roles()) & REVIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
 
-	if not (project and priority):
-		frappe.throw(_("Set a project and a priority before accepting."), frappe.ValidationError)
+	if not (project and priority and complete_by):
+		frappe.throw(_("Set a project, a priority and a due date before accepting."), frappe.ValidationError)
 
 	doc = frappe.get_doc("Request", name)
+	assign_to = assign_to or doc.requested_assignee
+	if not assign_to:
+		frappe.throw(_("Assign this to a developer before accepting."), frappe.ValidationError)
+
 	doc.project = project
 	doc.priority = priority
 	doc.save()
@@ -149,8 +396,10 @@ def accept_request(name: str, project: str, priority: str, assign_to: str | None
 	doc = apply_workflow(doc, "Schedule")
 	doc.reload()
 
-	if assign_to and doc.linked_task:
-		add_assignment({"doctype": "Task", "name": doc.linked_task, "assign_to": [assign_to], "notify": 0})
+	if doc.linked_task:
+		frappe.db.set_value("Task", doc.linked_task, "exp_end_date", complete_by, update_modified=False)
+		if assign_to:
+			_assign("Task", doc.linked_task, assign_to, date=complete_by, priority=priority, description=comment)
 
 	return {
 		"name": doc.name,
@@ -158,6 +407,31 @@ def accept_request(name: str, project: str, priority: str, assign_to: str | None
 		"task": doc.linked_task,
 		"assigned_to": assign_to,
 	}
+
+
+@frappe.whitelist()
+def reassign_task(name: str, assign_to: str, complete_by: str | None = None, comment: str | None = None) -> dict:
+	"""Hands a Task to someone else. Closes out the current assignee(s) first, rather than
+	just adding a new one, so _assign never accumulates and nobody keeps a stale ToDo for
+	work that's no longer theirs."""
+	if not set(frappe.get_roles()) & REVIEWER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	doc = frappe.get_doc("Task", name)
+	current = json.loads(doc.get("_assign") or "[]")
+	for user in current:
+		if user != assign_to:
+			_unassign("Task", name, user)
+
+	if complete_by:
+		frappe.db.set_value("Task", name, "exp_end_date", complete_by, update_modified=False)
+
+	if assign_to not in current:
+		_assign(
+			"Task", name, assign_to, date=complete_by or doc.exp_end_date, priority=doc.priority, description=comment
+		)
+
+	return {"name": name, "assigned_to": assign_to}
 
 
 @frappe.whitelist()
@@ -190,7 +464,6 @@ def get_backlog_board(project: str | None = None) -> dict:
 			"priority",
 			"project",
 			"custom_request",
-			"custom_planned_for",
 			"exp_end_date",
 			"_assign",
 		],
@@ -208,10 +481,8 @@ def get_backlog_board(project: str | None = None) -> dict:
 			"priority",
 			"project",
 			"linked_task",
-			"raised_by_user",
+			"owner",
 			"raised_by_employee",
-			"raised_by_contact",
-			"raised_by_customer",
 		],
 		ignore_permissions=True,
 	)
@@ -227,7 +498,7 @@ def get_backlog_board(project: str | None = None) -> dict:
 	for task in tasks:
 		task["assigned_to"] = [user_names.get(email, email) for email in task["_assign"]]
 
-	requester_user_emails = {r["raised_by_user"] for r in requests if r.get("raised_by_user")}
+	requester_user_emails = {r["owner"] for r in requests if r.get("owner")}
 	requester_names = _resolve_user_display_names(requester_user_emails)
 	employee_ids = {r["raised_by_employee"] for r in requests if r.get("raised_by_employee")}
 	employee_names: dict[str, str] = {}
@@ -239,15 +510,8 @@ def get_backlog_board(project: str | None = None) -> dict:
 	for req in requests:
 		if req.get("raised_by_employee"):
 			req["requested_by"] = employee_names.get(req["raised_by_employee"], req["raised_by_employee"])
-		elif req.get("raised_by_user"):
-			req["requested_by"] = requester_names.get(req["raised_by_user"], req["raised_by_user"])
-		elif req.get("raised_by_contact"):
-			req["requested_by"] = req["raised_by_contact"]
-		elif req.get("raised_by_customer"):
-			# No single named individual on record - true for every request bulk-imported from
-			# a client's own backlog spreadsheet, where only the client's identity, not a
-			# specific person's, is known.
-			req["requested_by"] = req["raised_by_customer"]
+		elif req.get("owner"):
+			req["requested_by"] = requester_names.get(req["owner"], req["owner"])
 		else:
 			req["requested_by"] = None
 
@@ -307,31 +571,9 @@ def get_upcoming_meetings(
 
 
 @frappe.whitelist()
-def get_my_day(user: str | None = None) -> dict:
-	from frappe.utils import today
-
-	user = user or frappe.session.user
-	if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
-		frappe.throw(_("Not permitted."), frappe.PermissionError)
-	day = today()
-
-	tasks = frappe.get_all(
-		"Task",
-		filters=[
-			["_assign", "like", f"%{user}%"],
-			["custom_planned_for", "=", day],
-		],
-		fields=["name", "subject", "status", "priority", "project", "custom_request", "exp_end_date"],
-		order_by="priority desc",
-		ignore_permissions=True,
-	)
-	meetings = get_upcoming_meetings(for_user=user, within_days=1)
-	return {"date": day, "tasks": tasks, "meetings": meetings}
-
-
-@frappe.whitelist()
-def get_developer_backlog(user: str | None = None, project: str | None = None) -> list[dict]:
-	"""Every open task assigned to a developer, not just today's (unlike My Day)."""
+def get_my_backlog(user: str | None = None, project: str | None = None) -> dict:
+	"""Everything open assigned to a developer, one list, sorted by deadline - not split into
+	today/later. Undated items sort last, not first, so a real deadline always wins."""
 	user = user or frappe.session.user
 	if user != frappe.session.user and not set(frappe.get_roles()) & REVIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
@@ -343,20 +585,26 @@ def get_developer_backlog(user: str | None = None, project: str | None = None) -
 	if project:
 		filters.append(["project", "=", project])
 
-	return frappe.get_all(
+	tasks = frappe.get_all(
 		"Task",
 		filters=filters,
-		fields=["name", "subject", "status", "priority", "project", "custom_planned_for", "exp_end_date"],
-		order_by="custom_planned_for asc, priority desc",
+		fields=["name", "subject", "status", "priority", "project", "exp_end_date"],
 		ignore_permissions=True,
 	)
+	# get_all returns Date columns as real date objects, not strings - comparing one against
+	# a string fallback for undated tasks crashes sort() outright. Sorting on
+	# (has_no_date, date) instead means Python only ever compares same-typed values.
+	tasks.sort(key=lambda t: (t.exp_end_date is None, t.exp_end_date))
+
+	meetings = get_upcoming_meetings(for_user=user, within_days=1)
+	return {"tasks": tasks, "meetings": meetings}
 
 
 @frappe.whitelist()
 def get_customer_workload(project: str) -> list[dict]:
 	if not (
 		set(frappe.get_roles()) & REVIEWER_ROLES
-		or frappe.db.exists("Request", {"project": project, "raised_by_user": frappe.session.user})
+		or frappe.db.exists("Request", {"project": project, "owner": frappe.session.user})
 	):
 		frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
 
