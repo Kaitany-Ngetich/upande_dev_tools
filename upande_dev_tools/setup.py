@@ -37,17 +37,11 @@ TASK_CUSTOM_FIELDS = {
 			"read_only": 1,
 		},
 		{
-			"fieldname": "custom_planned_for",
-			"label": "Planned For",
-			"fieldtype": "Date",
-			"insert_after": "custom_request",
-		},
-		{
 			"fieldname": "custom_module",
 			"label": "Module",
 			"fieldtype": "Link",
 			"options": "Product Area",
-			"insert_after": "custom_planned_for",
+			"insert_after": "custom_request",
 			"description": "The part of the system this work belongs to.",
 		},
 	]
@@ -96,6 +90,24 @@ def create_task_custom_fields() -> None:
 	create_custom_fields(TASK_CUSTOM_FIELDS, update=True)
 
 
+def remove_retired_custom_fields() -> None:
+	"""custom_planned_for is superseded by Task's own native exp_end_date - removing it from
+	TASK_CUSTOM_FIELDS above stops it being recreated, but an already-installed site still has
+	the old Custom Field record until this runs once."""
+	name = "Task-custom_planned_for"
+	if frappe.db.exists("Custom Field", name):
+		frappe.delete_doc("Custom Field", name, ignore_permissions=True, force=True)
+
+
+def remove_retired_doctypes() -> None:
+	"""Request tagging moved to Frappe's own built-in tag system - these two doctypes (a
+	Table MultiSelect child table and its master list) duplicated a feature every doctype
+	already has for free, and are no longer referenced anywhere."""
+	for doctype in ("Request Tag Link", "Request Tag"):
+		if frappe.db.exists("DocType", doctype):
+			frappe.delete_doc("DocType", doctype, ignore_permissions=True, force=True)
+
+
 def create_issue_custom_fields() -> None:
 	create_custom_fields(ISSUE_CUSTOM_FIELDS, update=True)
 
@@ -121,6 +133,12 @@ def backfill_project_scope() -> None:
 
 # Must match existing Request.request_type values exactly (Link resolves by docname).
 REQUEST_TYPES = ["Feature", "Bug", "Master Data", "Question", "Note", "Chore"]
+
+# Work Tag has no built-in vocabulary of its own to inherit from (unlike Priority Level and
+# Product Area, both seeded below) - seed the same category labels as REQUEST_TYPES so a
+# fresh install has something to tag with immediately, since a tag is mandatory on every
+# Task/Request from the moment this app is installed.
+WORK_TAGS = ["Feature", "Bug", "Master Data", "Question", "Note", "Chore"]
 
 # (name, sort_order) - lower sorts first.
 PRIORITY_LEVELS = [("Low", 0), ("Medium", 1), ("High", 2), ("Urgent", 3)]
@@ -160,9 +178,6 @@ PRODUCT_AREAS = [
 	"Fillers",
 ]
 
-# "Critial Path" and "Critical Path" were the same tag with a typo; normalized to one value.
-REQUEST_TAGS = ["Critical Path", "Good to have", "Important (post-go live)", "Important (post-migration)"]
-
 # The one Project Type (native ERPNext Link field on Project) that marks a project as
 # belonging to Dev Tools tracking. Every dashboard/portfolio aggregate query filters to this
 # value so unrelated business projects (this bench has 27 total, most not software work)
@@ -196,9 +211,9 @@ def register_master_data() -> None:
 				ignore_permissions=True
 			)
 
-	for tag_name in REQUEST_TAGS:
-		if not frappe.db.exists("Request Tag", tag_name):
-			frappe.get_doc({"doctype": "Request Tag", "tag_name": tag_name}).insert(ignore_permissions=True)
+	for tag_name in WORK_TAGS:
+		if not frappe.db.exists("Work Tag", tag_name):
+			frappe.get_doc({"doctype": "Work Tag", "tag_name": tag_name}).insert(ignore_permissions=True)
 
 
 def fix_product_area_typo() -> None:
@@ -245,6 +260,14 @@ def register_dev_portal_page(
 	).insert(ignore_permissions=True)
 
 
+def rename_my_day_to_my_backlog() -> None:
+	"""My Day became My Backlog - one list of everything open, sorted by deadline, instead of
+	a today/later split. Drop the old route record so register_dev_portal_page below creates
+	the new one instead of leaving both registered."""
+	if frappe.db.exists("Dev Portal Page", "my-day"):
+		frappe.delete_doc("Dev Portal Page", "my-day", ignore_permissions=True, force=True)
+
+
 def register_dev_portal_pages() -> None:
 	register_dev_portal_page(
 		route="dev-portal-settings",
@@ -280,8 +303,8 @@ def register_dev_portal_pages() -> None:
 		roles=["Dev Team"],
 	)
 	register_dev_portal_page(
-		route="my-day",
-		title="My Day",
+		route="my-backlog",
+		title="My Backlog",
 		icon="calendar",
 		nav_group="Developer",
 		sort_order=40,
@@ -526,9 +549,12 @@ def run_setup() -> None:
 	create_task_custom_fields()
 	create_issue_custom_fields()
 	create_project_custom_fields()
+	remove_retired_custom_fields()
+	remove_retired_doctypes()
 	backfill_project_scope()
 	register_master_data()
 	fix_product_area_typo()
+	rename_my_day_to_my_backlog()
 	register_dev_portal_pages()
 	register_installed_apps_as_deployment_apps()
 	# Before the resync, or the shipped JSON inserts a second Workspace beside the old one.

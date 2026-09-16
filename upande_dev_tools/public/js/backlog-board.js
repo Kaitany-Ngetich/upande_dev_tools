@@ -52,7 +52,7 @@ function read_prefs() {
 }
 const COLUMN_CAP = 25;
 const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
-const SHEET_FIELDS = { 2: "stage", 3: "priority", 5: "module", 6: "end", 7: "start" };
+const SHEET_FIELDS = { 2: "stage", 3: "priority", 4: "assignee", 5: "module", 6: "end", 7: "start", 8: "status" };
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 // Each of these mirrors the real markup of its view, so the switch from
 // skeleton to content does not move anything on the page.
@@ -147,7 +147,101 @@ const ICONS = {
 	trello: '<rect width="18" height="18" x="3" y="3" rx="2"/><rect width="3" height="9" x="7" y="7"/><rect width="3" height="5" x="14" y="7"/>',
 	refresh:
 		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+	assign: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M19 8v6"/>',
+	trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+	more: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
+	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
 };
+
+// A plain HTML form in an overlay, reusing the .rp-sheet/.rp-form styling that already
+// ships with this app - frappe.prompt's Dialog needs frappe.ui.form.make_control to render
+// its fields, and that isn't loaded on these portal pages at all (only the full desk
+// bundle has it), so every field-collecting dialog on this board is built this way instead.
+function open_modal(title, fields, onSubmit, submitLabel) {
+	const field_html = fields
+		.map((f) => {
+			const id = `bb-modal-${f.name}`;
+			let input;
+			if (f.type === "select") {
+				input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(f.options || [])
+					.map(
+						([v, l]) =>
+							`<option value="${esc(v)}"${v === f.value ? " selected" : ""}>${esc(l)}</option>`
+					)
+					.join("")}</select>`;
+			} else if (f.type === "textarea") {
+				input = `<textarea class="dpx-bb-field" id="${id}" name="${f.name}" rows="3">${esc(
+					f.value || ""
+				)}</textarea>`;
+			} else if (f.type === "tagpicker") {
+				input = upande_dev_tools.tag_picker_html({
+					name: f.name,
+					tags: f.tags || [],
+					selected: f.selected || [],
+				});
+			} else {
+				const listAttr = f.datalist ? ` list="${id}-list"` : "";
+				const datalist = f.datalist
+					? `<datalist id="${id}-list">${f.datalist.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`
+					: "";
+				input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${f.type || "text"}"
+					value="${esc(f.value || "")}"${f.required ? " required" : ""}${listAttr}
+					${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ""}>${datalist}`;
+			}
+			return `<label for="${id}">${esc(f.label)}${input}</label>`;
+		})
+		.join("");
+
+	const overlay = document.createElement("div");
+	overlay.className = "rp-sheet";
+	overlay.innerHTML = `
+		<div class="rp-scrim"></div>
+		<form class="rp-form" role="dialog" aria-label="${esc(title)}">
+			<div class="rp-form-hd"><h3>${esc(title)}</h3>
+				<button type="button" class="dpx-bb-ico bb-modal-close" aria-label="Close">${ico("x", 14)}</button></div>
+			${field_html}
+			<div class="rp-form-ft">
+				<button type="button" class="dpx-bb-btn bb-modal-close">${__("Cancel")}</button>
+				<button type="submit" class="dpx-bb-btn primary">${esc(submitLabel || __("Save"))}</button>
+			</div>
+		</form>`;
+	// Mounted inside .dpx, not document.body: every .rp-sheet/.rp-form/.dpx-bb-field style is
+	// deliberately scoped under .dpx (see dev-portal.css) so this portal's CSS never leaks
+	// onto the rest of the site - appending straight to body would render completely
+	// unstyled, since .dpx is fixed/full-viewport and doesn't use transform, so a
+	// position:fixed child still positions against the real viewport either way.
+	(document.querySelector(".dpx") || document.body).appendChild(overlay);
+
+	const close = () => {
+		overlay.remove();
+		document.removeEventListener("keydown", on_key);
+	};
+	function on_key(e) {
+		if (e.key === "Escape") close();
+	}
+	document.addEventListener("keydown", on_key);
+	overlay.querySelectorAll(".bb-modal-close").forEach((b) => b.addEventListener("click", close));
+	overlay.querySelector(".rp-scrim").addEventListener("click", close);
+	overlay.querySelector("form").addEventListener("submit", (e) => {
+		e.preventDefault();
+		// A hidden input's own `required` attribute is a no-op in every browser (an element
+		// that isn't rendered is exempt from constraint validation) - so a tagpicker's
+		// required-ness has to be checked by hand here instead.
+		for (const f of fields) {
+			if (f.type !== "tagpicker" || !f.required) continue;
+			const hidden = overlay.querySelector(`input[name="${f.name}"]`);
+			if (!hidden || !hidden.value) {
+				upande_dev_tools.toast(__("Pick at least one {0}.", [f.label]), "orange");
+				return;
+			}
+		}
+		const data = Object.fromEntries(new FormData(e.target).entries());
+		close();
+		onSubmit(data);
+	});
+	const first = overlay.querySelector("input,select,textarea");
+	if (first) first.focus();
+}
 
 function load_jspreadsheet() {
 	if (window.jspreadsheet) return Promise.resolve();
@@ -224,6 +318,7 @@ function ico(name, size) {
 		}</svg>`;
 }
 const RANK = { Low: 1, Medium: 2, High: 3, Urgent: 4 };
+const TASK_QUICK_STATUSES = ["Open", "Working", "Pending Review", "Overdue", "Completed", "Cancelled"];
 
 upande_dev_tools.BacklogBoard = class BacklogBoard {
 	constructor(wrapper, project) {
@@ -241,7 +336,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.caps = {};
 		this.hide_done = false;
 		this.limit = PAGE;
-		this.filters = { q: "", source: "", assignee: "", module: "", priority: "" };
+		this.filters = { q: "", source: "", assignee: "", module: "", priority: "", tag: "" };
 		this.render_shell();
 		this.load();
 	}
@@ -257,6 +352,50 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				if (this.items.length) this.render();
 			})
 			.catch(() => {});
+		if (!this.people) {
+			frappe
+				.xcall("upande_dev_tools.api.requests.get_assignable_users")
+				.then((people) => {
+					this.people = people || [];
+				})
+				.catch(() => {
+					this.people = [];
+				});
+		}
+		if (!this.projects) {
+			frappe
+				.xcall("upande_dev_tools.api.board.get_projects")
+				.then((projects) => {
+					this.projects = projects || [];
+				})
+				.catch(() => {
+					this.projects = [];
+				});
+		}
+		if (!this.work_tags) {
+			// Work Tag is Master Data page-editable - the New Task picker needs the full valid
+			// set, not just whatever tags happen to be in use on the board already.
+			frappe
+				.xcall("upande_dev_tools.api.board.get_work_tags")
+				.then((tags) => {
+					this.work_tags = tags || [];
+				})
+				.catch(() => {
+					this.work_tags = [];
+				});
+		}
+		if (!this.priority_levels) {
+			// Priority Level is Master Data page-editable - the Sheet's edit dropdown needs
+			// the full valid set, not just what's already in use on the board.
+			frappe
+				.xcall("upande_dev_tools.api.master_data.get_master_data", { key: "priority_level" })
+				.then((levels) => {
+					this.priority_levels = (levels || []).filter((p) => !p.disabled).map((p) => p.name);
+				})
+				.catch(() => {
+					this.priority_levels = [];
+				});
+		}
 		frappe
 			.xcall("upande_dev_tools.api.board.get_board", args)
 			.then((data) => {
@@ -329,6 +468,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<button class="dpx-bb-ico bb-reload" type="button" title="Refresh" aria-label="Refresh">${ico(
 								"refresh"
 							)}</button>
+							<button class="dpx-bb-btn primary bb-new-task" type="button">New task</button>
 							<span class="dpx-bb-div"></span>
 							<div class="dpx-bb-views" role="tablist">
 								<button data-view="board" class="${
@@ -378,10 +518,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							</select>
 							<select class="dpx-bb-field" data-f="priority" aria-label="Priority">
 								<option value="">Any priority</option>
-								<option value="Urgent">Urgent</option>
-								<option value="High">High</option>
-								<option value="Medium">Medium</option>
-								<option value="Low">Low</option>
+							</select>
+							<select class="dpx-bb-field" data-f="tag" aria-label="Tag">
+								<option value="">Any tag</option>
 							</select>
 						</div>
 						<span class="dpx-bb-sep"></span>
@@ -428,6 +567,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			this.render();
 		});
 		root.on("click", ".bb-reload", () => this.load());
+		root.on("click", ".bb-new-task", () => this.new_task());
 		root.on("input change", "[data-f]", (e) => {
 			const el = $(e.currentTarget);
 			this.filters[el.data("f")] = el.val();
@@ -457,6 +597,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		});
 
 		root.on("click", ".bb-tool", (e) => this.tool($(e.currentTarget).data("tool")));
+		root.on("click", ".bb-delete", (e) => this.delete_item($(e.currentTarget)));
+		root.on("click", ".bb-reassign", (e) => this.reassign_item($(e.currentTarget)));
+		root.on("click", ".bb-card-quick", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.quick_actions($(e.currentTarget));
+		});
 
 		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
 
@@ -497,6 +644,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					if (item.assignees.length) return false;
 				} else if (!item.assignees.includes(this.filters.assignee)) return false;
 			}
+			if (this.filters.tag && !(item.tags || []).includes(this.filters.tag)) return false;
 			if (this.hide_done && item.stage === "Done") return false;
 			if (q && !item.title.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q))
 				return false;
@@ -507,6 +655,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	render() {
 		const rows = this.visible();
 		this.render_assignees();
+		this.render_priorities();
+		this.render_tags();
 		this.render_extra();
 		this.render_tools();
 		this.render_count(rows);
@@ -516,6 +666,32 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		else if (this.view === "list") this.render_list(stage, rows);
 		else if (this.view === "sheet") this.render_sheet(stage, rows);
 		else this.render_timeline(stage, rows);
+	}
+
+	render_priorities() {
+		const root = $(this.wrapper);
+		const field = root.find('[data-f="priority"]');
+		if (field.children().length <= 1) {
+			// Priority Level is Master Data page-editable - list whatever's actually in use
+			// rather than a hardcoded set, so a level added there shows up here too.
+			const rank = {};
+			this.items.forEach((i) => {
+				if (i.priority) rank[i.priority] = i.rank;
+			});
+			const names = Object.keys(rank).sort((a, b) => rank[b] - rank[a]);
+			field.append(names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join(""));
+		}
+	}
+
+	render_tags() {
+		const root = $(this.wrapper);
+		const field = root.find('[data-f="tag"]');
+		if (field.children().length <= 1) {
+			const names = [...new Set(this.items.flatMap((item) => item.tags || []))].sort();
+			field.html(
+				['<option value="">Any tag</option>'].concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)).join("")
+			);
+		}
 	}
 
 	render_assignees() {
@@ -561,6 +737,164 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		};
 		root.find(".bb-tools").html(tools[this.view] || "");
 		root.find(".bb-tools-sep").prop("hidden", !tools[this.view]);
+	}
+
+	new_task() {
+		const projects = (this.projects || []).map((p) => [p.name, p.project_name || p.name]);
+		const people = [["", __("Unassigned")], ...(this.people || []).map((p) => [p.name, p.full_name || p.name])];
+		const priorities = [["", __("No priority")], ...(this.priority_levels || []).map((p) => [p, p])];
+		const modules = [["", __("No module")], ...(this.modules || []).filter(Boolean).map((m) => [m, m])];
+
+		open_modal(
+			__("New task"),
+			[
+				{ name: "project", label: __("Project"), type: "select", options: projects, value: this.project || "", required: true },
+				{ name: "subject", label: __("Title"), type: "text", required: true },
+				{
+					name: "tags",
+					label: __("Tags"),
+					type: "tagpicker",
+					required: true,
+					tags: this.work_tags || [],
+				},
+				{ name: "description", label: __("Description"), type: "textarea" },
+				{ name: "priority", label: __("Priority"), type: "select", options: priorities },
+				{ name: "module", label: __("Module"), type: "select", options: modules },
+				{ name: "complete_by", label: __("Due date"), type: "date" },
+				{ name: "assign_to", label: __("Assign to"), type: "select", options: people },
+			],
+			(values) => {
+				frappe
+					.xcall("upande_dev_tools.api.board.create_task", values)
+					.then(() => {
+						upande_dev_tools.toast(__("Task created."), "green");
+						this.load();
+					})
+					.catch((e) => {
+						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not create that task."), "red");
+					});
+			},
+			__("Create")
+		);
+	}
+
+	quick_actions(btn) {
+		const card_el = btn.closest("[data-doctype]");
+		const name = card_el.data("name");
+		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
+		if (!item) return;
+
+		const people = [
+			["", __("Keep current assignee(s)")],
+			...(this.people || []).map((p) => [p.name, p.full_name || p.name]),
+		];
+
+		open_modal(
+			__("Quick actions - {0}", [item.title]),
+			[
+				{
+					name: "status",
+					label: __("Status"),
+					type: "select",
+					options: TASK_QUICK_STATUSES.map((s) => [s, s]),
+					value: item.status,
+				},
+				{ name: "assign_to", label: __("Reassign to"), type: "select", options: people },
+				{ name: "complete_by", label: __("Due date"), type: "date", value: item.end || "" },
+			],
+			(values) => {
+				if (values.complete_by && item.start && values.complete_by < item.start) {
+					upande_dev_tools.toast(__("Due date can't be before the start date ({0}).", [item.start]), "orange");
+					return;
+				}
+
+				const calls = [];
+				if (values.status && values.status !== item.status)
+					calls.push(
+						frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
+							name,
+							status: values.status,
+						})
+					);
+				if (values.assign_to)
+					calls.push(
+						frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
+							name,
+							assign_to: values.assign_to,
+							complete_by: values.complete_by || null,
+						})
+					);
+				else if (values.complete_by && values.complete_by !== item.end)
+					calls.push(
+						frappe.xcall("upande_dev_tools.api.board.set_field", {
+							doctype: "Task",
+							name,
+							field: "end",
+							value: values.complete_by,
+						})
+					);
+
+				Promise.all(calls)
+					.then(() => {
+						upande_dev_tools.toast(__("Updated."), "green");
+						this.load();
+					})
+					.catch((e) => {
+						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not update that."), "red");
+					});
+			},
+			__("Save")
+		);
+	}
+
+	delete_item(btn) {
+		const row = btn.closest("[data-doctype]");
+		const doctype = row.data("doctype");
+		const name = row.data("name");
+		const item = this.items.find((i) => i.doctype === doctype && i.name === name);
+
+		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name]))) return;
+
+		const method =
+			doctype === "Task" ? "upande_dev_tools.api.board.delete_task" : "upande_dev_tools.api.requests.delete_request";
+		frappe
+			.xcall(method, { name })
+			.then(() => {
+				this.items = this.items.filter((i) => !(i.doctype === doctype && i.name === name));
+				this.render();
+				upande_dev_tools.toast(__("Deleted."), "green");
+			})
+			.catch((e) => {
+				upande_dev_tools.toast(String((e && e.message) || e) || __("Could not delete that."), "red");
+			});
+	}
+
+	reassign_item(btn) {
+		const row = btn.closest("[data-doctype]");
+		const name = row.data("name");
+		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
+		const people = (this.people || []).map((p) => [p.name, p.full_name || p.name]);
+
+		open_modal(
+			__("Reassign {0}", [item ? item.title : name]),
+			[
+				{ name: "assign_to", label: __("Assign to"), type: "select", options: people, required: true },
+				{ name: "complete_by", label: __("Complete by"), type: "date" },
+				{ name: "comment", label: __("Comment"), type: "text" },
+			],
+			(values) => {
+				frappe
+					.xcall("upande_dev_tools.api.requests.reassign_task", { name, ...values })
+					.then(() => {
+						upande_dev_tools.toast(__("Reassigned."), "green");
+						this.load();
+					})
+					.catch((e) => {
+						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not reassign that."), "red");
+					});
+			},
+			__("Reassign")
+		);
 	}
 
 	tool(name) {
@@ -633,10 +967,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		a.click();
 		a.remove();
 		setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-		frappe.show_alert({
-			message: __("Exported {0} rows.", [body.length]),
-			indicator: "green",
-		});
+		upande_dev_tools.toast(__("Exported {0} rows.", [body.length]), "green");
 	}
 
 	render_extra() {
@@ -784,7 +1115,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			.catch(() => {
 				Object.assign(item, previous);
 				this.render();
-				frappe.show_alert({ message: __("Could not move that item."), indicator: "red" });
+				upande_dev_tools.toast(__("Could not move that item."), "red");
 			});
 	}
 
@@ -799,7 +1130,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				const slice = shut ? [] : items.slice(0, Math.max(0, this.limit - shown));
 				shown += slice.length;
 				return (
-					`<tr class="dpx-bb-ghd${shut ? " shut" : ""}"><td colspan="6">
+					`<tr class="dpx-bb-ghd${shut ? " shut" : ""}"><td colspan="7">
 						<button data-group="${esc(key)}"><i class="chev"></i>${esc(key)}
 						<span class="n">${items.length}</span></button></td></tr>` +
 					slice.map((item) => list_row(item)).join("")
@@ -810,9 +1141,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		stage.html(`
 			<div class="dpx-card"><div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
 				<table class="dpx-bb-table">
-					<colgroup><col><col style="width:128px"><col style="width:104px"><col class="opt" style="width:158px"><col class="opt" style="width:132px"><col style="width:104px"></colgroup>
+					<colgroup><col><col style="width:128px"><col style="width:104px"><col class="opt" style="width:158px"><col class="opt" style="width:132px"><col style="width:104px"><col style="width:150px"></colgroup>
 					<thead><tr><th>Work item</th><th>Stage</th><th>Priority</th><th class="opt">Assigned to</th>
-						<th class="opt">Module</th><th style="text-align:right">Due</th></tr></thead>
+						<th class="opt">Module</th><th style="text-align:right">Due</th><th>Actions</th></tr></thead>
 					<tbody>${body}</tbody>
 				</table>
 				${
@@ -834,7 +1165,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			.then(() => {
 				stage
 					.removeAttr("aria-busy")
-					.html('<div class="dpx-bb-sheet"><div class="host"></div></div>');
+					.html(
+						'<div class="dpx-bb-sheet"><div class="bb-sheet-bar"><span class="bb-save-status"></span></div><div class="host"></div></div>'
+					);
 				this.mount_sheet(stage.find(".host")[0], rows);
 			})
 			.catch(() =>
@@ -885,9 +1218,14 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					type: "dropdown",
 					title: "Priority",
 					width: 104,
-					source: ["", "Low", "Medium", "High", "Urgent"],
+					source: ["", ...(this.priority_levels || [])],
 				},
-				{ type: "text", title: "Assignee", width: 142, ...locked },
+				{
+					type: "dropdown",
+					title: "Assignee",
+					width: 142,
+					source: (this.people || []).map((p) => p.full_name || p.name),
+				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
 				{
@@ -896,7 +1234,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					width: 100,
 					options: { format: "YYYY-MM-DD" },
 				},
-				{ type: "text", title: "Status", width: 104, ...locked },
+				{ type: "dropdown", title: "Status", width: 104, source: TASK_QUICK_STATUSES },
 				{ type: "text", title: "Project", width: 102, ...locked },
 				{ type: "text", title: "ID", width: 118, ...locked },
 			],
@@ -919,7 +1257,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			contextMenu: () => false,
 			onbeforechange: (_el, cell, x, y, value) => this.guard_cell(y, value),
 			onchange: (_el, _cell, x, y, value) => this.sheet_changed(Number(x), Number(y), value),
-			updateTable: (_el, cell, x, y) => paint_cell(cell, Number(x), order[Number(y)]),
+			updateTable: (_el, cell, x, y) => paint_cell(cell, Number(x), this.row_item(y)),
 		});
 
 		document.body.classList.add("dpx-menu-skin");
@@ -980,6 +1318,25 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		});
 	}
 
+	// jspreadsheet's columnSorting physically reorders its own row data, but this.sheet_rows
+	// (built once at mount, in fetch order) never gets re-sorted to match - looking rows up by
+	// y-index after any client-side sort silently applies the edit to the WRONG task. The
+	// hidden id column (x=0) is what jspreadsheet itself keeps in sync with the visual row, so
+	// reading it back and matching against this.items (never reordered) is the only safe way
+	// to know which item row y actually is right now.
+	row_item(y) {
+		const id =
+			this.sheet && typeof this.sheet.getValueFromCoords === "function"
+				? this.sheet.getValueFromCoords(0, Number(y))
+				: null;
+		if (id) {
+			const [doctype, name] = String(id).split(/:(.+)/);
+			const found = this.items.find((i) => i.doctype === doctype && i.name === name);
+			if (found) return found;
+		}
+		return this.sheet_rows[y];
+	}
+
 	watch_clicks(host) {
 		host.addEventListener("click", (e) => {
 			const td = e.target.closest("td[data-x]");
@@ -989,7 +1346,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const y = Number(td.getAttribute("data-y"));
 			if (!SHEET_FIELDS[x]) return;
 
-			const item = this.sheet_rows[y];
+			const item = this.row_item(y);
 			if (!item || !item.movable) return;
 
 			clearTimeout(this.opening);
@@ -1001,49 +1358,104 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	guard_cell(y, value) {
-		const item = this.sheet_rows[Number(y)];
+		const item = this.row_item(y);
 		if (item && !item.movable) {
-			frappe.show_alert({
-				message: __("Requests move through their own workflow, not the board."),
-				indicator: "orange",
-			});
+			upande_dev_tools.toast(__("Requests move through their own workflow, not the board."), "orange");
 			return false;
 		}
 		return value;
 	}
 
 	sheet_changed(x, y, value) {
-		const item = this.sheet_rows[y];
+		const item = this.row_item(y);
 		if (!item || !item.movable) return;
 
 		const field = SHEET_FIELDS[x];
 		if (!field) return;
 
+		if ((field === "assignee" || field === "status") && item.doctype !== "Task") {
+			this.render();
+			upande_dev_tools.toast(__("Only tasks can have their {0} changed here.", [field]), "orange");
+			return;
+		}
+
 		const current = field === "stage" ? item.stage : item[field] || "";
 		if (String(value || "") === String(current || "")) return;
+
+		if (field === "end" && item.start && value && value < item.start) {
+			this.render();
+			upande_dev_tools.toast(__("Due date can't be before the start date."), "orange");
+			return;
+		}
+		if (field === "start" && item.end && value && value > item.end) {
+			this.render();
+			upande_dev_tools.toast(__("Start date can't be after the due date."), "orange");
+			return;
+		}
 
 		this.save_cell(item, field, value || "");
 	}
 
 	save_cell(item, field, value) {
 		const previous = { ...item };
-		if (field === "stage") item.stage = value;
-		else item[field] = value;
-		if (field === "priority") item.rank = RANK[value] || 0;
+		this.set_save_status("saving");
 
-		const [method, args] =
-			field === "stage"
-				? ["set_stage", { doctype: item.doctype, name: item.name, stage: value }]
-				: ["set_field", { doctype: item.doctype, name: item.name, field, value }];
+		let call;
+		if (field === "stage") {
+			item.stage = value;
+			call = frappe.xcall("upande_dev_tools.api.board.set_stage", {
+				doctype: item.doctype,
+				name: item.name,
+				stage: value,
+			});
+		} else if (field === "status") {
+			item.status = value;
+			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", { name: item.name, status: value });
+		} else if (field === "assignee") {
+			const person = (this.people || []).find((p) => (p.full_name || p.name) === value);
+			if (!person) {
+				this.set_save_status("error");
+				this.render();
+				upande_dev_tools.toast(__("Pick a name from the list."), "orange");
+				return;
+			}
+			item.assignees = [value];
+			call = frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
+				name: item.name,
+				assign_to: person.name,
+			});
+		} else {
+			item[field] = value;
+			if (field === "priority") item.rank = RANK[value] || 0;
+			call = frappe.xcall("upande_dev_tools.api.board.set_field", {
+				doctype: item.doctype,
+				name: item.name,
+				field,
+				value,
+			});
+		}
 
-		frappe
-			.xcall(`upande_dev_tools.api.board.${method}`, args)
-			.then(() => this.load())
+		call
+			.then(() => {
+				this.set_save_status("saved");
+				this.load();
+			})
 			.catch(() => {
 				Object.assign(item, previous);
+				this.set_save_status("error");
 				this.render();
-				frappe.show_alert({ message: __("Could not save that cell."), indicator: "red" });
+				upande_dev_tools.toast(__("Could not save that cell."), "red");
 			});
+	}
+
+	set_save_status(state) {
+		const el = $(this.wrapper).find(".bb-save-status");
+		if (!el.length) return;
+		clearTimeout(this._save_status_timer);
+		if (state === "saving") return el.text(__("Saving…")).attr("data-state", "saving");
+		if (state === "error") return el.text(__("Could not save")).attr("data-state", "error");
+		el.text(__("All changes saved")).attr("data-state", "saved");
+		this._save_status_timer = setTimeout(() => el.text("").removeAttr("data-state"), 2500);
 	}
 
 	render_timeline(stage, rows) {
@@ -1268,16 +1680,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			// The board is already showing the new dates, so there is nothing to fetch.
 			// Reloading here was what threw you to a different part of the schedule.
 			.then(() =>
-				frappe.show_alert({
-					message: __("{0} moved to {1}", [item.title, item.start]),
-					indicator: "green",
-				})
+				upande_dev_tools.toast(__("{0} moved to {1}", [item.title, item.start]), "green")
 			)
 			.catch(() => {
 				Object.assign(item, before);
 				this.moved = null;
 				this.render();
-				frappe.show_alert({ message: __("Could not move that work."), indicator: "red" });
+				upande_dev_tools.toast(__("Could not move that work."), "red");
 			});
 	}
 };
@@ -1287,8 +1696,17 @@ function card(item) {
 	if (!item.movable) cls.push("locked");
 	return `
 		<div class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}"
+			data-doctype="${esc(item.doctype)}" data-name="${esc(item.name)}"
 			${item.movable ? 'draggable="true"' : ""}>
-			<div class="hd">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span></div>
+			<div class="hd">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
+				${
+					item.doctype === "Task"
+						? `<button type="button" class="dpx-bb-ico bb-card-quick" title="Quick actions">${ico(
+								"more",
+								13
+						  )}</button>`
+						: ""
+				}</div>
 			<div class="t">${esc(item.title)}</div>
 			<div class="m">
 				${people(item)}
@@ -1300,10 +1718,16 @@ function card(item) {
 function list_row(item) {
 	const cls = ["dpx-bb-row"];
 	if (item.stage === "Done") cls.push("done");
+	const tags = (item.tags || [])
+		.map((t) => `<span class="dpx-bb-chip">${esc(t)}</span>`)
+		.join(" ");
+	const can_reassign = item.doctype === "Task";
+	const can_delete = item.doctype === "Task" || item.doctype === "Request";
 	return `
-		<tr class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}">
+		<tr class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}"
+			data-doctype="${esc(item.doctype)}" data-name="${esc(item.name)}">
 			<td><div class="subj">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
-				<a href="${link(item)}">${esc(item.title)}</a></div></td>
+				<a href="${link(item)}">${esc(item.title)}</a></div>${tags ? `<div class="bb-tags">${tags}</div>` : ""}</td>
 			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>
 			<td>${
 				item.priority
@@ -1315,6 +1739,10 @@ function list_row(item) {
 			<td class="opt">${people(item)}</td>
 			<td class="opt muted">${esc(item.module || "—")}</td>
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
+			<td class="bb-row-act">
+				${can_reassign ? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico("assign")}</button>` : ""}
+				${can_delete ? `<button type="button" class="dpx-bb-ico bb-delete" title="Delete">${ico("trash")}</button>` : ""}
+			</td>
 		</tr>`;
 }
 

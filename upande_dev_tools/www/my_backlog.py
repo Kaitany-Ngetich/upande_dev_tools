@@ -9,10 +9,10 @@ no_cache = 1
 
 
 def get_context(context):
-	enforce_page_access("my-day")
+	enforce_page_access("my-backlog")
 	context = frappe._dict(context)
 	context.no_cache = 1
-	context.page_title = "My Day"
-	context.active_route = "my-day"
+	context.page_title = "My Backlog"
+	context.active_route = "my-backlog"
 	context.csrf_token = frappe.sessions.get_csrf_token()
 	return context

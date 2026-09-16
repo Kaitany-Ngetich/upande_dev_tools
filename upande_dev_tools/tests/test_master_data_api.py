@@ -32,7 +32,7 @@ class IntegrationTestMasterDataApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_get_master_data_kinds_lists_all_four(self) -> None:
+	def test_get_master_data_kinds_lists_all_kinds(self) -> None:
 		pm = self._make_user("pm-masterdata@example.test", ["Projects Manager"])
 		frappe.set_user(pm)
 		try:
@@ -40,7 +40,7 @@ class IntegrationTestMasterDataApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 		self.assertEqual(
-			{k["key"] for k in kinds}, {"request_type", "priority_level", "product_area", "request_tag"}
+			{k["key"] for k in kinds}, {"request_type", "priority_level", "product_area", "tag"}
 		)
 
 	def test_add_and_list_a_product_area(self) -> None:
@@ -60,15 +60,15 @@ class IntegrationTestMasterDataApi(IntegrationTestCase):
 
 	def test_add_master_data_rejects_a_duplicate(self) -> None:
 		dev = self._make_user("dev-masterdata-dup@example.test", ["Dev Team"])
-		name = "Test Master Data Duplicate Tag"
-		if frappe.db.exists("Request Tag", name):
-			frappe.delete_doc("Request Tag", name, force=True)
+		name = "Test Master Data Duplicate Area"
+		if frappe.db.exists("Product Area", name):
+			frappe.delete_doc("Product Area", name, force=True)
 
 		frappe.set_user(dev)
 		try:
-			add_master_data(key="request_tag", value=name)
+			add_master_data(key="product_area", value=name)
 			with self.assertRaises(frappe.DuplicateEntryError):
-				add_master_data(key="request_tag", value=name)
+				add_master_data(key="product_area", value=name)
 		finally:
 			frappe.set_user("Administrator")
 

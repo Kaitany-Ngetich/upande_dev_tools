@@ -7,6 +7,8 @@
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
 <div id="udt-backlog-board"></div>
+<script src="/assets/upande_dev_tools/js/toast.js?v={{ asset_version('js/toast.js') }}"></script>
+<script src="/assets/upande_dev_tools/js/tag-picker.js?v={{ asset_version('js/tag-picker.js') }}"></script>
 <script src="/assets/upande_dev_tools/js/work-preview.js?v={{ asset_version('js/work-preview.js') }}"></script>
 <script src="/assets/upande_dev_tools/js/backlog-board.js?v={{ asset_version('js/backlog-board.js') }}"></script>
 <script>
