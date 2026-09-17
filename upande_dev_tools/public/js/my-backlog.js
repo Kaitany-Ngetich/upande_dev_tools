@@ -1,12 +1,11 @@
 window.upande_dev_tools = window.upande_dev_tools || {};
 
-const MB_STATUSES = ["Open", "Working", "Pending Review", "Overdue", "Template", "Completed", "Cancelled"];
-
 upande_dev_tools.MyBacklog = class MyBacklog {
 	constructor(wrapper) {
 		this.wrapper = wrapper;
 		this.tasks = [];
 		this.meetings = [];
+		this.deployments = [];
 		this.render_shell();
 		this.load();
 	}
@@ -14,11 +13,24 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 	load() {
 		const icon = $(this.wrapper).find(".mb-reload").addClass("spin");
 		if (!this.tasks.length) this.skeleton();
-		frappe
-			.xcall("upande_dev_tools.api.requests.get_my_backlog")
-			.then((data) => {
+		if (!this.statuses) {
+			frappe
+				.xcall("upande_dev_tools.api.board.get_task_statuses")
+				.then((s) => {
+					this.statuses = s || [];
+				})
+				.catch(() => {
+					this.statuses = [];
+				});
+		}
+		Promise.all([
+			frappe.xcall("upande_dev_tools.api.requests.get_my_backlog"),
+			frappe.xcall("upande_dev_tools.api.deployments.get_my_deployment_requests"),
+		])
+			.then(([data, deployments]) => {
 				this.tasks = (data && data.tasks) || [];
 				this.meetings = (data && data.meetings) || [];
+				this.deployments = deployments || [];
 				this.stage().removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
@@ -98,6 +110,11 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 			.html(
 				`<b>${open_today}</b> open<span class="sep">·</span>` +
 					`<b>${overdue.length}</b> overdue<span class="sep">·</span>` +
+					(this.deployments.length
+						? `<b>${this.deployments.length}</b> deployment${
+								this.deployments.length === 1 ? "" : "s"
+						  }<span class="sep">·</span>`
+						: "") +
 					`<b>${this.meetings.length}</b> meeting${this.meetings.length === 1 ? "" : "s"}`
 			);
 
@@ -120,8 +137,18 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 
 		this.stage().html(
 			`<div class="dpx-card"><div class="dpx-card-body" style="padding:4px 0 6px">
-				${this.tasks.map((t) => mb_task(t, today)).join("")}
+				${this.tasks.map((t) => mb_task(t, today, this.statuses || [])).join("")}
 			</div></div>
+			${
+				this.deployments.length
+					? `<div class="dpx-card" style="margin-top:12px">
+						<div class="dpx-card-hd"><div class="ttl">Your deployment requests</div></div>
+						<div class="dpx-card-body" style="padding:4px 0 6px">
+							${this.deployments.map((d) => mb_deployment(d)).join("")}
+						</div>
+					</div>`
+					: ""
+			}
 			${
 				this.meetings.length
 					? `<div class="dpx-card" style="margin-top:12px">
@@ -160,14 +187,16 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 	}
 };
 
-function mb_task(t, today) {
+function mb_task(t, today, statuses) {
 	const overdue = t.exp_end_date && t.exp_end_date < today && t.status !== "Completed";
 	return `
 		<div class="md-task" data-name="${mb_esc(t.name)}" data-id="Task:${mb_esc(t.name)}">
 			<select class="dpx-bb-field mb-status" style="width:132px">
-				${MB_STATUSES.map(
-					(s) => `<option value="${mb_esc(s)}"${s === t.status ? " selected" : ""}>${mb_esc(s)}</option>`
-				).join("")}
+				${(statuses.length ? statuses : [t.status].filter(Boolean))
+					.map(
+						(s) => `<option value="${mb_esc(s)}"${s === t.status ? " selected" : ""}>${mb_esc(s)}</option>`
+					)
+					.join("")}
 			</select>
 			<a class="t" href="/app/task/${encodeURIComponent(t.name)}">${mb_esc(t.subject)}</a>
 			${
@@ -180,6 +209,27 @@ function mb_task(t, today) {
 					? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${mb_esc(t.priority)}</span>`
 					: ""
 			}
+		</div>`;
+}
+
+const MB_DEPLOY_STATE = {
+	Requested: "st-triage",
+	"In Progress": "st-in-progress",
+	Deployed: "st-done",
+	Failed: "st-blocked",
+};
+
+function mb_deployment(d) {
+	return `
+		<div class="md-task" data-id="Deployment Request:${mb_esc(d.name)}">
+			<span class="dpx-bb-chip ${MB_DEPLOY_STATE[d.workflow_state] || "st-triage"}">${mb_esc(
+				d.workflow_state || "Requested"
+			)}</span>
+			<a class="t" href="/app/deployment-request/${encodeURIComponent(d.name)}">${mb_esc(d.app)}${
+				d.branch ? ` (${mb_esc(d.branch)})` : ""
+			}</a>
+			<span class="dpx-bb-chip">${mb_esc(d.instance)}</span>
+			<span class="dpx-bb-chip">${mb_esc(String(d.creation || "").slice(0, 10))}</span>
 		</div>`;
 }
 

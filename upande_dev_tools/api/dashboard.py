@@ -71,6 +71,7 @@ def get_version_rows():
 		fields=[
 			"module_name",
 			"status_message",
+			"repository_url",
 			"current_branch",
 			"upstream_branch",
 			"commits_ahead",

@@ -6,7 +6,7 @@ import json
 import frappe
 from frappe import _
 
-from upande_dev_tools.api.board import _attach_tags, _set_doc_tags, _validate_tags, normalize_priority
+from upande_dev_tools.api.board import _attach_tags, _parse_tags, _set_doc_tags, _validate_tags, normalize_priority
 
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
 
@@ -114,9 +114,7 @@ def create_request(
 	if project and not frappe.has_permission("Project", "read", project):
 		frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
 
-	if isinstance(tags, str):
-		tags = [t.strip() for t in tags.split(",")]
-	tags = [t for t in (tags or []) if t and t.strip()]
+	tags = _parse_tags(tags)
 	if not tags:
 		frappe.throw(_("Add at least one tag before raising this."), frappe.ValidationError)
 	_validate_tags(tags)

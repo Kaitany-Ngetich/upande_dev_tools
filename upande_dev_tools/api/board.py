@@ -52,6 +52,20 @@ def normalize_priority(doctype: str, fieldname: str, value: str | None) -> str |
 	return None
 
 
+def _parse_tags(tags: list[str] | str | None) -> list[str]:
+	"""A JS array argument passed through frappe.call/xcall is JSON-encoded on the wire, not
+	comma-joined - without this, a real tag list like ["Critical Path"] arrives here as the
+	literal string '["Critical Path"]' and .split(",") on that (no comma inside) returns it
+	whole, unparsed, one bracket-and-all "tag" that can never match a real Work Tag."""
+	if isinstance(tags, str):
+		stripped = tags.strip()
+		if stripped.startswith("["):
+			tags = json.loads(stripped)
+		else:
+			tags = stripped.split(",")
+	return [t.strip() for t in (tags or []) if t and t.strip()]
+
+
 def _validate_tags(tags: list[str]) -> None:
 	"""Tags are Master Data page-editable (Work Tag), the same as Priority Level/Product
 	Area/Request Type - so the vocabulary lives in one place a PM can extend, and a stray
@@ -433,9 +447,7 @@ def create_task(
 	if not (project and subject):
 		frappe.throw(_("Set a project and a title before creating a task."), frappe.ValidationError)
 
-	if isinstance(tags, str):
-		tags = [t.strip() for t in tags.split(",")]
-	tags = [t for t in (tags or []) if t and t.strip()]
+	tags = _parse_tags(tags)
 	if not tags:
 		frappe.throw(_("Add at least one tag before creating this task."), frappe.ValidationError)
 	_validate_tags(tags)
@@ -559,6 +571,15 @@ def _coerce(fieldtype: str, value: str | None):
 @frappe.whitelist()
 def get_modules() -> list[str]:
 	return frappe.get_all("Product Area", pluck="name", order_by="name asc")
+
+
+@frappe.whitelist()
+def get_task_statuses() -> list[str]:
+	"""Task.status is a plain Select, not a Link, so there's no master doctype to point a
+	status picker at - but the options still live in one real place (the field's own
+	metadata), not a hand-copied list that silently drifts if that Select ever changes."""
+	options = frappe.get_meta("Task").get_field("status").options or ""
+	return [o for o in options.split("\n") if o]
 
 
 @frappe.whitelist()

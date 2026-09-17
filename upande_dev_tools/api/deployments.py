@@ -9,6 +9,27 @@ DEPLOYMENT_VIEWER_ROLES = {"Dev Team", "System Manager", "Projects Manager"}
 
 
 @frappe.whitelist()
+def get_deployment_apps() -> list[dict]:
+	if not set(frappe.get_roles()) & DEPLOYER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+	return frappe.get_all(
+		"Deployment App", fields=["name", "default_branch"], order_by="name asc", ignore_permissions=True
+	)
+
+
+@frappe.whitelist()
+def get_deployment_instances() -> list[dict]:
+	if not set(frappe.get_roles()) & DEPLOYER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+	return frappe.get_all(
+		"Deployment Instance",
+		fields=["name", "environment_type"],
+		order_by="name asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
 def create_deployment_request(
 	app: str,
 	instance: str,
@@ -72,7 +93,17 @@ def get_recent_deployments(limit: int = 10) -> dict:
 	limit = max(1, min(int(limit), 50))
 	rows = frappe.get_all(
 		"Deployment Request",
-		fields=["name", "app", "instance", "branch", "commit_hash", "workflow_state", "creation"],
+		fields=[
+			"name",
+			"app",
+			"instance",
+			"branch",
+			"commit_hash",
+			"description",
+			"workflow_state",
+			"requested_by_user",
+			"creation",
+		],
 		order_by="creation desc",
 		limit=limit,
 		ignore_permissions=True,
