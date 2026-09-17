@@ -17,13 +17,16 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 	load() {
 		const icon = $(this.wrapper).find(".pm-reload").addClass("spin");
 		if (!this.data) this.skeleton();
-		frappe
-			.xcall("upande_dev_tools.api.portfolio.get_portfolio", {
+		Promise.all([
+			frappe.xcall("upande_dev_tools.api.portfolio.get_portfolio", {
 				days: this.days,
 				scope: this.scope || null,
-			})
-			.then((data) => {
+			}),
+			frappe.xcall("upande_dev_tools.api.deployments.get_recent_deployments").catch(() => null),
+		])
+			.then(([data, deployments]) => {
 				this.data = data;
+				this.deployments = deployments;
 				$(this.wrapper).find(".bb-stage").removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
@@ -234,6 +237,7 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 			</div>
 			${pm_projects(d.projects)}
 			${pm_stalled(d.stalled)}
+			${this.deployments ? pm_deployments(this.deployments) : ""}
 		`);
 	}
 };
@@ -554,6 +558,46 @@ function pm_stalled(rows) {
 						</a>`
 					)
 					.join("")}
+			</div>
+		</div>`;
+}
+
+const PM_DEPLOY_STATE = {
+	Requested: "st-triage",
+	"In Progress": "st-in-progress",
+	Deployed: "st-done",
+	Failed: "st-blocked",
+};
+
+function pm_deployments(d) {
+	const rows = d.recent || [];
+	const counts = d.counts_by_state || {};
+	if (!rows.length) return "";
+	return `
+		<div class="dpx-card">
+			<div class="dpx-card-hd"><div class="ttl">Deployments</div>
+				<span class="pm-tally">${Object.entries(counts)
+					.map(([state, n]) => `<b>${n}</b> ${pm_esc(state.toLowerCase())}`)
+					.join("<i></i>")}</span></div>
+			<div class="dpx-card-body dpx-bb-listwrap" style="padding:0 0 4px">
+				<table class="dpx-bb-table">
+					<colgroup><col><col style="width:160px"><col style="width:120px"><col style="width:120px"><col style="width:104px"><col style="width:130px"></colgroup>
+					<thead><tr><th>App</th><th>Instance</th><th>Branch</th><th>Requested by</th><th>Raised</th><th>State</th></tr></thead>
+					<tbody>${rows
+						.map(
+							(r) => `<tr class="dpx-bb-row">
+								<td><a href="/app/deployment-request/${encodeURIComponent(r.name)}">${pm_esc(r.app)}</a></td>
+								<td>${pm_esc(r.instance)}</td>
+								<td>${pm_esc(r.branch || "—")}</td>
+								<td>${pm_esc((r.requested_by_user || "").split("@")[0])}</td>
+								<td>${pm_esc(String(r.creation || "").slice(0, 10))}</td>
+								<td><span class="dpx-bb-chip ${PM_DEPLOY_STATE[r.workflow_state] || "st-triage"}">${pm_esc(
+									r.workflow_state
+								)}</span></td>
+							</tr>`
+						)
+						.join("")}</tbody>
+				</table>
 			</div>
 		</div>`;
 }

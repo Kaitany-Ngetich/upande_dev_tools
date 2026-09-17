@@ -354,4 +354,5 @@ fixtures = [
 		],
 	},
 	{"doctype": "Workflow", "filters": [["name", "in", ["Request Review", "Deployment Review"]]]},
+	{"doctype": "Custom HTML Block", "filters": [["name", "=", "Dev Tools Navigation"]]},
 ]

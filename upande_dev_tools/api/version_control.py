@@ -69,6 +69,21 @@ def get_current_branch(repo_path):
 	return f"DETACHED-{commit}"
 
 
+def get_repo_url(repo_path):
+	try:
+		url = run_git_command(repo_path, ["remote", "get-url", "origin"], timeout=10)
+	except GitCommandError:
+		return None
+	# Normalise an SSH remote (git@github.com:org/repo.git) to the browsable https form -
+	# the dashboard links to it, and ssh:// isn't something a browser or clipboard-paste
+	# into a browser bar can open.
+	if url.startswith("git@"):
+		host, _, path = url.partition(":")
+		host = host[len("git@") :]
+		url = f"https://{host}/{path}"
+	return url.removesuffix(".git")
+
+
 def get_upstream_branch(repo_path):
 	try:
 		return run_git_command(
@@ -208,6 +223,7 @@ def scan_bench(fetch: int = 0) -> dict:
 		doc.module_name = app_name
 		doc.app_folder = app_name
 		doc.environment = "Local Machine"
+		doc.repository_url = result.get("repo_url")
 		doc.current_branch = result.get("branch")
 		doc.upstream_branch = result.get("upstream")
 		doc.commits_ahead = result.get("ahead") or 0
@@ -240,6 +256,7 @@ def _analyse(app_name: str, fetch: bool) -> dict:
 	branch = get_current_branch(repo_path)
 	upstream = get_upstream_branch(repo_path)
 	dirty = bool(get_working_tree_status(repo_path))
+	repo_url = get_repo_url(repo_path)
 
 	if not upstream:
 		return {
@@ -249,6 +266,7 @@ def _analyse(app_name: str, fetch: bool) -> dict:
 			"ahead": 0,
 			"behind": 0,
 			"dirty": dirty,
+			"repo_url": repo_url,
 			"message": f"Branch '{branch}' tracks no remote",
 		}
 
@@ -261,4 +279,5 @@ def _analyse(app_name: str, fetch: bool) -> dict:
 		"ahead": ahead,
 		"behind": behind,
 		"dirty": dirty,
+		"repo_url": repo_url,
 	}

@@ -649,6 +649,14 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .pm-req .calm .bar i{background:#a8a69c}
 
 .dpx .pm-stall .on{color:var(--bb-amber);font-weight:600}
+
+/* by-project progress cell - was entirely unstyled, running the bar/percent/fraction
+   together with no gap at all ("0%1/307") */
+.dpx .pm-prog{display:flex;align-items:center;gap:8px;min-width:0}
+.dpx .pm-prog .bar{flex:1;height:7px;min-width:40px;border-radius:99px;background:var(--rule);overflow:hidden}
+.dpx .pm-prog .bar i{display:block;height:100%;border-radius:99px;background:var(--bb-solid-green)}
+.dpx .pm-prog .pct{font:600 10px var(--mono);color:var(--ink-2);width:32px;flex:none;text-align:right}
+.dpx .pm-prog .of{font:500 9.5px var(--mono);color:var(--ink-faint);flex:none;white-space:nowrap}
 .dpx .pm-hero-fig .fore{font:400 10px var(--ui);color:var(--ink-mute);margin-top:6px}
 .dpx .pm-hero-fig .fore b{font-weight:600;color:var(--ink-3)}
 
