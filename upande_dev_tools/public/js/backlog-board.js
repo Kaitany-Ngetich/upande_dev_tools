@@ -681,7 +681,6 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	new_task() {
 		const projects = (this.projects || []).map((p) => [p.name, p.project_name || p.name]);
-<<<<<<< HEAD
 		const priorities = [
 			["", __("No priority")],
 			...(this.priority_levels || []).map((p) => [p, p]),
@@ -690,10 +689,6 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			["", __("No module")],
 			...(this.modules || []).filter(Boolean).map((m) => [m, m]),
 		];
-=======
-		const priorities = [["", __("No priority")], ...(this.priority_levels || []).map((p) => [p, p])];
-		const modules = [["", __("No module")], ...(this.modules || []).filter(Boolean).map((m) => [m, m])];
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 
 		upande_dev_tools.open_modal(
 			__("New task"),
@@ -767,16 +762,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					multiple: true,
 					placeholder: __("Keep current assignee(s)"),
 				},
-<<<<<<< HEAD
 				{
 					name: "complete_by",
 					label: __("Due date"),
 					type: "date",
 					value: item.end || "",
 				},
-=======
-				{ name: "complete_by", label: __("Due date"), type: "date", value: item.end || "" },
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 			],
 			(values) => {
 				if (values.complete_by && item.start && values.complete_by < item.start) {
@@ -864,7 +855,6 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		upande_dev_tools.open_modal(
 			__("Reassign {0}", [item ? item.title : name]),
 			[
-<<<<<<< HEAD
 				{
 					name: "assign_to",
 					label: __("Assign to"),
@@ -872,9 +862,6 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					multiple: true,
 					required: true,
 				},
-=======
-				{ name: "assign_to", label: __("Assign to"), type: "userlink", multiple: true, required: true },
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 				{ name: "complete_by", label: __("Complete by"), type: "date" },
 				{ name: "comment", label: __("Comment"), type: "text" },
 			],
@@ -1231,14 +1218,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					// A Task can be on more than one person, same as the Reassign dialog. The cell
 					// value is then a ";"-joined list of emails, which is jspreadsheet's own format.
 					multiple: true,
-<<<<<<< HEAD
 					source: (this.people || []).map((p) => ({
 						id: p.name,
 						name: p.full_name || p.name,
 					})),
-=======
-					source: (this.people || []).map((p) => ({ id: p.name, name: p.full_name || p.name })),
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
@@ -1405,13 +1388,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			field === "stage"
 				? item.stage
 				: field === "assignee"
-<<<<<<< HEAD
 				? (item.assignee_ids || []).join(";")
 				: item[field] || "";
-=======
-				  ? (item.assignee_ids || []).join(";")
-				  : item[field] || "";
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 		if (String(value || "") === String(current || "")) return;
 
 		if (field === "end" && item.start && value && value < item.start) {
@@ -1451,26 +1429,18 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				.split(";")
 				.map((e) => e.trim())
 				.filter(Boolean);
-<<<<<<< HEAD
 			const people = emails.map((email) =>
 				(this.people || []).find((p) => p.name === email)
 			);
-=======
-			const people = emails.map((email) => (this.people || []).find((p) => p.name === email));
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 			// An empty cell would mean "take this off everyone", which reassign_task refuses -
 			// clearing an assignment is what the Reassign dialog is for.
 			if (!people.length || people.some((p) => !p)) {
 				this.set_save_status("error");
 				this.render();
 				upande_dev_tools.toast(
-<<<<<<< HEAD
 					people.length
 						? __("Pick names from the list.")
 						: __("Pick at least one name."),
-=======
-					people.length ? __("Pick names from the list.") : __("Pick at least one name."),
->>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 					"orange"
 				);
 				return;
