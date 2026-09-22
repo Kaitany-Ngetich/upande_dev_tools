@@ -319,6 +319,8 @@ fixtures = [
 					"Scheduled",
 					"In Progress",
 					"Completed",
+					"Withdrawn",
+					"Closed",
 					"Requested",
 					"Deployed",
 					"Failed",
@@ -341,6 +343,8 @@ fixtures = [
 					"Promote Note",
 					"Start Work",
 					"Complete",
+					"Withdraw",
+					"Confirm Complete",
 					"Start Deployment",
 					"Mark Deployed",
 					"Mark Failed",
@@ -350,4 +354,5 @@ fixtures = [
 		],
 	},
 	{"doctype": "Workflow", "filters": [["name", "in", ["Request Review", "Deployment Review"]]]},
+	{"doctype": "Custom HTML Block", "filters": [["name", "=", "Dev Tools Navigation"]]},
 ]
