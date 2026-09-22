@@ -30,14 +30,23 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 					input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(
 						f.options || []
 					)
+					input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(
+						f.options || []
+					)
 						.map(
 							([v, l]) =>
+								`<option value="${esc(v)}"${
+									v === f.value ? " selected" : ""
+								}>${esc(l)}</option>`
 								`<option value="${esc(v)}"${
 									v === f.value ? " selected" : ""
 								}>${esc(l)}</option>`
 						)
 						.join("")}</select>`;
 				} else if (f.type === "textarea") {
+					input = `<textarea class="dpx-bb-field" id="${id}" name="${
+						f.name
+					}" rows="3">${esc(f.value || "")}</textarea>`;
 					input = `<textarea class="dpx-bb-field" id="${id}" name="${
 						f.name
 					}" rows="3">${esc(f.value || "")}</textarea>`;
@@ -67,7 +76,13 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 						? `<datalist id="${id}-list">${f.datalist
 								.map((v) => `<option value="${esc(v)}">`)
 								.join("")}</datalist>`
+						? `<datalist id="${id}-list">${f.datalist
+								.map((v) => `<option value="${esc(v)}">`)
+								.join("")}</datalist>`
 						: "";
+					input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${
+						f.type || "text"
+					}"
 					input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${
 						f.type || "text"
 					}"
@@ -107,6 +122,9 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			if (e.key === "Escape") close();
 		}
 		document.addEventListener("keydown", on_key);
+		overlay
+			.querySelectorAll(".bb-modal-close")
+			.forEach((b) => b.addEventListener("click", close));
 		overlay
 			.querySelectorAll(".bb-modal-close")
 			.forEach((b) => b.addEventListener("click", close));

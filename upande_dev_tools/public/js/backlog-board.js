@@ -61,6 +61,15 @@ const SHEET_FIELDS = {
 	7: "start",
 	8: "status",
 };
+const SHEET_FIELDS = {
+	2: "stage",
+	3: "priority",
+	4: "assignee",
+	5: "module",
+	6: "end",
+	7: "start",
+	8: "status",
+};
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 // Each of these mirrors the real markup of its view, so the switch from
 // skeleton to content does not move anything on the page.
@@ -244,6 +253,14 @@ const TASK_QUICK_STATUSES = [
 	"Completed",
 	"Cancelled",
 ];
+const TASK_QUICK_STATUSES = [
+	"Open",
+	"Working",
+	"Pending Review",
+	"Overdue",
+	"Completed",
+	"Cancelled",
+];
 
 upande_dev_tools.BacklogBoard = class BacklogBoard {
 	constructor(wrapper, project) {
@@ -323,7 +340,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				.xcall("upande_dev_tools.api.master_data.get_master_data", {
 					key: "priority_level",
 				})
+				.xcall("upande_dev_tools.api.master_data.get_master_data", {
+					key: "priority_level",
+				})
 				.then((levels) => {
+					this.priority_levels = (levels || [])
+						.filter((p) => !p.disabled)
+						.map((p) => p.name);
 					this.priority_levels = (levels || [])
 						.filter((p) => !p.disabled)
 						.map((p) => p.name);
@@ -618,6 +641,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			field.append(
 				names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")
 			);
+			field.append(
+				names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")
+			);
 		}
 	}
 
@@ -627,6 +653,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		if (field.children().length <= 1) {
 			const names = [...new Set(this.items.flatMap((item) => item.tags || []))].sort();
 			field.html(
+				['<option value="">Any tag</option>']
+					.concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`))
+					.join("")
 				['<option value="">Any tag</option>']
 					.concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`))
 					.join("")
@@ -701,6 +730,14 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					value: this.project || "",
 					required: true,
 				},
+				{
+					name: "project",
+					label: __("Project"),
+					type: "select",
+					options: projects,
+					value: this.project || "",
+					required: true,
+				},
 				{ name: "subject", label: __("Title"), type: "text", required: true },
 				{
 					name: "tags",
@@ -729,6 +766,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not create that task."),
+							"red"
+						);
 						upande_dev_tools.toast(
 							String((e && e.message) || e) || __("Could not create that task."),
 							"red"
@@ -775,6 +816,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						__("Due date can't be before the start date ({0}).", [item.start]),
 						"orange"
 					);
+					upande_dev_tools.toast(
+						__("Due date can't be before the start date ({0}).", [item.start]),
+						"orange"
+					);
 					return;
 				}
 
@@ -814,6 +859,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							String((e && e.message) || e) || __("Could not update that."),
 							"red"
 						);
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not update that."),
+							"red"
+						);
 					});
 			},
 			__("Save")
@@ -828,8 +877,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name])))
 			return;
+		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name])))
+			return;
 
 		const method =
+			doctype === "Task"
+				? "upande_dev_tools.api.board.delete_task"
+				: "upande_dev_tools.api.requests.delete_request";
 			doctype === "Task"
 				? "upande_dev_tools.api.board.delete_task"
 				: "upande_dev_tools.api.requests.delete_request";
@@ -841,6 +895,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				upande_dev_tools.toast(__("Deleted."), "green");
 			})
 			.catch((e) => {
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not delete that."),
+					"red"
+				);
 				upande_dev_tools.toast(
 					String((e && e.message) || e) || __("Could not delete that."),
 					"red"
@@ -873,6 +931,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not reassign that."),
+							"red"
+						);
 						upande_dev_tools.toast(
 							String((e && e.message) || e) || __("Could not reassign that."),
 							"red"
@@ -1361,6 +1423,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				__("Requests move through their own workflow, not the board."),
 				"orange"
 			);
+			upande_dev_tools.toast(
+				__("Requests move through their own workflow, not the board."),
+				"orange"
+			);
 			return false;
 		}
 		return value;
@@ -1375,6 +1441,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 		if ((field === "assignee" || field === "status") && item.doctype !== "Task") {
 			this.render();
+			upande_dev_tools.toast(
+				__("Only tasks can have their {0} changed here.", [field]),
+				"orange"
+			);
 			upande_dev_tools.toast(
 				__("Only tasks can have their {0} changed here.", [field]),
 				"orange"
@@ -1424,6 +1494,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				name: item.name,
 				status: value,
 			});
+			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
+				name: item.name,
+				status: value,
+			});
 		} else if (field === "assignee") {
 			const emails = String(value || "")
 				.split(";")
@@ -1462,6 +1536,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			});
 		}
 
+		call.then(() => {
+			this.set_save_status("saved");
+			this.load();
+		}).catch(() => {
+			Object.assign(item, previous);
+			this.set_save_status("error");
+			this.render();
+			upande_dev_tools.toast(__("Could not save that cell."), "red");
+		});
 		call.then(() => {
 			this.set_save_status("saved");
 			this.load();
@@ -1755,6 +1838,9 @@ function list_row(item) {
 				<a href="${link(item)}">${esc(item.title)}</a></div>${
 		tags ? `<div class="bb-tags">${tags}</div>` : ""
 	}</td>
+				<a href="${link(item)}">${esc(item.title)}</a></div>${
+		tags ? `<div class="bb-tags">${tags}</div>` : ""
+	}</td>
 			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>
 			<td>${
 				item.priority
@@ -1767,6 +1853,20 @@ function list_row(item) {
 			<td class="opt muted">${esc(item.module || "—")}</td>
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
 			<td class="bb-row-act">
+				${
+					can_reassign
+						? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico(
+								"assign"
+						  )}</button>`
+						: ""
+				}
+				${
+					can_delete
+						? `<button type="button" class="dpx-bb-ico bb-delete" title="Delete">${ico(
+								"trash"
+						  )}</button>`
+						: ""
+				}
 				${
 					can_reassign
 						? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico(

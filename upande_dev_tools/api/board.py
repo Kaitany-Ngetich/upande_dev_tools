@@ -427,6 +427,7 @@ def create_task(
 	module: str | None = None,
 	complete_by: str | None = None,
 	assign_to: str | list[str] | None = None,
+	assign_to: str | list[str] | None = None,
 ) -> dict:
 	"""Ad-hoc work that never started life as a Request - internal cleanup, a chore, anything
 	a PM or dev just needs to log directly. Every other Task on this board comes from
@@ -466,6 +467,8 @@ def create_task(
 		# Lazy import: requests.py imports normalize_priority from this module, so importing
 		# these back at module load time here would be circular.
 		from upande_dev_tools.api.requests import _assign_many, parse_users
+		# these back at module load time here would be circular.
+		from upande_dev_tools.api.requests import _assign_many, parse_users
 
 		_assign_many("Task", task.name, parse_users(assign_to), date=complete_by, priority=priority)
 
@@ -499,6 +502,7 @@ def _resolve_people(items: list[dict]) -> None:
 	rows = frappe.get_all("User", filters={"name": ["in", list(emails)]}, fields=["name", "full_name"])
 	names = {row.name: row.full_name or row.name for row in rows}
 	for item in items:
+		item["assignees"] = [names.get(email, email) for email in item["assignee_ids"]]
 		item["assignees"] = [names.get(email, email) for email in item["assignee_ids"]]
 
 
