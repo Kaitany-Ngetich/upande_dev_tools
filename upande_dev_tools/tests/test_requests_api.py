@@ -1,6 +1,8 @@
 # Copyright (c) 2026, Upande LTD and contributors
 # For license information, please see license.txt
 
+import json
+
 import frappe
 from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests import IntegrationTestCase
@@ -16,7 +18,9 @@ from upande_dev_tools.api.requests import (
 	get_my_requests,
 	get_review_queue,
 	get_upcoming_meetings,
+	parse_users,
 	promote_to_task,
+	reassign_task,
 	triage_request,
 )
 
@@ -291,6 +295,78 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 			pluck="allocated_to",
 		)
 		self.assertIn(dev, owners)
+
+	def test_parse_users_reads_every_shape_the_pickers_send(self) -> None:
+		self.assertEqual(parse_users(None), [])
+		self.assertEqual(parse_users(""), [])
+		self.assertEqual(parse_users("a@x.test"), ["a@x.test"])
+		# the widget's hidden input
+		self.assertEqual(parse_users(" a@x.test , b@x.test ,"), ["a@x.test", "b@x.test"])
+		# frappe.xcall serialising a JS array
+		self.assertEqual(parse_users('["a@x.test","b@x.test"]'), ["a@x.test", "b@x.test"])
+		# order kept, duplicates dropped
+		self.assertEqual(parse_users(["b@x.test", "a@x.test", "b@x.test"]), ["b@x.test", "a@x.test"])
+
+	def test_accept_request_assigns_every_person_named(self) -> None:
+		one = self._make_user("queue-pair-1@example.test", ["Dev Team"])
+		two = self._make_user("queue-pair-2@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user("Administrator")
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "Needs two people", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+
+		result = accept_request(
+			request.name,
+			project=project,
+			priority="High",
+			complete_by=today(),
+			assign_to=f"{one},{two}",
+		)
+
+		self.assertEqual(result["assigned_to"], [one, two])
+		owners = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Task", "reference_name": result["task"], "status": "Open"},
+			pluck="allocated_to",
+		)
+		self.assertCountEqual(owners, [one, two])
+
+	def test_reassign_task_closes_out_only_the_people_dropped(self) -> None:
+		one = self._make_user("reassign-1@example.test", ["Dev Team"])
+		two = self._make_user("reassign-2@example.test", ["Dev Team"])
+		three = self._make_user("reassign-3@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user("Administrator")
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "Hand it around", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+		accepted = accept_request(
+			request.name,
+			project=project,
+			priority="High",
+			complete_by=today(),
+			assign_to=[one, two],
+		)
+		task = accepted["task"]
+
+		# one stays (keeps its ToDo), two goes, three arrives
+		result = reassign_task(task, assign_to=[one, three])
+
+		self.assertEqual(result["assigned_to"], [one, three])
+		open_owners = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Task", "reference_name": task, "status": "Open"},
+			pluck="allocated_to",
+		)
+		self.assertCountEqual(open_owners, [one, three])
+		self.assertCountEqual(json.loads(frappe.db.get_value("Task", task, "_assign") or "[]"), [one, three])
+
+	def test_reassign_task_refuses_an_empty_list(self) -> None:
+		self._make_user("reassign-none@example.test", ["Dev Team"])
+		frappe.set_user("Administrator")
+		with self.assertRaises(frappe.ValidationError):
+			reassign_task("SOME-TASK", assign_to="")
 
 	def test_accept_request_refuses_without_a_project(self) -> None:
 		request = frappe.get_doc(

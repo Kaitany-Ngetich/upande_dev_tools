@@ -48,6 +48,7 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 						name: f.name,
 						value: f.value || "",
 						placeholder: f.placeholder,
+						multiple: f.multiple,
 					});
 				} else if (f.type === "date") {
 					input = upande_dev_tools.date_field_html({

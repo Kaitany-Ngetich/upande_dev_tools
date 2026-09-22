@@ -677,7 +677,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ name: "priority", label: __("Priority"), type: "select", options: priorities },
 				{ name: "module", label: __("Module"), type: "select", options: modules },
 				{ name: "complete_by", label: __("Due date"), type: "date" },
-				{ name: "assign_to", label: __("Assign to"), type: "userlink", placeholder: __("Leave blank for unassigned") },
+				{
+					name: "assign_to",
+					label: __("Assign to"),
+					type: "userlink",
+					multiple: true,
+					placeholder: __("Leave blank for unassigned"),
+				},
 			],
 			(values) => {
 				frappe
@@ -714,6 +720,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					name: "assign_to",
 					label: __("Reassign to"),
 					type: "userlink",
+					multiple: true,
 					placeholder: __("Keep current assignee(s)"),
 				},
 				{ name: "complete_by", label: __("Due date"), type: "date", value: item.end || "" },
@@ -792,7 +799,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		upande_dev_tools.open_modal(
 			__("Reassign {0}", [item ? item.title : name]),
 			[
-				{ name: "assign_to", label: __("Assign to"), type: "userlink", required: true },
+				{ name: "assign_to", label: __("Assign to"), type: "userlink", multiple: true, required: true },
 				{ name: "complete_by", label: __("Complete by"), type: "date" },
 				{ name: "comment", label: __("Comment"), type: "text" },
 			],
@@ -1112,7 +1119,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			item.title,
 			item.stage,
 			item.priority || "",
-			(item.assignee_ids || [])[0] || "",
+			// jspreadsheet joins a multi-dropdown's values with ";" - see the Assignee column.
+			(item.assignee_ids || []).join(";"),
 			item.module || "",
 			item.end || "",
 			item.start || "",
@@ -1142,6 +1150,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					// person's name, so the two Brians on this bench never collapse into one. Typing
 					// filters the list, which a 440-name dropdown is unusable without.
 					autocomplete: true,
+					// A Task can be on more than one person, same as the Reassign dialog. The cell
+					// value is then a ";"-joined list of emails, which is jspreadsheet's own format.
+					multiple: true,
 					source: (this.people || []).map((p) => ({ id: p.name, name: p.full_name || p.name })),
 				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
@@ -1303,7 +1314,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			field === "stage"
 				? item.stage
 				: field === "assignee"
-				  ? (item.assignee_ids || [])[0] || ""
+				  ? (item.assignee_ids || []).join(";")
 				  : item[field] || "";
 		if (String(value || "") === String(current || "")) return;
 
@@ -1337,18 +1348,27 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			item.status = value;
 			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", { name: item.name, status: value });
 		} else if (field === "assignee") {
-			const person = (this.people || []).find((p) => p.name === value);
-			if (!person) {
+			const emails = String(value || "")
+				.split(";")
+				.map((e) => e.trim())
+				.filter(Boolean);
+			const people = emails.map((email) => (this.people || []).find((p) => p.name === email));
+			// An empty cell would mean "take this off everyone", which reassign_task refuses -
+			// clearing an assignment is what the Reassign dialog is for.
+			if (!people.length || people.some((p) => !p)) {
 				this.set_save_status("error");
 				this.render();
-				upande_dev_tools.toast(__("Pick a name from the list."), "orange");
+				upande_dev_tools.toast(
+					people.length ? __("Pick names from the list.") : __("Pick at least one name."),
+					"orange"
+				);
 				return;
 			}
-			item.assignee_ids = [person.name];
-			item.assignees = [person.full_name || person.name];
+			item.assignee_ids = people.map((p) => p.name);
+			item.assignees = people.map((p) => p.full_name || p.name);
 			call = frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
 				name: item.name,
-				assign_to: person.name,
+				assign_to: item.assignee_ids,
 			});
 		} else {
 			item[field] = value;

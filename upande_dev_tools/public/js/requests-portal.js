@@ -46,6 +46,14 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				this.types = (types || []).map((t) => t.name);
 				this.areas = areas || [];
 				this.employees = employees || [];
+				// A <datalist> is drawn by the browser and cannot be styled, so "Raised for"
+				// uses this portal's own combobox instead - it just needs the list under a name.
+				// {name, full_name} is the shape that widget searches and labels by; here `name`
+				// is the Employee id the form submits, not an email.
+				upande_dev_tools.register_link_source(
+					"rp-employees",
+					this.employees.map((e) => ({ name: e.name, full_name: e.employee_name }))
+				);
 				this.people = people || [];
 				upande_dev_tools.seed_users(this.people);
 				this.work_tags = work_tags || [];
@@ -137,11 +145,6 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			this.render();
 		});
 		root.on("click", ".rp-new", () => this.open_form());
-		root.on("input", ".rp-employee-search", (e) => {
-			const typed = $(e.currentTarget).val();
-			const match = (this.employees || []).find((emp) => emp.employee_name === typed);
-			$(this.wrapper).find('[name="raised_by_employee"]').val(match ? match.name : "");
-		});
 		root.on("click", ".rp-close, .rp-scrim", () => this.close_form());
 		root.on("submit", ".rp-form", (e) => {
 			e.preventDefault();
@@ -274,12 +277,11 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				</div>
 				<div class="rp-two">
 					<label>Raised for
-						<input class="dpx-bb-field rp-employee-search" list="rp-employee-list"
-							placeholder="Me" autocomplete="off">
-						<input type="hidden" name="raised_by_employee">
-						<datalist id="rp-employee-list">${(this.employees || [])
-							.map((e) => `<option value="${rp_esc(e.employee_name)}" data-id="${rp_esc(e.name)}">`)
-							.join("")}</datalist></label>
+						${upande_dev_tools.user_link_html({
+							name: "raised_by_employee",
+							source_key: "rp-employees",
+							placeholder: "Me",
+						})}</label>
 					<label>Who would you like on it?
 						${upande_dev_tools.user_link_html({
 							name: "requested_assignee",

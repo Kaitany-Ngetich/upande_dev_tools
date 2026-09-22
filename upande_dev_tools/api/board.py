@@ -419,7 +419,7 @@ def create_task(
 	priority: str | None = None,
 	module: str | None = None,
 	complete_by: str | None = None,
-	assign_to: str | None = None,
+	assign_to: str | list[str] | None = None,
 ) -> dict:
 	"""Ad-hoc work that never started life as a Request - internal cleanup, a chore, anything
 	a PM or dev just needs to log directly. Every other Task on this board comes from
@@ -457,10 +457,12 @@ def create_task(
 
 	if assign_to:
 		# Lazy import: requests.py imports normalize_priority from this module, so importing
-		# _assign back at module load time here would be circular.
-		from upande_dev_tools.api.requests import _assign
+		# these back at module load time here would be circular.
+		from upande_dev_tools.api.requests import _assign_many, parse_users
 
-		_assign("Task", task.name, assign_to, date=complete_by, priority=priority)
+		_assign_many(
+			"Task", task.name, parse_users(assign_to), date=complete_by, priority=priority
+		)
 
 	return {"name": task.name}
 

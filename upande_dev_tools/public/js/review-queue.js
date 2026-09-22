@@ -372,6 +372,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 					value: r.requested_assignee || "",
 					value_class: "rq-assignee",
 					placeholder: __("Unassigned"),
+					multiple: true,
 				})}</td>
 				<td>${upande_dev_tools.date_field_html({
 					cls: "rq-complete-by",
@@ -397,7 +398,13 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		const priority = tr.find(".rq-priority").val();
 		const assign_to = tr.find(".rq-assignee").val();
 		// Read now, not in the callback: render() rebuilds the table before the toast fires.
-		const assignee_label = tr.find(".udt-ul-search").val();
+		// The picker is multi-select, so the chosen names are on its chips - the search box
+		// only ever holds a query.
+		const assignee_label = tr
+			.find(".udt-ul-chip .nm")
+			.map((_i, el) => el.textContent)
+			.get()
+			.join(", ");
 		const complete_by = tr.find(".rq-complete-by").val();
 		const comment = tr.find(".rq-comment").val();
 

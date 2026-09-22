@@ -295,10 +295,19 @@ body:has(.dpx) .datepicker.active{z-index:2147483550!important}
 
 /* Tag picker: click to choose from Master Data's Work Tag list, never type - so a stray
    typo can't create a tag nobody will ever be able to filter by again. */
+/* The tag picker renders in dialogs (modal.js appends its overlay to .dpx) and on the
+   Requests portal - both OUTSIDE .dpx-board, which is where --bb-accent, --calm-bg and --ui
+   are declared. An undefined custom property makes the whole declaration invalid at
+   computed-value time, so `background: var(--bb-accent)` on a picked tag resolved to nothing
+   while `color: #fff` still applied: white text on a white sheet the moment you clicked it.
+   Every board-scoped var used here now carries a fallback, and selection is marked by a
+   border and dark text rather than by white-on-colour, so it stays legible whatever wins. */
 .dpx .dpx-tagpick-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.dpx .dpx-tagpick-opt{cursor:pointer;border:none;height:22px;padding:0 11px}
-.dpx .dpx-tagpick-opt.on{background:var(--bb-accent);color:#fff}
-.dpx .dpx-tagpick-empty{font:400 12px var(--ui);color:var(--ink-faint)}
+.dpx .dpx-tagpick-opt{cursor:pointer;height:22px;padding:0 10px;font:600 9.5px var(--ui,ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif);
+	background:var(--calm-bg,#eeece5);color:var(--ink-3);border:1px solid transparent;transition:background .12s,border-color .12s,color .12s}
+.dpx .dpx-tagpick-opt:hover{border-color:var(--hairline)}
+.dpx .dpx-tagpick-opt.on{background:#dff1ed;border-color:var(--bb-accent,#008573);color:var(--ink)}
+.dpx .dpx-tagpick-empty{font:400 12px var(--ui,ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif);color:var(--ink-faint)}
 
 /* ── List ── */
 .dpx .dpx-bb-listwrap{overflow-x:auto}
@@ -929,3 +938,16 @@ body:has(.dpx) .datepicker.active{z-index:2147483550!important}
 .dpx .udt-ul-opt.on .nm::after{content:" ✓";font-size:9px}
 .dpx .udt-ul-note{padding:6px 8px;font:400 9.5px var(--ui);color:var(--ink-faint)}
 .dpx .rq-table .udt-ul .udt-ul-search{padding:4px 18px 4px 6px;font-size:10.5px}
+/* Multi-select: picks live in chips above the query box, so the search input stays a
+   search input and never doubles as the value display. */
+.dpx .udt-ul-multi .udt-ul-chips:not(:empty){display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px}
+.dpx .udt-ul-chip{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:2px 3px 2px 7px;
+	border:1px solid var(--hairline);border-radius:999px;background:var(--surface-2);
+	font:500 10px var(--ui);color:var(--ink-2)}
+.dpx .udt-ul-chip .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpx .udt-ul-chip-x{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;
+	flex:none;padding:0;border:0;border-radius:50%;background:transparent;color:var(--ink-mute);cursor:pointer}
+.dpx .udt-ul-chip-x:hover{background:var(--bad-bg);color:var(--bb-late)}
+/* The clear-all button is centred on the search box, which is no longer the whole control. */
+.dpx .udt-ul-multi .udt-ul-x{top:auto;bottom:0;transform:translateY(-50%);margin-bottom:9px}
+.dpx .rq-table .udt-ul-chip{font-size:9.5px;padding:1px 3px 1px 6px}
