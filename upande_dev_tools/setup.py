@@ -186,6 +186,14 @@ PRODUCT_AREAS = [
 # rollout marks the real Dev Tools projects with this type by hand.
 DEV_TOOLS_PROJECT_TYPE = "Dev Tools"
 
+# The one Project Type (native ERPNext Link field on Project) that marks a project as
+# belonging to Dev Tools tracking. Every dashboard/portfolio aggregate query filters to this
+# value so unrelated business projects (this bench has 27 total, most not software work)
+# never distort the counts - see api/portfolio.py, api/project_health.py, api/board.py.
+# Deliberately no backfill: every existing project starts excluded, and whoever owns this
+# rollout marks the real Dev Tools projects with this type by hand.
+DEV_TOOLS_PROJECT_TYPE = "Dev Tools"
+
 
 def register_master_data() -> None:
 	if not frappe.db.exists("Project Type", DEV_TOOLS_PROJECT_TYPE):

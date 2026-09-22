@@ -77,6 +77,17 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-yarn-
 
+      # Ahead of the bench build, which takes tens of minutes: these are pure jsdom
+      # suites that run in seconds, and they cover what `bench run-tests` cannot see
+      # at all - the portal pages are plain <script> tags, so a page whose JS throws
+      # while rendering still passes every Python test. They caught exactly that: a
+      # missing dependency left the Review Queue rendering zero rows.
+      - name: Install JS test dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run JS tests
+        run: yarn test
+
       - name: Install & Migrate upande_dev_tools (deploy simulation)
         run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:

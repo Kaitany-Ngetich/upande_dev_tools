@@ -641,7 +641,12 @@ class IntegrationTestPortal(IntegrationTestCase):
 		plain = self._make_user("requests-portal-e2e@example.test", [])
 		frappe.set_user(plain)
 		try:
-			create_request(title="Portal E2E test request", request_type="Feature", source="Web Portal")
+			create_request(
+				title="Portal E2E test request",
+				request_type="Feature",
+				source="Web Portal",
+				tags=["Feature"],
+			)
 			my_requests = get_my_requests()
 		finally:
 			frappe.set_user("Administrator")

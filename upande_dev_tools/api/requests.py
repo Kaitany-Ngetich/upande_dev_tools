@@ -5,10 +5,45 @@ import json
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from upande_dev_tools.api.board import _attach_tags, _set_doc_tags, _validate_tags, normalize_priority
 
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
+
+# Built-in accounts that are not people - Frappe's own user_query leaves these out too.
+RESERVED_USERS = ("Administrator", "Guest")
+
+
+def parse_users(value: "str | list[str] | None") -> list[str]:
+	"""The assignee pickers are multi-select, so `assign_to` arrives as a comma-separated
+	string (the widget's hidden input), a JSON array (frappe.xcall serialises a JS array that
+	way) or a real list. Order is kept and duplicates dropped, so the first person named stays
+	first in _assign."""
+	if value is None:
+		return []
+	if isinstance(value, str):
+		value = value.strip()
+		if not value:
+			return []
+		if value.startswith("["):
+			try:
+				value = json.loads(value)
+			except ValueError:
+				value = [value]
+		else:
+			value = value.split(",")
+	seen: dict[str, None] = {}
+	for entry in value:
+		entry = (entry or "").strip()
+		if entry:
+			seen.setdefault(entry, None)
+	return list(seen)
+
+
+def _assign_many(doctype: str, name: str, users: list[str], **kwargs) -> None:
+	for user in users:
+		_assign(doctype, name, user, **kwargs)
 
 
 def _assign(doctype: str, name: str, assign_to: str, date=None, priority=None, description=None) -> None:
@@ -212,7 +247,9 @@ def get_my_requests(status: str | None = None) -> list[dict]:
 	task_assignees: dict[str, list[str]] = {}
 	if linked_task_names:
 		rows = frappe.get_all("Task", filters={"name": ["in", linked_task_names]}, fields=["name", "_assign"])
-		task_assignees = {row.name: (json.loads(row["_assign"]) if row.get("_assign") else []) for row in rows}
+		task_assignees = {
+			row.name: (json.loads(row["_assign"]) if row.get("_assign") else []) for row in rows
+		}
 	assignee_emails: set[str] = {e for emails in task_assignees.values() for e in emails}
 	assignee_names = _resolve_user_display_names(assignee_emails)
 
@@ -331,17 +368,44 @@ def triage_request(
 
 
 @frappe.whitelist()
-def get_assignable_users() -> list[dict]:
-	"""Names and emails only, not sensitive - open to any logged-in user so a customer can
+def get_assignable_users(txt: str | None = None, limit: int = 0) -> list[dict]:
+	"""Every enabled System User, searchable by name or email - the backing query for the
+	assignee link control.
+
+	This used to return only holders of the Dev Team role, which quietly dropped people who
+	were already carrying work: on this bench Dev Team is granted through a Role Profile, so
+	*no* User row holds it directly and the list came back empty; on staging it returned 20
+	of 441 users and still omitted two people with open tasks. Work gets handed to whoever
+	is actually going to do it, so the set is the same one Frappe's own Assign To dialog
+	offers - enabled, System User, minus the two built-in non-person accounts.
+
+	Names and emails only, not sensitive - open to any logged-in user so a customer can
 	name who they'd like to handle their request, same list a PM picks a real assignee from."""
-	members = frappe.get_all("Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent")
-	if not members:
-		return []
+	filters: list = [
+		["enabled", "=", 1],
+		["user_type", "=", "System User"],
+		["name", "not in", RESERVED_USERS],
+	]
+	# Matched the way a Link field's own search does - against the email and every part of
+	# the name - so "judah", "Mark" and "judah@" all find the same person.
+	or_filters = []
+	txt = (txt or "").strip()
+	if txt:
+		like = f"%{txt}%"
+		or_filters = [
+			["name", "like", like],
+			["full_name", "like", like],
+			["first_name", "like", like],
+			["last_name", "like", like],
+		]
+
 	return frappe.get_all(
 		"User",
-		filters={"name": ["in", members], "enabled": 1},
+		filters=filters,
+		or_filters=or_filters,
 		fields=["name", "full_name"],
 		order_by="full_name asc",
+		limit_page_length=cint(limit) or 0,
 	)
 
 
@@ -364,7 +428,7 @@ def accept_request(
 	project: str,
 	priority: str,
 	complete_by: str,
-	assign_to: str | None = None,
+	assign_to: str | list[str] | None = None,
 	comment: str | None = None,
 ) -> dict:
 	"""Approve a request and schedule it in one step, which is what creates the Task, then
@@ -374,6 +438,8 @@ def accept_request(
 
 	complete_by/assign_to/comment mirror Frappe's own native Assign-To dialog fields (Complete
 	By / Assign To / Comment) exactly, because that's what this call turns into under the hood.
+	assign_to takes several people (see parse_users) - Frappe's own dialog is multi-select too,
+	and one Task can genuinely need more than one pair of hands.
 	"""
 	from frappe.model.workflow import apply_workflow
 
@@ -384,8 +450,8 @@ def accept_request(
 		frappe.throw(_("Set a project, a priority and a due date before accepting."), frappe.ValidationError)
 
 	doc = frappe.get_doc("Request", name)
-	assign_to = assign_to or doc.requested_assignee
-	if not assign_to:
+	assignees = parse_users(assign_to) or parse_users(doc.requested_assignee)
+	if not assignees:
 		frappe.throw(_("Assign this to a developer before accepting."), frappe.ValidationError)
 
 	doc.project = project
@@ -398,40 +464,52 @@ def accept_request(
 
 	if doc.linked_task:
 		frappe.db.set_value("Task", doc.linked_task, "exp_end_date", complete_by, update_modified=False)
-		if assign_to:
-			_assign("Task", doc.linked_task, assign_to, date=complete_by, priority=priority, description=comment)
+		_assign_many(
+			"Task", doc.linked_task, assignees, date=complete_by, priority=priority, description=comment
+		)
 
 	return {
 		"name": doc.name,
 		"workflow_state": doc.workflow_state,
 		"task": doc.linked_task,
-		"assigned_to": assign_to,
+		"assigned_to": assignees,
 	}
 
 
 @frappe.whitelist()
-def reassign_task(name: str, assign_to: str, complete_by: str | None = None, comment: str | None = None) -> dict:
-	"""Hands a Task to someone else. Closes out the current assignee(s) first, rather than
-	just adding a new one, so _assign never accumulates and nobody keeps a stale ToDo for
-	work that's no longer theirs."""
+def reassign_task(
+	name: str, assign_to: str | list[str], complete_by: str | None = None, comment: str | None = None
+) -> dict:
+	"""Hands a Task to a new set of people. Closes out whoever is no longer on it, rather than
+	just adding to the list, so _assign never accumulates and nobody keeps a stale ToDo for
+	work that's no longer theirs. Passing several names assigns all of them; anyone already on
+	the Task and named again keeps their existing ToDo untouched."""
 	if not set(frappe.get_roles()) & REVIEWER_ROLES:
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	assignees = parse_users(assign_to)
+	if not assignees:
+		frappe.throw(_("Name at least one person to reassign this to."), frappe.ValidationError)
 
 	doc = frappe.get_doc("Task", name)
 	current = json.loads(doc.get("_assign") or "[]")
 	for user in current:
-		if user != assign_to:
+		if user not in assignees:
 			_unassign("Task", name, user)
 
 	if complete_by:
 		frappe.db.set_value("Task", name, "exp_end_date", complete_by, update_modified=False)
 
-	if assign_to not in current:
-		_assign(
-			"Task", name, assign_to, date=complete_by or doc.exp_end_date, priority=doc.priority, description=comment
-		)
+	_assign_many(
+		"Task",
+		name,
+		[user for user in assignees if user not in current],
+		date=complete_by or doc.exp_end_date,
+		priority=doc.priority,
+		description=comment,
+	)
 
-	return {"name": name, "assigned_to": assign_to}
+	return {"name": name, "assigned_to": assignees}
 
 
 @frappe.whitelist()

@@ -29,6 +29,14 @@
 				<div class="nm">{{ frappe.get_fullname(frappe.session.user) | e }}</div>
 				<div class="em">{{ frappe.session.user | e }}</div>
 			</div>
+			{# These pages are a portal, served outside /app entirely, so the desk's own
+			   navigation never renders around them - without this there is no way back to
+			   the desk but editing the URL. Hard-coded to /app rather than
+			   resolve_home_route(), which resolves to a page inside this portal. #}
+			<a class="dpx-desk" href="/app" title="{{ _("Back to the desk") }}"
+				aria-label="{{ _("Back to the desk") }}">
+				<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">{{ nav_icon("home") }}</svg>
+			</a>
 		</div>
 	</aside>
 	<main class="dpx-main">

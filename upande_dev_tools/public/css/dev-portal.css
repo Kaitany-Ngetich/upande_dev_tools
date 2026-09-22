@@ -72,6 +72,11 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-side .footer .av{width:27px;height:27px;border-radius:50%;background:var(--grad-ink);color:#fafaf6;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11px}
 .dpx .dpx-side .footer .who .nm{font-weight:600;color:var(--ink);font-size:11px}
 .dpx .dpx-side .footer .who .em{font-size:9px;color:var(--ink-mute)}
+/* Back to the desk: icon only, no label - the sidebar is the only nav these
+   portal pages get, so the way out belongs in it rather than in the topbar. */
+.dpx .dpx-side .dpx-desk{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;flex:none;width:29px;height:29px;border:1px solid var(--hairline);border-radius:8px;background:transparent;color:var(--ink-mute);text-decoration:none;transition:background .12s,color .12s,border-color .12s}
+.dpx .dpx-side .dpx-desk:hover{background:rgba(10,10,10,.045);color:var(--ink);border-color:var(--rule);text-decoration:none}
+.dpx .dpx-side .dpx-desk .ic{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* ══ MAIN / TOPBAR ══ */
 .dpx .dpx-main{min-width:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
@@ -97,8 +102,9 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx.rail .dpx-side .group-lbl{height:1px;padding:0;margin:10px 14px;background:var(--hairline);overflow:hidden;color:transparent}
 .dpx.rail .dpx-side .nav-item{justify-content:center;margin:2px 8px;padding:8px 0}
 .dpx.rail .dpx-side .nav-item .lbl{display:none}
-.dpx.rail .dpx-side .footer{justify-content:center;padding:12px 0}
+.dpx.rail .dpx-side .footer{flex-direction:column;justify-content:center;gap:8px;padding:12px 0}
 .dpx.rail .dpx-side .footer .who{display:none}
+.dpx.rail .dpx-side .dpx-desk{margin-left:0}
 .dpx .dpx-content{flex:1;padding:29px 36px 58px}
 
 /* ══ PAGE HEAD ══ */
@@ -232,6 +238,22 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .dpx-bb-field{font:500 10.5px var(--ui);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--hairline);border-radius:7px;padding:5px 9px;transition:border-color .15s,box-shadow .15s}
 .dpx .dpx-bb-field::placeholder{color:var(--ink-faint)}
 .dpx .dpx-bb-field:focus{outline:none;border-color:var(--bb-accent);box-shadow:0 0 0 3px rgba(0,133,115,.12)}
+/* Frappe Date control (date-field.js). The control renders frappe's own
+   .form-control input, whose website-bundle styling would otherwise win over
+   .dpx-bb-field on width, height and font - so pin the ones that matter. The
+   air-datepicker popup itself is styled by frappe (common/datepicker.scss) and is
+   deliberately left alone, so a date here looks like a date in the desk. */
+.dpx .udt-date{display:block}
+.dpx .udt-date input[data-fieldtype="Date"]{display:block;width:100%;height:auto;min-height:0;box-shadow:none}
+.dpx .rq-table .udt-date input[data-fieldtype="Date"]{padding:4px 6px;font-size:10.5px}
+/* air-datepicker appends its popup to #datepickers-container on <body>, not next to the
+   input - which is what saves it from .rp-form's and .dpx-bb-listwrap's overflow clipping.
+   The cost is that it sits in the root stacking context at frappe's `z-index: 9999
+   !important`, while .dpx is position:fixed at z-index 2147483000 and so paints over it
+   entirely. Lift the popup above .dpx (and above .rp-sheet inside it), still below
+   .dpx-progress. Cannot be scoped under .dpx for the same reason; dev-portal.css only loads
+   on portal pages and body:has(.dpx) keeps it off anything else served with it. */
+body:has(.dpx) .datepicker.active{z-index:2147483550!important}
 .dpx .dpx-bb-search{width:186px;max-width:100%}
 .dpx .dpx-board select.dpx-bb-field{min-width:102px}
 .dpx .dpx-board :focus-visible{outline:2px solid var(--bb-accent);outline-offset:1px}
@@ -273,10 +295,19 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 
 /* Tag picker: click to choose from Master Data's Work Tag list, never type - so a stray
    typo can't create a tag nobody will ever be able to filter by again. */
+/* The tag picker renders in dialogs (modal.js appends its overlay to .dpx) and on the
+   Requests portal - both OUTSIDE .dpx-board, which is where --bb-accent, --calm-bg and --ui
+   are declared. An undefined custom property makes the whole declaration invalid at
+   computed-value time, so `background: var(--bb-accent)` on a picked tag resolved to nothing
+   while `color: #fff` still applied: white text on a white sheet the moment you clicked it.
+   Every board-scoped var used here now carries a fallback, and selection is marked by a
+   border and dark text rather than by white-on-colour, so it stays legible whatever wins. */
 .dpx .dpx-tagpick-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.dpx .dpx-tagpick-opt{cursor:pointer;border:none;height:22px;padding:0 11px}
-.dpx .dpx-tagpick-opt.on{background:var(--bb-accent);color:#fff}
-.dpx .dpx-tagpick-empty{font:400 12px var(--ui);color:var(--ink-faint)}
+.dpx .dpx-tagpick-opt{cursor:pointer;height:22px;padding:0 10px;font:600 9.5px var(--ui,ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif);
+	background:var(--calm-bg,#eeece5);color:var(--ink-3);border:1px solid transparent;transition:background .12s,border-color .12s,color .12s}
+.dpx .dpx-tagpick-opt:hover{border-color:var(--hairline)}
+.dpx .dpx-tagpick-opt.on{background:#dff1ed;border-color:var(--bb-accent,#008573);color:var(--ink)}
+.dpx .dpx-tagpick-empty{font:400 12px var(--ui,ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif);color:var(--ink-faint)}
 
 /* ── List ── */
 .dpx .dpx-bb-listwrap{overflow-x:auto}
@@ -888,3 +919,35 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 @media (prefers-reduced-motion:reduce){
 	.dpx .dpx-board *,.dpx .dpx-board *::before{transition:none!important;animation:none!important}
 }
+
+/* --- searchable user link (user-link.js) ------------------------------------ */
+.dpx .udt-ul{position:relative;display:inline-block;width:100%}
+.dpx .udt-ul .udt-ul-search{width:100%;padding-right:22px;text-overflow:ellipsis}
+.dpx .udt-ul .udt-ul-x{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:15px;height:15px;
+	display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;
+	background:var(--rule-soft);color:var(--ink-mute);cursor:pointer;line-height:0}
+.dpx .udt-ul .udt-ul-x:hover{background:var(--bad-bg);color:var(--bb-late)}
+.dpx .udt-ul-menu{position:absolute;z-index:60;top:calc(100% + 3px);left:0;min-width:100%;max-width:290px;
+	max-height:238px;overflow-y:auto;background:var(--surface-2);border:1px solid var(--rule);
+	border-radius:8px;box-shadow:0 8px 24px rgba(10,10,10,.13);padding:3px}
+.dpx .udt-ul-opt{display:flex;flex-direction:column;gap:1px;padding:5px 8px;border-radius:6px;cursor:pointer}
+.dpx .udt-ul-opt .nm{font:500 11px var(--ui);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpx .udt-ul-opt .em{font:400 9px var(--mono);color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpx .udt-ul-opt.active{background:rgba(10,10,10,.05)}
+.dpx .udt-ul-opt.on .nm{color:var(--bb-accent)}
+.dpx .udt-ul-opt.on .nm::after{content:" ✓";font-size:9px}
+.dpx .udt-ul-note{padding:6px 8px;font:400 9.5px var(--ui);color:var(--ink-faint)}
+.dpx .rq-table .udt-ul .udt-ul-search{padding:4px 18px 4px 6px;font-size:10.5px}
+/* Multi-select: picks live in chips above the query box, so the search input stays a
+   search input and never doubles as the value display. */
+.dpx .udt-ul-multi .udt-ul-chips:not(:empty){display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px}
+.dpx .udt-ul-chip{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:2px 3px 2px 7px;
+	border:1px solid var(--hairline);border-radius:999px;background:var(--surface-2);
+	font:500 10px var(--ui);color:var(--ink-2)}
+.dpx .udt-ul-chip .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpx .udt-ul-chip-x{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;
+	flex:none;padding:0;border:0;border-radius:50%;background:transparent;color:var(--ink-mute);cursor:pointer}
+.dpx .udt-ul-chip-x:hover{background:var(--bad-bg);color:var(--bb-late)}
+/* The clear-all button is centred on the search box, which is no longer the whole control. */
+.dpx .udt-ul-multi .udt-ul-x{top:auto;bottom:0;transform:translateY(-50%);margin-bottom:9px}
+.dpx .rq-table .udt-ul-chip{font-size:9.5px;padding:1px 3px 1px 6px}

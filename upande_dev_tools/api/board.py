@@ -162,8 +162,10 @@ def get_board(project: str | None = None, limit: int = BOARD_LIMIT, tag: str | N
 	_resolve_people(items)
 
 	if tag:
-		tagged_names = set(_names_with_tag("Task", tag)) | set(_names_with_tag("Issue", tag)) | set(
-			_names_with_tag("Request", tag)
+		tagged_names = (
+			set(_names_with_tag("Task", tag))
+			| set(_names_with_tag("Issue", tag))
+			| set(_names_with_tag("Request", tag))
 		)
 		items = [i for i in items if i["name"] in tagged_names]
 
@@ -315,9 +317,7 @@ def _attach_tags(doctype: str, items: list[dict]) -> None:
 
 
 def _names_with_tag(doctype: str, tag: str) -> list[str]:
-	return frappe.get_all(
-		"Tag Link", filters={"document_type": doctype, "tag": tag}, pluck="document_name"
-	)
+	return frappe.get_all("Tag Link", filters={"document_type": doctype, "tag": tag}, pluck="document_name")
 
 
 @frappe.whitelist()
@@ -327,9 +327,7 @@ def get_used_tags(doctype: str) -> list[str]:
 	if doctype not in ("Task", "Issue", "Request"):
 		frappe.throw(_("Unknown work item."), frappe.ValidationError)
 
-	return sorted(
-		set(frappe.get_all("Tag Link", filters={"document_type": doctype}, pluck="tag"))
-	)
+	return sorted(set(frappe.get_all("Tag Link", filters={"document_type": doctype}, pluck="tag")))
 
 
 @frappe.whitelist()
@@ -353,7 +351,13 @@ def _set_doc_tags(doctype: str, name: str, tags: list[str]) -> None:
 		if not frappe.db.exists("Tag", tag):
 			frappe.get_doc({"doctype": "Tag", "name": tag}).insert(ignore_permissions=True)
 		frappe.get_doc(
-			{"doctype": "Tag Link", "document_type": doctype, "document_name": name, "tag": tag, "title": name}
+			{
+				"doctype": "Tag Link",
+				"document_type": doctype,
+				"document_name": name,
+				"tag": tag,
+				"title": name,
+			}
 		).insert(ignore_permissions=True)
 
 
@@ -404,7 +408,10 @@ def delete_task(name: str) -> None:
 	request_name = frappe.db.get_value("Request", {"linked_task": name}, "name")
 	if request_name:
 		frappe.db.set_value(
-			"Request", request_name, {"linked_task": None, "workflow_state": "Approved"}, update_modified=False
+			"Request",
+			request_name,
+			{"linked_task": None, "workflow_state": "Approved"},
+			update_modified=False,
 		)
 
 	frappe.delete_doc("Task", name, ignore_permissions=True)
@@ -419,7 +426,7 @@ def create_task(
 	priority: str | None = None,
 	module: str | None = None,
 	complete_by: str | None = None,
-	assign_to: str | None = None,
+	assign_to: str | list[str] | None = None,
 ) -> dict:
 	"""Ad-hoc work that never started life as a Request - internal cleanup, a chore, anything
 	a PM or dev just needs to log directly. Every other Task on this board comes from
@@ -457,20 +464,26 @@ def create_task(
 
 	if assign_to:
 		# Lazy import: requests.py imports normalize_priority from this module, so importing
-		# _assign back at module load time here would be circular.
-		from upande_dev_tools.api.requests import _assign
+		# these back at module load time here would be circular.
+		from upande_dev_tools.api.requests import _assign_many, parse_users
 
-		_assign("Task", task.name, assign_to, date=complete_by, priority=priority)
+		_assign_many("Task", task.name, parse_users(assign_to), date=complete_by, priority=priority)
 
 	return {"name": task.name}
 
 
 def _resolve_people(items: list[dict]) -> None:
+	"""Carries both halves of an assignment: `assignees` are the display names every view
+	renders, `assignee_ids` the emails those names resolve from. Full names are not unique on
+	this bench (two Brians, two Beatrice Temburs), so anything that writes an assignment back
+	has to round-trip the email - matching a person by their displayed name picks whichever
+	duplicate happens to sort first."""
 	emails: set[str] = set()
 	for item in items:
 		assigned = item.pop("_assign", None)
-		item["assignees"] = json.loads(assigned) if assigned else []
-		emails.update(item["assignees"])
+		item["assignee_ids"] = json.loads(assigned) if assigned else []
+		item["assignees"] = list(item["assignee_ids"])
+		emails.update(item["assignee_ids"])
 
 	if not emails:
 		return
@@ -478,7 +491,7 @@ def _resolve_people(items: list[dict]) -> None:
 	rows = frappe.get_all("User", filters={"name": ["in", list(emails)]}, fields=["name", "full_name"])
 	names = {row.name: row.full_name or row.name for row in rows}
 	for item in items:
-		item["assignees"] = [names.get(email, email) for email in item["assignees"]]
+		item["assignees"] = [names.get(email, email) for email in item["assignee_ids"]]
 
 
 @frappe.whitelist()

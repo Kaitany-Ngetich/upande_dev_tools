@@ -67,28 +67,13 @@ required_apps = ["erpnext"]
 # 	"Role": "home_page"
 # }
 
-# website user home page (called by frappe.website.utils.get_home_page as
-# frappe.get_attr(hook)(frappe.session.user))
-get_website_user_home_page = "upande_dev_tools.portal.resolve_home_route"
-
-
-def _pin_resolved_home_page_on_login(login_manager=None, **kwargs):
-	# get_website_user_home_page only calls the last app that registers it; on_login
-	# calls every registered handler, and frappe.local.flags.home_page overrides the hook lookup.
-	import frappe
-
-	from upande_dev_tools.portal import resolve_home_route
-
-	if login_manager is None:
-		return
-	try:
-		# login_manager.user, not frappe.session.user: session user switches later in the request.
-		frappe.local.flags.home_page = resolve_home_route(login_manager.user)
-	except Exception:
-		frappe.log_error(title="upande_dev_tools: failed to pin resolved home page on login")
-
-
-on_login = ["upande_dev_tools.hooks._pin_resolved_home_page_on_login"]
+# This app deliberately does NOT register get_website_user_home_page / on_login.
+# It used to pin frappe.local.flags.home_page to portal.resolve_home_route(), which
+# dropped everyone holding "Dev Team" or "Projects Manager" on /dev-dashboard or
+# /pm-dashboard the moment they logged in. Login now falls through to Frappe's own
+# landing page (the desk); the dev portal is reached from its nav, not by default.
+# resolve_home_route() itself is still used for the sidebar brand link and as the
+# fallback target in portal.enforce_page_access.
 
 # Generators
 # ----------

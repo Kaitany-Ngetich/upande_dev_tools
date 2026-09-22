@@ -46,7 +46,16 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				this.types = (types || []).map((t) => t.name);
 				this.areas = areas || [];
 				this.employees = employees || [];
+				// A <datalist> is drawn by the browser and cannot be styled, so "Raised for"
+				// uses this portal's own combobox instead - it just needs the list under a name.
+				// {name, full_name} is the shape that widget searches and labels by; here `name`
+				// is the Employee id the form submits, not an email.
+				upande_dev_tools.register_link_source(
+					"rp-employees",
+					this.employees.map((e) => ({ name: e.name, full_name: e.employee_name }))
+				);
 				this.people = people || [];
+				upande_dev_tools.seed_users(this.people);
 				this.work_tags = work_tags || [];
 				this.stage().removeAttr("aria-busy");
 				this.render();
@@ -136,11 +145,6 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			this.render();
 		});
 		root.on("click", ".rp-new", () => this.open_form());
-		root.on("input", ".rp-employee-search", (e) => {
-			const typed = $(e.currentTarget).val();
-			const match = (this.employees || []).find((emp) => emp.employee_name === typed);
-			$(this.wrapper).find('[name="raised_by_employee"]').val(match ? match.name : "");
-		});
 		root.on("click", ".rp-close, .rp-scrim", () => this.close_form());
 		root.on("submit", ".rp-form", (e) => {
 			e.preventDefault();
@@ -186,9 +190,13 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 	visible() {
 		let rows = this.requests;
 		if (this.filter === "open")
-			rows = rows.filter((r) => !["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state));
+			rows = rows.filter(
+				(r) => !["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state)
+			);
 		else if (this.filter === "done")
-			rows = rows.filter((r) => ["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state));
+			rows = rows.filter((r) =>
+				["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state)
+			);
 
 		if (this.raised_by) rows = rows.filter((r) => r.owner === this.raised_by);
 		if (this.assignee) rows = rows.filter((r) => (r.assignees || []).includes(this.assignee));
@@ -213,14 +221,19 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			raisers.append(
 				[...seen.entries()]
 					.sort((a, b) => a[1].localeCompare(b[1]))
-					.map(([email, name]) => `<option value="${rp_esc(email)}">${rp_esc(name)}</option>`)
+					.map(
+						([email, name]) =>
+							`<option value="${rp_esc(email)}">${rp_esc(name)}</option>`
+					)
 					.join("")
 			);
 		}
 		const assignees = root.find(".rp-assignee");
 		if (assignees.children().length <= 1) {
 			const names = [...new Set(this.requests.flatMap((r) => r.assignees || []))].sort();
-			assignees.append(names.map((n) => `<option value="${rp_esc(n)}">${rp_esc(n)}</option>`).join(""));
+			assignees.append(
+				names.map((n) => `<option value="${rp_esc(n)}">${rp_esc(n)}</option>`).join("")
+			);
 		}
 	}
 
@@ -254,10 +267,6 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 	open_form() {
 		const opts = (list) =>
 			list.map((v) => `<option value="${rp_esc(v)}">${rp_esc(v)}</option>`).join("");
-		const named_opts = (list, value_key, label_key) =>
-			list
-				.map((v) => `<option value="${rp_esc(v[value_key])}">${rp_esc(v[label_key] || v[value_key])}</option>`)
-				.join("");
 		$(this.wrapper).find(".rp-sheet").prop("hidden", false).html(`
 			<div class="rp-scrim"></div>
 			<form class="rp-form" role="dialog" aria-label="Raise a request">
@@ -277,16 +286,16 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				</div>
 				<div class="rp-two">
 					<label>Raised for
-						<input class="dpx-bb-field rp-employee-search" list="rp-employee-list"
-							placeholder="Me" autocomplete="off">
-						<input type="hidden" name="raised_by_employee">
-						<datalist id="rp-employee-list">${(this.employees || [])
-							.map((e) => `<option value="${rp_esc(e.employee_name)}" data-id="${rp_esc(e.name)}">`)
-							.join("")}</datalist></label>
+						${upande_dev_tools.user_link_html({
+							name: "raised_by_employee",
+							source_key: "rp-employees",
+							placeholder: "Me",
+						})}</label>
 					<label>Who would you like on it?
-						<select class="dpx-bb-field" name="requested_assignee">
-							<option value="">No preference</option>${named_opts(this.people, "name", "full_name")}
-						</select></label>
+						${upande_dev_tools.user_link_html({
+							name: "requested_assignee",
+							placeholder: "No preference",
+						})}</label>
 				</div>
 				<label>Tags <span class="rp-required">*</span>
 					${upande_dev_tools.tag_picker_html({ name: "tags", tags: this.work_tags || [] })}</label>
@@ -328,7 +337,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				description: data.description || null,
 				raised_by_employee: data.raised_by_employee || null,
 				requested_assignee: data.requested_assignee || null,
-				tags: (data.tags || "").split(",").map((t) => t.trim()).filter(Boolean),
+				tags: (data.tags || "")
+					.split(",")
+					.map((t) => t.trim())
+					.filter(Boolean),
 				source: "Web Portal",
 			})
 			.then((created) => {
@@ -341,7 +353,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			})
 			.catch((e) => {
 				form.find("button,input,select,textarea").prop("disabled", false);
-				upande_dev_tools.toast(String((e && e.message) || e) || __("That did not send."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("That did not send."),
+					"red"
+				);
 			});
 	}
 
@@ -358,7 +373,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			})
 			.catch((e) => {
 				console.error(`requests-portal: ${method} failed for ${name}`, e);
-				upande_dev_tools.toast(String((e && e.message) || e) || __("That did not go through."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("That did not go through."),
+					"red"
+				);
 			});
 	}
 };
@@ -389,7 +407,11 @@ function rp_card(r) {
 				can_withdraw || can_confirm
 					? `<div class="rp-card-act">
 						${can_withdraw ? `<button type="button" class="dpx-bb-btn rp-withdraw">Withdraw</button>` : ""}
-						${can_confirm ? `<button type="button" class="dpx-bb-btn primary rp-confirm-done">Confirm complete</button>` : ""}
+						${
+							can_confirm
+								? `<button type="button" class="dpx-bb-btn primary rp-confirm-done">Confirm complete</button>`
+								: ""
+						}
 					</div>`
 					: ""
 			}
