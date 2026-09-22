@@ -73,15 +73,15 @@
   {
    "child": 1,
    "collapsible": 1,
-   "icon": "today",
+   "icon": "list-alt",
    "indent": 0,
    "keep_closed": 0,
-   "label": "My Day",
+   "label": "My Backlog",
    "link_type": "URL",
    "open_in_new_tab": 1,
    "show_arrow": 0,
    "type": "Link",
-   "url": "/my-day"
+   "url": "/my-backlog"
   },
   {
    "child": 1,
