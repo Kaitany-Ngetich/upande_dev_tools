@@ -244,7 +244,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		a bench that grants Dev Team through a Role Profile returned nobody at all, and on
 		staging returned 20 of 441 while omitting two people who already held open tasks."""
 		dev = self._make_user("queue-dev@example.test", ["Dev Team"])
-		plain = self._make_user("queue-noroles@example.test", [])
+		# "Employee", not [] - a user with no desk-access role is typed Website User by
+		# frappe, and those are excluded on purpose. The point here is "not Dev Team".
+		plain = self._make_user("queue-nodevrole@example.test", ["Employee"])
 		frappe.set_user("Administrator")
 		names = [row["name"] for row in get_assignable_users()]
 		self.assertIn(dev, names)
@@ -263,7 +265,7 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 	def test_get_assignable_users_searches_name_and_email(self) -> None:
 		"""What the link control sends on every keystroke - a hit on either half counts, so
 		someone whose full name shares nothing with their address is still reachable."""
-		user = self._make_user("queue-searchme@example.test", [])
+		user = self._make_user("queue-searchme@example.test", ["Employee"])
 		frappe.db.set_value("User", user, {"first_name": "Zamira", "full_name": "Zamira Quarry"})
 		frappe.set_user("Administrator")
 		self.assertIn(user, [r["name"] for r in get_assignable_users(txt="zamira")])
