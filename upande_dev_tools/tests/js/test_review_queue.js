@@ -13,7 +13,11 @@ try {
 	process.exit(0);
 }
 
-const SOURCE = path.join(__dirname, "../../public/js/review-queue.js");
+// The same set review-queue.html loads, in the same order - the queue renders a
+// user-link per row, so loading it alone lets a missing dependency pass as green.
+const SOURCES = ["toast", "work-preview", "user-link", "review-queue"].map((n) =>
+	path.join(__dirname, `../../public/js/${n}.js`)
+);
 
 const REQUESTS = [
 	{
@@ -50,9 +54,9 @@ function boot() {
 	const calls = [];
 	window.$ = $;
 
-	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), {
-		filename: SOURCE,
-	});
+	for (const src of SOURCES) {
+		vm.runInContext(fs.readFileSync(src, "utf8"), dom.getInternalVMContext(), { filename: src });
+	}
 	assert.ok(
 		window.upande_dev_tools && window.upande_dev_tools.ReviewQueue,
 		"page must define itself before frappe loads"
@@ -64,6 +68,16 @@ function boot() {
 			if (method.endsWith("get_review_queue")) return Promise.resolve(REQUESTS);
 			if (method.endsWith("get_list")) return Promise.resolve(PROJECTS);
 			if (method.endsWith("get_assignable_users")) return Promise.resolve(PEOPLE);
+			// Priority Level is read live from Master Data now, not hardcoded - without this
+			// the queue fails its whole load with "(priorities || []).filter is not a function".
+			if (method.endsWith("get_master_data"))
+				return Promise.resolve([
+					{ name: "Low", disabled: 0 },
+					{ name: "Medium", disabled: 0 },
+					{ name: "High", disabled: 0 },
+					{ name: "Urgent", disabled: 0 },
+					{ name: "Retired", disabled: 1 },
+				]);
 			return Promise.resolve({
 				name: args.name,
 				task: "TASK-9",
@@ -97,7 +111,11 @@ function boot() {
 		"one row per pending request"
 	);
 	assert.strictEqual($(root).find("select.rq-project").length, 2);
-	assert.strictEqual($(root).find("select.rq-assignee").length, 2);
+	// The assignee is a searchable link control now, not a fixed <select> of whoever
+	// held one role - the hidden input keeps carrying the email under the same class.
+	assert.strictEqual($(root).find("select.rq-assignee").length, 0, "no fixed-list select");
+	assert.strictEqual($(root).find("input.rq-assignee").length, 2, "each row carries a chosen email");
+	assert.strictEqual($(root).find(".udt-ul-search").length, 2, "each row gets a search box");
 	assert.strictEqual($(root).find(".rq-btn.accept").length, 2);
 	assert.strictEqual($(root).find(".dpx-bb-blank").length, 0, "no failure state on a good load");
 
@@ -127,7 +145,11 @@ function boot() {
 
 	// With a project chosen it accepts, and carries the assignee.
 	firstRow.find(".rq-project").val("PROJ-1");
+	// The hidden input the user-link writes into - setting it is exactly what picking a
+	// name from the dropdown does.
 	firstRow.find(".rq-assignee").val("dev@upande.com");
+	// Accepting also requires a due date now, not just a project.
+	firstRow.find(".rq-complete-by").val("2026-10-01");
 	firstRow.find(".rq-btn.accept").trigger("click");
 	const accept = calls[calls.length - 1];
 	assert.strictEqual(accept.method, "upande_dev_tools.api.requests.accept_request");
@@ -147,6 +169,8 @@ function boot() {
 	second.find(".rq-btn.reject").trigger("click");
 	assert.strictEqual(calls.length, before, "one click arms, it does not reject");
 	assert.ok(second.find(".rq-btn.reject").hasClass("armed"));
+	// Rejecting and deferring both need a stated reason now.
+	second.find(".rq-comment").val("Out of scope for this quarter");
 	second.find(".rq-btn.reject").trigger("click");
 	assert.strictEqual(
 		calls[calls.length - 1].method,

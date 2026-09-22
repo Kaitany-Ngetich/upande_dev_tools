@@ -33,6 +33,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				this.requests = requests || [];
 				this.projects = projects || [];
 				this.people = people || [];
+				upande_dev_tools.seed_users(this.people);
 				this.priorities = (priorities || []).filter((p) => !p.disabled).map((p) => p.name);
 				this.stage().removeAttr("aria-busy");
 				this.render();
@@ -223,6 +224,8 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				</table>
 			</div></div>`
 		);
+		// Every render rebuilds the tbody, so each row's date field needs mounting again.
+		upande_dev_tools.mount_date_fields(this.stage()[0]);
 	}
 
 	render_filters() {
@@ -364,12 +367,16 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 					r.priority || "Medium",
 					null
 				)}</select></td>
-				<td><select class="dpx-bb-field rq-assignee">${opts(
-					this.people.map((p) => [p.name, p.full_name || p.name]),
-					r.requested_assignee || null,
-					"Unassigned"
-				)}</select></td>
-				<td><input type="date" class="dpx-bb-field rq-complete-by" title="Complete by"></td>
+				<td>${upande_dev_tools.user_link_html({
+					name: `assignee-${r.name}`,
+					value: r.requested_assignee || "",
+					value_class: "rq-assignee",
+					placeholder: __("Unassigned"),
+				})}</td>
+				<td>${upande_dev_tools.date_field_html({
+					cls: "rq-complete-by",
+					placeholder: __("Complete by"),
+				})}</td>
 				<td><input type="text" class="dpx-bb-field rq-comment" placeholder="Comment / reason"></td>
 				<td class="rq-decide">
 					<button class="rq-btn accept rq-act" data-act="accept" title="Accept and assign"
@@ -389,6 +396,8 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		const project = tr.find(".rq-project").val();
 		const priority = tr.find(".rq-priority").val();
 		const assign_to = tr.find(".rq-assignee").val();
+		// Read now, not in the callback: render() rebuilds the table before the toast fires.
+		const assignee_label = tr.find(".udt-ul-search").val();
 		const complete_by = tr.find(".rq-complete-by").val();
 		const comment = tr.find(".rq-comment").val();
 
@@ -406,12 +415,13 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 
 		if (action === "accept" && !complete_by) {
 			upande_dev_tools.toast(__("Set a due date first."), "orange");
-			return tr.find(".rq-complete-by").trigger("focus");
+			// .rq-complete-by is the date field's hidden input; focus its visible control.
+			return upande_dev_tools.focus_date_field(tr.find(".rq-complete-by")[0]);
 		}
 
 		if (action === "accept" && !assign_to) {
 			upande_dev_tools.toast(__("Pick who this goes to first."), "orange");
-			return tr.find(".rq-assignee").trigger("focus");
+			return tr.find(".udt-ul-search").trigger("focus");
 		}
 
 		if ((action === "Reject" || action === "Defer") && !comment.trim()) {
@@ -447,7 +457,7 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 				action === "accept"
 					? __("Accepted. {0} created{1}.", [
 							r.task || "Task",
-							assign_to ? ` for ${tr.find(".rq-assignee option:selected").text()}` : "",
+							assign_to ? ` for ${assignee_label}` : "",
 					  ])
 					: __("{0} marked {1}.", [name, action.toLowerCase() + "red"]),
 				"green"

@@ -466,11 +466,17 @@ def create_task(
 
 
 def _resolve_people(items: list[dict]) -> None:
+	"""Carries both halves of an assignment: `assignees` are the display names every view
+	renders, `assignee_ids` the emails those names resolve from. Full names are not unique on
+	this bench (two Brians, two Beatrice Temburs), so anything that writes an assignment back
+	has to round-trip the email - matching a person by their displayed name picks whichever
+	duplicate happens to sort first."""
 	emails: set[str] = set()
 	for item in items:
 		assigned = item.pop("_assign", None)
-		item["assignees"] = json.loads(assigned) if assigned else []
-		emails.update(item["assignees"])
+		item["assignee_ids"] = json.loads(assigned) if assigned else []
+		item["assignees"] = list(item["assignee_ids"])
+		emails.update(item["assignee_ids"])
 
 	if not emails:
 		return
@@ -478,7 +484,7 @@ def _resolve_people(items: list[dict]) -> None:
 	rows = frappe.get_all("User", filters={"name": ["in", list(emails)]}, fields=["name", "full_name"])
 	names = {row.name: row.full_name or row.name for row in rows}
 	for item in items:
-		item["assignees"] = [names.get(email, email) for email in item["assignees"]]
+		item["assignees"] = [names.get(email, email) for email in item["assignee_ids"]]
 
 
 @frappe.whitelist()

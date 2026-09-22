@@ -239,10 +239,37 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_get_assignable_users_lists_dev_team(self) -> None:
+	def test_get_assignable_users_lists_everyone_not_just_dev_team(self) -> None:
+		"""The regression this guards: the list used to be Has Role/"Dev Team" only, which on
+		a bench that grants Dev Team through a Role Profile returned nobody at all, and on
+		staging returned 20 of 441 while omitting two people who already held open tasks."""
 		dev = self._make_user("queue-dev@example.test", ["Dev Team"])
+		plain = self._make_user("queue-noroles@example.test", [])
 		frappe.set_user("Administrator")
-		self.assertIn(dev, [row["name"] for row in get_assignable_users()])
+		names = [row["name"] for row in get_assignable_users()]
+		self.assertIn(dev, names)
+		self.assertIn(plain, names)
+
+	def test_get_assignable_users_excludes_built_ins_and_disabled_people(self) -> None:
+		off = self._make_user("queue-disabled@example.test", [])
+		frappe.db.set_value("User", off, "enabled", 0)
+		frappe.set_user("Administrator")
+		names = [row["name"] for row in get_assignable_users()]
+		self.assertNotIn("Administrator", names)
+		self.assertNotIn("Guest", names)
+		self.assertNotIn(off, names)
+		frappe.db.set_value("User", off, "enabled", 1)
+
+	def test_get_assignable_users_searches_name_and_email(self) -> None:
+		"""What the link control sends on every keystroke - a hit on either half counts, so
+		someone whose full name shares nothing with their address is still reachable."""
+		user = self._make_user("queue-searchme@example.test", [])
+		frappe.db.set_value("User", user, {"first_name": "Zamira", "full_name": "Zamira Quarry"})
+		frappe.set_user("Administrator")
+		self.assertIn(user, [r["name"] for r in get_assignable_users(txt="zamira")])
+		self.assertIn(user, [r["name"] for r in get_assignable_users(txt="searchme")])
+		self.assertEqual(get_assignable_users(txt="nobodyhasthisstring"), [])
+		self.assertLessEqual(len(get_assignable_users(limit=2)), 2)
 
 	def test_accept_request_schedules_it_and_assigns_the_task(self) -> None:
 		dev = self._make_user("queue-owner@example.test", ["Dev Team"])

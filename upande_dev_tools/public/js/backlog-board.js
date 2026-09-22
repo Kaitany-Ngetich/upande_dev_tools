@@ -153,96 +153,6 @@ const ICONS = {
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
 };
 
-// A plain HTML form in an overlay, reusing the .rp-sheet/.rp-form styling that already
-// ships with this app - frappe.prompt's Dialog needs frappe.ui.form.make_control to render
-// its fields, and that isn't loaded on these portal pages at all (only the full desk
-// bundle has it), so every field-collecting dialog on this board is built this way instead.
-function open_modal(title, fields, onSubmit, submitLabel) {
-	const field_html = fields
-		.map((f) => {
-			const id = `bb-modal-${f.name}`;
-			let input;
-			if (f.type === "select") {
-				input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(f.options || [])
-					.map(
-						([v, l]) =>
-							`<option value="${esc(v)}"${v === f.value ? " selected" : ""}>${esc(l)}</option>`
-					)
-					.join("")}</select>`;
-			} else if (f.type === "textarea") {
-				input = `<textarea class="dpx-bb-field" id="${id}" name="${f.name}" rows="3">${esc(
-					f.value || ""
-				)}</textarea>`;
-			} else if (f.type === "tagpicker") {
-				input = upande_dev_tools.tag_picker_html({
-					name: f.name,
-					tags: f.tags || [],
-					selected: f.selected || [],
-				});
-			} else {
-				const listAttr = f.datalist ? ` list="${id}-list"` : "";
-				const datalist = f.datalist
-					? `<datalist id="${id}-list">${f.datalist.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`
-					: "";
-				input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${f.type || "text"}"
-					value="${esc(f.value || "")}"${f.required ? " required" : ""}${listAttr}
-					${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ""}>${datalist}`;
-			}
-			return `<label for="${id}">${esc(f.label)}${input}</label>`;
-		})
-		.join("");
-
-	const overlay = document.createElement("div");
-	overlay.className = "rp-sheet";
-	overlay.innerHTML = `
-		<div class="rp-scrim"></div>
-		<form class="rp-form" role="dialog" aria-label="${esc(title)}">
-			<div class="rp-form-hd"><h3>${esc(title)}</h3>
-				<button type="button" class="dpx-bb-ico bb-modal-close" aria-label="Close">${ico("x", 14)}</button></div>
-			${field_html}
-			<div class="rp-form-ft">
-				<button type="button" class="dpx-bb-btn bb-modal-close">${__("Cancel")}</button>
-				<button type="submit" class="dpx-bb-btn primary">${esc(submitLabel || __("Save"))}</button>
-			</div>
-		</form>`;
-	// Mounted inside .dpx, not document.body: every .rp-sheet/.rp-form/.dpx-bb-field style is
-	// deliberately scoped under .dpx (see dev-portal.css) so this portal's CSS never leaks
-	// onto the rest of the site - appending straight to body would render completely
-	// unstyled, since .dpx is fixed/full-viewport and doesn't use transform, so a
-	// position:fixed child still positions against the real viewport either way.
-	(document.querySelector(".dpx") || document.body).appendChild(overlay);
-
-	const close = () => {
-		overlay.remove();
-		document.removeEventListener("keydown", on_key);
-	};
-	function on_key(e) {
-		if (e.key === "Escape") close();
-	}
-	document.addEventListener("keydown", on_key);
-	overlay.querySelectorAll(".bb-modal-close").forEach((b) => b.addEventListener("click", close));
-	overlay.querySelector(".rp-scrim").addEventListener("click", close);
-	overlay.querySelector("form").addEventListener("submit", (e) => {
-		e.preventDefault();
-		// A hidden input's own `required` attribute is a no-op in every browser (an element
-		// that isn't rendered is exempt from constraint validation) - so a tagpicker's
-		// required-ness has to be checked by hand here instead.
-		for (const f of fields) {
-			if (f.type !== "tagpicker" || !f.required) continue;
-			const hidden = overlay.querySelector(`input[name="${f.name}"]`);
-			if (!hidden || !hidden.value) {
-				upande_dev_tools.toast(__("Pick at least one {0}.", [f.label]), "orange");
-				return;
-			}
-		}
-		const data = Object.fromEntries(new FormData(e.target).entries());
-		close();
-		onSubmit(data);
-	});
-	const first = overlay.querySelector("input,select,textarea");
-	if (first) first.focus();
-}
-
 function load_jspreadsheet() {
 	if (window.jspreadsheet) return Promise.resolve();
 	const css = (href) =>
@@ -357,6 +267,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				.xcall("upande_dev_tools.api.requests.get_assignable_users")
 				.then((people) => {
 					this.people = people || [];
+					// Guarded: this .then has a .catch that blanks the list, so an undefined
+					// helper here would silently cost the board every assignee it knows.
+					if (upande_dev_tools.seed_users) upande_dev_tools.seed_users(this.people);
+					// Same re-render the modules fetch does: the sheet's assignee dropdown is
+					// built from this list, so arriving after the first paint would otherwise
+					// leave that column with nothing to pick from until the next render.
+					if (this.items.length) this.render();
 				})
 				.catch(() => {
 					this.people = [];
@@ -741,11 +658,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	new_task() {
 		const projects = (this.projects || []).map((p) => [p.name, p.project_name || p.name]);
-		const people = [["", __("Unassigned")], ...(this.people || []).map((p) => [p.name, p.full_name || p.name])];
 		const priorities = [["", __("No priority")], ...(this.priority_levels || []).map((p) => [p, p])];
 		const modules = [["", __("No module")], ...(this.modules || []).filter(Boolean).map((m) => [m, m])];
 
-		open_modal(
+		upande_dev_tools.open_modal(
 			__("New task"),
 			[
 				{ name: "project", label: __("Project"), type: "select", options: projects, value: this.project || "", required: true },
@@ -761,7 +677,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ name: "priority", label: __("Priority"), type: "select", options: priorities },
 				{ name: "module", label: __("Module"), type: "select", options: modules },
 				{ name: "complete_by", label: __("Due date"), type: "date" },
-				{ name: "assign_to", label: __("Assign to"), type: "select", options: people },
+				{ name: "assign_to", label: __("Assign to"), type: "userlink", placeholder: __("Leave blank for unassigned") },
 			],
 			(values) => {
 				frappe
@@ -784,12 +700,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
 		if (!item) return;
 
-		const people = [
-			["", __("Keep current assignee(s)")],
-			...(this.people || []).map((p) => [p.name, p.full_name || p.name]),
-		];
-
-		open_modal(
+		upande_dev_tools.open_modal(
 			__("Quick actions - {0}", [item.title]),
 			[
 				{
@@ -799,7 +710,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					options: TASK_QUICK_STATUSES.map((s) => [s, s]),
 					value: item.status,
 				},
-				{ name: "assign_to", label: __("Reassign to"), type: "select", options: people },
+				{
+					name: "assign_to",
+					label: __("Reassign to"),
+					type: "userlink",
+					placeholder: __("Keep current assignee(s)"),
+				},
 				{ name: "complete_by", label: __("Due date"), type: "date", value: item.end || "" },
 			],
 			(values) => {
@@ -873,12 +789,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const row = btn.closest("[data-doctype]");
 		const name = row.data("name");
 		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
-		const people = (this.people || []).map((p) => [p.name, p.full_name || p.name]);
-
-		open_modal(
+		upande_dev_tools.open_modal(
 			__("Reassign {0}", [item ? item.title : name]),
 			[
-				{ name: "assign_to", label: __("Assign to"), type: "select", options: people, required: true },
+				{ name: "assign_to", label: __("Assign to"), type: "userlink", required: true },
 				{ name: "complete_by", label: __("Complete by"), type: "date" },
 				{ name: "comment", label: __("Comment"), type: "text" },
 			],
@@ -1198,7 +1112,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			item.title,
 			item.stage,
 			item.priority || "",
-			item.assignees.join(", "),
+			(item.assignee_ids || [])[0] || "",
 			item.module || "",
 			item.end || "",
 			item.start || "",
@@ -1224,7 +1138,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					type: "dropdown",
 					title: "Assignee",
 					width: 142,
-					source: (this.people || []).map((p) => p.full_name || p.name),
+					// {id, name} pairs, not bare labels: the cell stores the email and shows the
+					// person's name, so the two Brians on this bench never collapse into one. Typing
+					// filters the list, which a 440-name dropdown is unusable without.
+					autocomplete: true,
+					source: (this.people || []).map((p) => ({ id: p.name, name: p.full_name || p.name })),
 				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
@@ -1379,7 +1297,14 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			return;
 		}
 
-		const current = field === "stage" ? item.stage : item[field] || "";
+		// The assignee cell holds an email, which lives on assignee_ids - not item.assignee,
+		// which has never existed, so this comparison used to never short-circuit.
+		const current =
+			field === "stage"
+				? item.stage
+				: field === "assignee"
+				  ? (item.assignee_ids || [])[0] || ""
+				  : item[field] || "";
 		if (String(value || "") === String(current || "")) return;
 
 		if (field === "end" && item.start && value && value < item.start) {
@@ -1412,14 +1337,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			item.status = value;
 			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", { name: item.name, status: value });
 		} else if (field === "assignee") {
-			const person = (this.people || []).find((p) => (p.full_name || p.name) === value);
+			const person = (this.people || []).find((p) => p.name === value);
 			if (!person) {
 				this.set_save_status("error");
 				this.render();
 				upande_dev_tools.toast(__("Pick a name from the list."), "orange");
 				return;
 			}
-			item.assignees = [value];
+			item.assignee_ids = [person.name];
+			item.assignees = [person.full_name || person.name];
 			call = frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
 				name: item.name,
 				assign_to: person.name,

@@ -47,6 +47,7 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				this.areas = areas || [];
 				this.employees = employees || [];
 				this.people = people || [];
+				upande_dev_tools.seed_users(this.people);
 				this.work_tags = work_tags || [];
 				this.stage().removeAttr("aria-busy");
 				this.render();
@@ -254,10 +255,6 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 	open_form() {
 		const opts = (list) =>
 			list.map((v) => `<option value="${rp_esc(v)}">${rp_esc(v)}</option>`).join("");
-		const named_opts = (list, value_key, label_key) =>
-			list
-				.map((v) => `<option value="${rp_esc(v[value_key])}">${rp_esc(v[label_key] || v[value_key])}</option>`)
-				.join("");
 		$(this.wrapper).find(".rp-sheet").prop("hidden", false).html(`
 			<div class="rp-scrim"></div>
 			<form class="rp-form" role="dialog" aria-label="Raise a request">
@@ -284,9 +281,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 							.map((e) => `<option value="${rp_esc(e.employee_name)}" data-id="${rp_esc(e.name)}">`)
 							.join("")}</datalist></label>
 					<label>Who would you like on it?
-						<select class="dpx-bb-field" name="requested_assignee">
-							<option value="">No preference</option>${named_opts(this.people, "name", "full_name")}
-						</select></label>
+						${upande_dev_tools.user_link_html({
+							name: "requested_assignee",
+							placeholder: "No preference",
+						})}</label>
 				</div>
 				<label>Tags <span class="rp-required">*</span>
 					${upande_dev_tools.tag_picker_html({ name: "tags", tags: this.work_tags || [] })}</label>

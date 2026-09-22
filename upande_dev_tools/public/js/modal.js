@@ -1,12 +1,14 @@
 window.upande_dev_tools = window.upande_dev_tools || {};
 
 // A plain HTML form in an overlay, reusing the .rp-sheet/.rp-form styling that already ships
-// with this app - frappe.prompt's Dialog needs frappe.ui.form.make_control to render its
-// fields, and that isn't loaded on any of these portal pages at all (only the full desk
-// bundle has it), so every field-collecting dialog on any portal page is built this way
-// instead. Shared here (not just backlog-board.js's own copy) so any page - Dev Dashboard's
-// "New deployment request" included - can pop the same kind of dialog without depending on
-// backlog-board.js being loaded too.
+// with this app, rather than frappe.prompt's Dialog - which drags in the whole desk dialog
+// stack for what is a handful of fields. Shared here (not just backlog-board.js's own copy)
+// so any page - Dev Dashboard's "New deployment request" included - can pop the same kind
+// of dialog without depending on backlog-board.js being loaded too.
+//
+// `type: "date"` fields are the one exception: those render a real Frappe Date control
+// (see date-field.js), which needs controls.bundle.js on the page. A date field backs onto
+// a hidden input carrying its name, so FormData below still collects a yyyy-mm-dd value.
 (function () {
 	function modal_esc(value) {
 		return frappe.utils.escape_html(value == null ? "" : String(value));
@@ -41,6 +43,19 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 						tags: f.tags || [],
 						selected: f.selected || [],
 					});
+				} else if (f.type === "userlink") {
+					input = upande_dev_tools.user_link_html({
+						name: f.name,
+						value: f.value || "",
+						placeholder: f.placeholder,
+					});
+				} else if (f.type === "date") {
+					input = upande_dev_tools.date_field_html({
+						name: f.name,
+						value: f.value || "",
+						placeholder: f.placeholder,
+						id,
+					});
 				} else {
 					const listAttr = f.datalist ? ` list="${id}-list"` : "";
 					const datalist = f.datalist
@@ -73,6 +88,7 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 		// unstyled, since .dpx is fixed/full-viewport and doesn't use transform, so a
 		// position:fixed child still positions against the real viewport either way.
 		(document.querySelector(".dpx") || document.body).appendChild(overlay);
+		if (fields.some((f) => f.type === "date")) upande_dev_tools.mount_date_fields(overlay);
 
 		const close = () => {
 			overlay.remove();
@@ -87,13 +103,21 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 		overlay.querySelector("form").addEventListener("submit", (e) => {
 			e.preventDefault();
 			// A hidden input's own `required` attribute is a no-op in every browser (an element
-			// that isn't rendered is exempt from constraint validation) - so a tagpicker's
-			// required-ness has to be checked by hand here instead.
+			// that isn't rendered is exempt from constraint validation) - so a tagpicker's,
+			// userlink's or date field's required-ness has to be checked by hand here instead.
+			const widget_backed = ["tagpicker", "userlink", "date"];
 			for (const f of fields) {
-				if (f.type !== "tagpicker" || !f.required) continue;
+				if (!f.required || !widget_backed.includes(f.type)) continue;
 				const hidden = overlay.querySelector(`input[name="${f.name}"]`);
 				if (!hidden || !hidden.value) {
-					upande_dev_tools.toast(__("Pick at least one {0}.", [f.label]), "orange");
+					upande_dev_tools.toast(
+						f.type === "userlink"
+							? __("Pick someone for {0}.", [f.label])
+							: f.type === "date"
+								? __("Pick a date for {0}.", [f.label])
+								: __("Pick at least one {0}.", [f.label]),
+						"orange"
+					);
 					return;
 				}
 			}
@@ -101,7 +125,11 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			close();
 			onSubmit(data);
 		});
-		const first = overlay.querySelector("input,select,textarea");
+		// Skips the hidden inputs a tagpicker/userlink carries - focusing one is a silent
+		// no-op, which would leave the dialog opening with nothing focused at all.
+		const first = overlay.querySelector(
+			".udt-date input[data-fieldtype],input:not([type=hidden]),select,textarea"
+		);
 		if (first) first.focus();
 	};
 })();

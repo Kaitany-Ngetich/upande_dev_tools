@@ -5,10 +5,14 @@ import json
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from upande_dev_tools.api.board import _attach_tags, _set_doc_tags, _validate_tags, normalize_priority
 
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
+
+# Built-in accounts that are not people - Frappe's own user_query leaves these out too.
+RESERVED_USERS = ("Administrator", "Guest")
 
 
 def _assign(doctype: str, name: str, assign_to: str, date=None, priority=None, description=None) -> None:
@@ -331,17 +335,44 @@ def triage_request(
 
 
 @frappe.whitelist()
-def get_assignable_users() -> list[dict]:
-	"""Names and emails only, not sensitive - open to any logged-in user so a customer can
+def get_assignable_users(txt: str | None = None, limit: int = 0) -> list[dict]:
+	"""Every enabled System User, searchable by name or email - the backing query for the
+	assignee link control.
+
+	This used to return only holders of the Dev Team role, which quietly dropped people who
+	were already carrying work: on this bench Dev Team is granted through a Role Profile, so
+	*no* User row holds it directly and the list came back empty; on staging it returned 20
+	of 441 users and still omitted two people with open tasks. Work gets handed to whoever
+	is actually going to do it, so the set is the same one Frappe's own Assign To dialog
+	offers - enabled, System User, minus the two built-in non-person accounts.
+
+	Names and emails only, not sensitive - open to any logged-in user so a customer can
 	name who they'd like to handle their request, same list a PM picks a real assignee from."""
-	members = frappe.get_all("Has Role", filters={"role": "Dev Team", "parenttype": "User"}, pluck="parent")
-	if not members:
-		return []
+	filters: list = [
+		["enabled", "=", 1],
+		["user_type", "=", "System User"],
+		["name", "not in", RESERVED_USERS],
+	]
+	# Matched the way a Link field's own search does - against the email and every part of
+	# the name - so "judah", "Mark" and "judah@" all find the same person.
+	or_filters = []
+	txt = (txt or "").strip()
+	if txt:
+		like = f"%{txt}%"
+		or_filters = [
+			["name", "like", like],
+			["full_name", "like", like],
+			["first_name", "like", like],
+			["last_name", "like", like],
+		]
+
 	return frappe.get_all(
 		"User",
-		filters={"name": ["in", members], "enabled": 1},
+		filters=filters,
+		or_filters=or_filters,
 		fields=["name", "full_name"],
 		order_by="full_name asc",
+		limit_page_length=cint(limit) or 0,
 	)
 
 
