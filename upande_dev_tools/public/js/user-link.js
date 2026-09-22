@@ -111,6 +111,7 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			${multiple ? `<span class="udt-ul-chips">${chips_html(values, list)}</span>` : ""}
 			<input type="text" class="dpx-bb-field udt-ul-search" value="${esc(label)}"
 				placeholder="${esc(
+<<<<<<< HEAD
 					opts.placeholder ||
 						(multiple
 							? __("Search people — pick as many as you need")
@@ -120,6 +121,14 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 				${multiple ? 'aria-multiselectable="true" ' : ""}autocomplete="off" spellcheck="false"${
 			opts.title ? ` title="${esc(opts.title)}"` : ""
 		}>
+=======
+					opts.placeholder || (multiple ? __("Search people — pick as many as you need") : __("Search people"))
+				)}"
+				role="combobox" aria-expanded="false" aria-autocomplete="list" aria-haspopup="listbox"
+				${multiple ? 'aria-multiselectable="true" ' : ""}autocomplete="off" spellcheck="false"${
+					opts.title ? ` title="${esc(opts.title)}"` : ""
+				}>
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 			<button type="button" class="udt-ul-x" tabindex="-1" aria-label="${esc(
 				multiple ? __("Clear all") : __("Clear")
 			)}"
@@ -155,9 +164,13 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			return;
 		}
 		if (!hits.length) {
+<<<<<<< HEAD
 			menu.innerHTML = `<div class="udt-ul-note">${esc(
 				__("Nothing matches “{0}”.", [txt])
 			)}</div>`;
+=======
+			menu.innerHTML = `<div class="udt-ul-note">${esc(__("Nothing matches “{0}”.", [txt]))}</div>`;
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 			return;
 		}
 
@@ -166,9 +179,13 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			shown
 				.map(
 					(u, i) =>
+<<<<<<< HEAD
 						`<div class="udt-ul-opt${chosen.has(u.name) ? " on" : ""}${
 							i === 0 ? " active" : ""
 						}"
+=======
+						`<div class="udt-ul-opt${chosen.has(u.name) ? " on" : ""}${i === 0 ? " active" : ""}"
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 							role="option" aria-selected="${chosen.has(u.name)}" data-email="${esc(u.name)}">
 							<span class="nm">${esc(label_of(u))}</span>
 							<span class="em">${esc(u.name)}</span>
@@ -177,10 +194,14 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 				.join("") +
 			(hits.length > shown.length
 				? `<div class="udt-ul-note">${esc(
+<<<<<<< HEAD
 						__("Showing {0} of {1} — keep typing to narrow.", [
 							shown.length,
 							hits.length,
 						])
+=======
+						__("Showing {0} of {1} — keep typing to narrow.", [shown.length, hits.length])
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 				  )}</div>`
 				: "");
 	}
@@ -294,11 +315,15 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 		// half-typed name can never be submitted as if it were still the old selection.
 		// A multi control keeps its picks in chips, so typing there is only ever a query.
 		const hidden = box.querySelector(".udt-ul-value");
+<<<<<<< HEAD
 		if (
 			!is_multi(box) &&
 			hidden.value &&
 			search.value !== lookup_label(hidden.value, list_of(box))
 		) {
+=======
+		if (!is_multi(box) && hidden.value && search.value !== lookup_label(hidden.value, list_of(box))) {
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 			hidden.value = "";
 			box.querySelector(".udt-ul-x").hidden = true;
 			hidden.dispatchEvent(new Event("change", { bubbles: true }));

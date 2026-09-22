@@ -32,6 +32,7 @@ function boot() {
 	// jsdom has no layout, so it ships no scrollIntoView; every real browser does.
 	window.Element.prototype.scrollIntoView = function () {};
 	window.frappe = {
+<<<<<<< HEAD
 		utils: {
 			escape_html: (v) => String(v).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`),
 		},
@@ -41,6 +42,13 @@ function boot() {
 	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), {
 		filename: SOURCE,
 	});
+=======
+		utils: { escape_html: (v) => String(v).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`) },
+		xcall: () => Promise.resolve(PEOPLE),
+	};
+	window.__ = (v, args) => String(v).replace(/\{(\d+)\}/g, (_, i) => (args || [])[i]);
+	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), { filename: SOURCE });
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 	window.upande_dev_tools.seed_users(PEOPLE);
 	return window;
 }

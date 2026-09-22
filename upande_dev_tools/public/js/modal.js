@@ -125,8 +125,13 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 						f.type === "userlink"
 							? __("Pick someone for {0}.", [f.label])
 							: f.type === "date"
+<<<<<<< HEAD
 							? __("Pick a date for {0}.", [f.label])
 							: __("Pick at least one {0}.", [f.label]),
+=======
+								? __("Pick a date for {0}.", [f.label])
+								: __("Pick at least one {0}.", [f.label]),
+>>>>>>> 677a8cd89c24e99100c16fca88cc84dab11620a5
 						"orange"
 					);
 					return;
