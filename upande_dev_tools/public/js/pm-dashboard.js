@@ -22,7 +22,9 @@ upande_dev_tools.PmDashboard = class PmDashboard {
 				days: this.days,
 				scope: this.scope || null,
 			}),
-			frappe.xcall("upande_dev_tools.api.deployments.get_recent_deployments").catch(() => null),
+			frappe
+				.xcall("upande_dev_tools.api.deployments.get_recent_deployments")
+				.catch(() => null),
 		])
 			.then(([data, deployments]) => {
 				this.data = data;
@@ -592,8 +594,8 @@ function pm_deployments(d) {
 								<td>${pm_esc((r.requested_by_user || "").split("@")[0])}</td>
 								<td>${pm_esc(String(r.creation || "").slice(0, 10))}</td>
 								<td><span class="dpx-bb-chip ${PM_DEPLOY_STATE[r.workflow_state] || "st-triage"}">${pm_esc(
-									r.workflow_state
-								)}</span></td>
+								r.workflow_state
+							)}</span></td>
 							</tr>`
 						)
 						.join("")}</tbody>

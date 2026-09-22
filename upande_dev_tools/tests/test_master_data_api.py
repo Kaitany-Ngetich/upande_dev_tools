@@ -39,9 +39,7 @@ class IntegrationTestMasterDataApi(IntegrationTestCase):
 			kinds = get_master_data_kinds()
 		finally:
 			frappe.set_user("Administrator")
-		self.assertEqual(
-			{k["key"] for k in kinds}, {"request_type", "priority_level", "product_area", "tag"}
-		)
+		self.assertEqual({k["key"] for k in kinds}, {"request_type", "priority_level", "product_area", "tag"})
 
 	def test_add_and_list_a_product_area(self) -> None:
 		dev = self._make_user("dev-masterdata@example.test", ["Dev Team"])

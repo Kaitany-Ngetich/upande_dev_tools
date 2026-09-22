@@ -15,7 +15,9 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 		if (!this.data) this.skeleton();
 		Promise.all([
 			frappe.xcall("upande_dev_tools.api.dashboard.get_dashboard_data"),
-			frappe.xcall("upande_dev_tools.api.deployments.get_recent_deployments").catch(() => null),
+			frappe
+				.xcall("upande_dev_tools.api.deployments.get_recent_deployments")
+				.catch(() => null),
 		])
 			.then(([data, deployments]) => {
 				this.data = data || {};
@@ -235,12 +237,19 @@ upande_dev_tools.DevDashboard = class DevDashboard {
 		]);
 		const default_branch = prefill
 			? prefill.branch
-			: (this.deployment_apps || []).find((a) => a.name === (apps[0] || [])[0])?.default_branch;
+			: (this.deployment_apps || []).find((a) => a.name === (apps[0] || [])[0])
+					?.default_branch;
 
 		upande_dev_tools.open_modal(
 			prefill ? __("Duplicate deployment request") : __("New deployment request"),
 			[
-				{ name: "app", label: __("App"), type: "select", options: apps, value: prefill ? prefill.app : "" },
+				{
+					name: "app",
+					label: __("App"),
+					type: "select",
+					options: apps,
+					value: prefill ? prefill.app : "",
+				},
 				{
 					name: "instance",
 					label: __("Instance"),
@@ -425,7 +434,10 @@ function dd_app_row(a) {
 				a.repository_url
 					? `<button class="dpx-bb-ico dd-repo" type="button" data-url="${dd_esc(
 							a.repository_url
-					  )}" title="Copy repo URL: ${dd_esc(a.repository_url)}">${dd_ico("github", 13)}</button>`
+					  )}" title="Copy repo URL: ${dd_esc(a.repository_url)}">${dd_ico(
+							"github",
+							13
+					  )}</button>`
 					: ""
 			}</td>
 			<td class="dd-branch">${dd_esc(a.current_branch || "—")}</td>
@@ -451,8 +463,8 @@ function dd_deploy_row(d) {
 			<td>${dd_esc((d.requested_by_user || "").split("@")[0])}</td>
 			<td>${dd_esc(String(d.creation || "").slice(0, 10))}</td>
 			<td><span class="dpx-bb-chip ${DD_DEPLOY_STATE[d.workflow_state] || "st-triage"}">${dd_esc(
-				d.workflow_state
-			)}</span></td>
+		d.workflow_state
+	)}</span></td>
 			<td><button class="dpx-bb-ico dd-duplicate" type="button" title="Duplicate this request">${dd_ico(
 				"copy",
 				13
@@ -471,10 +483,8 @@ const DD_ICONS = {
 	clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 	refresh:
 		'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
-	github:
-		'<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>',
-	rocket:
-		'<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+	github: '<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>',
+	rocket: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
 	copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
 };
 

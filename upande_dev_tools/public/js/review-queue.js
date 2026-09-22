@@ -8,7 +8,15 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		this.people = [];
 		this.priorities = [];
 		this.q = "";
-		this.filters = { project: "", priority: "", type: "", module: "", tag: "", raised_by: "", assignee: "" };
+		this.filters = {
+			project: "",
+			priority: "",
+			type: "",
+			module: "",
+			tag: "",
+			raised_by: "",
+			assignee: "",
+		};
 		this.render_shell();
 		this.load();
 	}
@@ -27,7 +35,9 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 			frappe.xcall("upande_dev_tools.api.requests.get_assignable_users"),
 			// Priority Level is Master Data page-editable - read it live rather than
 			// hardcoding the list, so a level added there shows up here immediately.
-			frappe.xcall("upande_dev_tools.api.master_data.get_master_data", { key: "priority_level" }),
+			frappe.xcall("upande_dev_tools.api.master_data.get_master_data", {
+				key: "priority_level",
+			}),
 		])
 			.then(([requests, projects, people, priorities]) => {
 				this.requests = requests || [];
@@ -162,7 +172,15 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 			this.render();
 		});
 		root.on("click", ".rq-clear", () => {
-			this.filters = { project: "", priority: "", type: "", module: "", tag: "", raised_by: "", assignee: "" };
+			this.filters = {
+				project: "",
+				priority: "",
+				type: "",
+				module: "",
+				tag: "",
+				raised_by: "",
+				assignee: "",
+			};
 			this.q = "";
 			root.find(".rq-q").val("");
 			this.render();
@@ -174,9 +192,11 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 	visible() {
 		return this.requests.filter((r) => {
 			if (this.filters.project && r.project !== this.filters.project) return false;
-			if (this.filters.priority && (r.priority || "") !== this.filters.priority) return false;
+			if (this.filters.priority && (r.priority || "") !== this.filters.priority)
+				return false;
 			if (this.filters.type && (r.request_type || "") !== this.filters.type) return false;
-			if (this.filters.module && (r.product_area || "") !== this.filters.module) return false;
+			if (this.filters.module && (r.product_area || "") !== this.filters.module)
+				return false;
 			if (this.filters.tag && !(r.tags || []).includes(this.filters.tag)) return false;
 			if (this.filters.raised_by && r.owner !== this.filters.raised_by) return false;
 			if (this.filters.assignee) {
@@ -236,7 +256,11 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 			const keep = held !== undefined ? held : field.val();
 			field.html(
 				[`<option value="">${rq_esc(blankLabel)}</option>`]
-					.concat(names.map((n) => `<option value="${rq_esc(n.value)}">${rq_esc(n.label)}</option>`))
+					.concat(
+						names.map(
+							(n) => `<option value="${rq_esc(n.value)}">${rq_esc(n.label)}</option>`
+						)
+					)
 					.join("")
 			);
 			if (keep) field.val(keep);
@@ -269,7 +293,9 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		fill(
 			'[data-f="tag"]',
 			"Any tag",
-			[...new Set(this.requests.flatMap((r) => r.tags || []))].sort().map((v) => ({ value: v, label: v }))
+			[...new Set(this.requests.flatMap((r) => r.tags || []))]
+				.sort()
+				.map((v) => ({ value: v, label: v }))
 		);
 		fill(
 			'[data-f="raised_by"]',
@@ -472,7 +498,10 @@ upande_dev_tools.ReviewQueue = class ReviewQueue {
 		}).catch((e) => {
 			tr.find("button,select,input").prop("disabled", false);
 			tr.removeClass("rq-busy");
-			upande_dev_tools.toast(String((e && e.message) || e) || __("That decision did not save."), "red");
+			upande_dev_tools.toast(
+				String((e && e.message) || e) || __("That decision did not save."),
+				"red"
+			);
 		});
 	}
 };

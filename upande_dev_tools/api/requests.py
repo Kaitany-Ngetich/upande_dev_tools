@@ -247,7 +247,9 @@ def get_my_requests(status: str | None = None) -> list[dict]:
 	task_assignees: dict[str, list[str]] = {}
 	if linked_task_names:
 		rows = frappe.get_all("Task", filters={"name": ["in", linked_task_names]}, fields=["name", "_assign"])
-		task_assignees = {row.name: (json.loads(row["_assign"]) if row.get("_assign") else []) for row in rows}
+		task_assignees = {
+			row.name: (json.loads(row["_assign"]) if row.get("_assign") else []) for row in rows
+		}
 	assignee_emails: set[str] = {e for emails in task_assignees.values() for e in emails}
 	assignee_names = _resolve_user_display_names(assignee_emails)
 

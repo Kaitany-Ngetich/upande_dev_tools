@@ -15,7 +15,7 @@ try {
 
 // The same set review-queue.html loads, in the same order - the queue renders a
 // user-link per row, so loading it alone lets a missing dependency pass as green.
-const SOURCES = ["toast", "work-preview", "user-link", "review-queue"].map((n) =>
+const SOURCES = ["toast", "work-preview", "user-link", "date-field", "review-queue"].map((n) =>
 	path.join(__dirname, `../../public/js/${n}.js`)
 );
 
@@ -55,7 +55,9 @@ function boot() {
 	window.$ = $;
 
 	for (const src of SOURCES) {
-		vm.runInContext(fs.readFileSync(src, "utf8"), dom.getInternalVMContext(), { filename: src });
+		vm.runInContext(fs.readFileSync(src, "utf8"), dom.getInternalVMContext(), {
+			filename: src,
+		});
 	}
 	assert.ok(
 		window.upande_dev_tools && window.upande_dev_tools.ReviewQueue,
@@ -114,7 +116,11 @@ function boot() {
 	// The assignee is a searchable link control now, not a fixed <select> of whoever
 	// held one role - the hidden input keeps carrying the email under the same class.
 	assert.strictEqual($(root).find("select.rq-assignee").length, 0, "no fixed-list select");
-	assert.strictEqual($(root).find("input.rq-assignee").length, 2, "each row carries a chosen email");
+	assert.strictEqual(
+		$(root).find("input.rq-assignee").length,
+		2,
+		"each row carries a chosen email"
+	);
 	assert.strictEqual($(root).find(".udt-ul-search").length, 2, "each row gets a search box");
 	assert.strictEqual($(root).find(".rq-btn.accept").length, 2);
 	assert.strictEqual($(root).find(".dpx-bb-blank").length, 0, "no failure state on a good load");

@@ -52,7 +52,15 @@ function read_prefs() {
 }
 const COLUMN_CAP = 25;
 const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
-const SHEET_FIELDS = { 2: "stage", 3: "priority", 4: "assignee", 5: "module", 6: "end", 7: "start", 8: "status" };
+const SHEET_FIELDS = {
+	2: "stage",
+	3: "priority",
+	4: "assignee",
+	5: "module",
+	6: "end",
+	7: "start",
+	8: "status",
+};
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 // Each of these mirrors the real markup of its view, so the switch from
 // skeleton to content does not move anything on the page.
@@ -228,7 +236,14 @@ function ico(name, size) {
 		}</svg>`;
 }
 const RANK = { Low: 1, Medium: 2, High: 3, Urgent: 4 };
-const TASK_QUICK_STATUSES = ["Open", "Working", "Pending Review", "Overdue", "Completed", "Cancelled"];
+const TASK_QUICK_STATUSES = [
+	"Open",
+	"Working",
+	"Pending Review",
+	"Overdue",
+	"Completed",
+	"Cancelled",
+];
 
 upande_dev_tools.BacklogBoard = class BacklogBoard {
 	constructor(wrapper, project) {
@@ -305,9 +320,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			// Priority Level is Master Data page-editable - the Sheet's edit dropdown needs
 			// the full valid set, not just what's already in use on the board.
 			frappe
-				.xcall("upande_dev_tools.api.master_data.get_master_data", { key: "priority_level" })
+				.xcall("upande_dev_tools.api.master_data.get_master_data", {
+					key: "priority_level",
+				})
 				.then((levels) => {
-					this.priority_levels = (levels || []).filter((p) => !p.disabled).map((p) => p.name);
+					this.priority_levels = (levels || [])
+						.filter((p) => !p.disabled)
+						.map((p) => p.name);
 				})
 				.catch(() => {
 					this.priority_levels = [];
@@ -596,7 +615,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				if (i.priority) rank[i.priority] = i.rank;
 			});
 			const names = Object.keys(rank).sort((a, b) => rank[b] - rank[a]);
-			field.append(names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join(""));
+			field.append(
+				names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")
+			);
 		}
 	}
 
@@ -606,7 +627,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		if (field.children().length <= 1) {
 			const names = [...new Set(this.items.flatMap((item) => item.tags || []))].sort();
 			field.html(
-				['<option value="">Any tag</option>'].concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)).join("")
+				['<option value="">Any tag</option>']
+					.concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`))
+					.join("")
 			);
 		}
 	}
@@ -658,13 +681,26 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	new_task() {
 		const projects = (this.projects || []).map((p) => [p.name, p.project_name || p.name]);
-		const priorities = [["", __("No priority")], ...(this.priority_levels || []).map((p) => [p, p])];
-		const modules = [["", __("No module")], ...(this.modules || []).filter(Boolean).map((m) => [m, m])];
+		const priorities = [
+			["", __("No priority")],
+			...(this.priority_levels || []).map((p) => [p, p]),
+		];
+		const modules = [
+			["", __("No module")],
+			...(this.modules || []).filter(Boolean).map((m) => [m, m]),
+		];
 
 		upande_dev_tools.open_modal(
 			__("New task"),
 			[
-				{ name: "project", label: __("Project"), type: "select", options: projects, value: this.project || "", required: true },
+				{
+					name: "project",
+					label: __("Project"),
+					type: "select",
+					options: projects,
+					value: this.project || "",
+					required: true,
+				},
 				{ name: "subject", label: __("Title"), type: "text", required: true },
 				{
 					name: "tags",
@@ -693,7 +729,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
-						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not create that task."), "red");
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not create that task."),
+							"red"
+						);
 					});
 			},
 			__("Create")
@@ -723,11 +762,19 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					multiple: true,
 					placeholder: __("Keep current assignee(s)"),
 				},
-				{ name: "complete_by", label: __("Due date"), type: "date", value: item.end || "" },
+				{
+					name: "complete_by",
+					label: __("Due date"),
+					type: "date",
+					value: item.end || "",
+				},
 			],
 			(values) => {
 				if (values.complete_by && item.start && values.complete_by < item.start) {
-					upande_dev_tools.toast(__("Due date can't be before the start date ({0}).", [item.start]), "orange");
+					upande_dev_tools.toast(
+						__("Due date can't be before the start date ({0}).", [item.start]),
+						"orange"
+					);
 					return;
 				}
 
@@ -763,7 +810,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
-						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not update that."), "red");
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not update that."),
+							"red"
+						);
 					});
 			},
 			__("Save")
@@ -776,10 +826,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const name = row.data("name");
 		const item = this.items.find((i) => i.doctype === doctype && i.name === name);
 
-		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name]))) return;
+		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name])))
+			return;
 
 		const method =
-			doctype === "Task" ? "upande_dev_tools.api.board.delete_task" : "upande_dev_tools.api.requests.delete_request";
+			doctype === "Task"
+				? "upande_dev_tools.api.board.delete_task"
+				: "upande_dev_tools.api.requests.delete_request";
 		frappe
 			.xcall(method, { name })
 			.then(() => {
@@ -788,7 +841,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				upande_dev_tools.toast(__("Deleted."), "green");
 			})
 			.catch((e) => {
-				upande_dev_tools.toast(String((e && e.message) || e) || __("Could not delete that."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not delete that."),
+					"red"
+				);
 			});
 	}
 
@@ -799,7 +855,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		upande_dev_tools.open_modal(
 			__("Reassign {0}", [item ? item.title : name]),
 			[
-				{ name: "assign_to", label: __("Assign to"), type: "userlink", multiple: true, required: true },
+				{
+					name: "assign_to",
+					label: __("Assign to"),
+					type: "userlink",
+					multiple: true,
+					required: true,
+				},
 				{ name: "complete_by", label: __("Complete by"), type: "date" },
 				{ name: "comment", label: __("Comment"), type: "text" },
 			],
@@ -811,7 +873,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
-						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not reassign that."), "red");
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not reassign that."),
+							"red"
+						);
 					});
 			},
 			__("Reassign")
@@ -1153,7 +1218,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					// A Task can be on more than one person, same as the Reassign dialog. The cell
 					// value is then a ";"-joined list of emails, which is jspreadsheet's own format.
 					multiple: true,
-					source: (this.people || []).map((p) => ({ id: p.name, name: p.full_name || p.name })),
+					source: (this.people || []).map((p) => ({
+						id: p.name,
+						name: p.full_name || p.name,
+					})),
 				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
@@ -1289,7 +1357,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	guard_cell(y, value) {
 		const item = this.row_item(y);
 		if (item && !item.movable) {
-			upande_dev_tools.toast(__("Requests move through their own workflow, not the board."), "orange");
+			upande_dev_tools.toast(
+				__("Requests move through their own workflow, not the board."),
+				"orange"
+			);
 			return false;
 		}
 		return value;
@@ -1304,7 +1375,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 		if ((field === "assignee" || field === "status") && item.doctype !== "Task") {
 			this.render();
-			upande_dev_tools.toast(__("Only tasks can have their {0} changed here.", [field]), "orange");
+			upande_dev_tools.toast(
+				__("Only tasks can have their {0} changed here.", [field]),
+				"orange"
+			);
 			return;
 		}
 
@@ -1314,8 +1388,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			field === "stage"
 				? item.stage
 				: field === "assignee"
-				  ? (item.assignee_ids || []).join(";")
-				  : item[field] || "";
+				? (item.assignee_ids || []).join(";")
+				: item[field] || "";
 		if (String(value || "") === String(current || "")) return;
 
 		if (field === "end" && item.start && value && value < item.start) {
@@ -1346,20 +1420,27 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			});
 		} else if (field === "status") {
 			item.status = value;
-			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", { name: item.name, status: value });
+			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
+				name: item.name,
+				status: value,
+			});
 		} else if (field === "assignee") {
 			const emails = String(value || "")
 				.split(";")
 				.map((e) => e.trim())
 				.filter(Boolean);
-			const people = emails.map((email) => (this.people || []).find((p) => p.name === email));
+			const people = emails.map((email) =>
+				(this.people || []).find((p) => p.name === email)
+			);
 			// An empty cell would mean "take this off everyone", which reassign_task refuses -
 			// clearing an assignment is what the Reassign dialog is for.
 			if (!people.length || people.some((p) => !p)) {
 				this.set_save_status("error");
 				this.render();
 				upande_dev_tools.toast(
-					people.length ? __("Pick names from the list.") : __("Pick at least one name."),
+					people.length
+						? __("Pick names from the list.")
+						: __("Pick at least one name."),
 					"orange"
 				);
 				return;
@@ -1381,17 +1462,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			});
 		}
 
-		call
-			.then(() => {
-				this.set_save_status("saved");
-				this.load();
-			})
-			.catch(() => {
-				Object.assign(item, previous);
-				this.set_save_status("error");
-				this.render();
-				upande_dev_tools.toast(__("Could not save that cell."), "red");
-			});
+		call.then(() => {
+			this.set_save_status("saved");
+			this.load();
+		}).catch(() => {
+			Object.assign(item, previous);
+			this.set_save_status("error");
+			this.render();
+			upande_dev_tools.toast(__("Could not save that cell."), "red");
+		});
 	}
 
 	set_save_status(state) {
@@ -1673,7 +1752,9 @@ function list_row(item) {
 		<tr class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}"
 			data-doctype="${esc(item.doctype)}" data-name="${esc(item.name)}">
 			<td><div class="subj">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
-				<a href="${link(item)}">${esc(item.title)}</a></div>${tags ? `<div class="bb-tags">${tags}</div>` : ""}</td>
+				<a href="${link(item)}">${esc(item.title)}</a></div>${
+		tags ? `<div class="bb-tags">${tags}</div>` : ""
+	}</td>
 			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>
 			<td>${
 				item.priority
@@ -1686,8 +1767,20 @@ function list_row(item) {
 			<td class="opt muted">${esc(item.module || "—")}</td>
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
 			<td class="bb-row-act">
-				${can_reassign ? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico("assign")}</button>` : ""}
-				${can_delete ? `<button type="button" class="dpx-bb-ico bb-delete" title="Delete">${ico("trash")}</button>` : ""}
+				${
+					can_reassign
+						? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico(
+								"assign"
+						  )}</button>`
+						: ""
+				}
+				${
+					can_delete
+						? `<button type="button" class="dpx-bb-ico bb-delete" title="Delete">${ico(
+								"trash"
+						  )}</button>`
+						: ""
+				}
 			</td>
 		</tr>`;
 }

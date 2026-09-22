@@ -162,8 +162,10 @@ def get_board(project: str | None = None, limit: int = BOARD_LIMIT, tag: str | N
 	_resolve_people(items)
 
 	if tag:
-		tagged_names = set(_names_with_tag("Task", tag)) | set(_names_with_tag("Issue", tag)) | set(
-			_names_with_tag("Request", tag)
+		tagged_names = (
+			set(_names_with_tag("Task", tag))
+			| set(_names_with_tag("Issue", tag))
+			| set(_names_with_tag("Request", tag))
 		)
 		items = [i for i in items if i["name"] in tagged_names]
 
@@ -315,9 +317,7 @@ def _attach_tags(doctype: str, items: list[dict]) -> None:
 
 
 def _names_with_tag(doctype: str, tag: str) -> list[str]:
-	return frappe.get_all(
-		"Tag Link", filters={"document_type": doctype, "tag": tag}, pluck="document_name"
-	)
+	return frappe.get_all("Tag Link", filters={"document_type": doctype, "tag": tag}, pluck="document_name")
 
 
 @frappe.whitelist()
@@ -327,9 +327,7 @@ def get_used_tags(doctype: str) -> list[str]:
 	if doctype not in ("Task", "Issue", "Request"):
 		frappe.throw(_("Unknown work item."), frappe.ValidationError)
 
-	return sorted(
-		set(frappe.get_all("Tag Link", filters={"document_type": doctype}, pluck="tag"))
-	)
+	return sorted(set(frappe.get_all("Tag Link", filters={"document_type": doctype}, pluck="tag")))
 
 
 @frappe.whitelist()
@@ -353,7 +351,13 @@ def _set_doc_tags(doctype: str, name: str, tags: list[str]) -> None:
 		if not frappe.db.exists("Tag", tag):
 			frappe.get_doc({"doctype": "Tag", "name": tag}).insert(ignore_permissions=True)
 		frappe.get_doc(
-			{"doctype": "Tag Link", "document_type": doctype, "document_name": name, "tag": tag, "title": name}
+			{
+				"doctype": "Tag Link",
+				"document_type": doctype,
+				"document_name": name,
+				"tag": tag,
+				"title": name,
+			}
 		).insert(ignore_permissions=True)
 
 
@@ -404,7 +408,10 @@ def delete_task(name: str) -> None:
 	request_name = frappe.db.get_value("Request", {"linked_task": name}, "name")
 	if request_name:
 		frappe.db.set_value(
-			"Request", request_name, {"linked_task": None, "workflow_state": "Approved"}, update_modified=False
+			"Request",
+			request_name,
+			{"linked_task": None, "workflow_state": "Approved"},
+			update_modified=False,
 		)
 
 	frappe.delete_doc("Task", name, ignore_permissions=True)
@@ -460,9 +467,7 @@ def create_task(
 		# these back at module load time here would be circular.
 		from upande_dev_tools.api.requests import _assign_many, parse_users
 
-		_assign_many(
-			"Task", task.name, parse_users(assign_to), date=complete_by, priority=priority
-		)
+		_assign_many("Task", task.name, parse_users(assign_to), date=complete_by, priority=priority)
 
 	return {"name": task.name}
 

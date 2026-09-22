@@ -14,8 +14,8 @@ try {
 
 // The same set backlog-board.html loads, in the same order - the board calls into
 // toast/modal/user-link, so loading it alone lets a missing dependency pass as green.
-const SOURCES = ["toast", "tag-picker", "modal", "user-link", "backlog-board"].map((n) =>
-	path.join(__dirname, `../../public/js/${n}.js`)
+const SOURCES = ["toast", "tag-picker", "modal", "user-link", "date-field", "backlog-board"].map(
+	(n) => path.join(__dirname, `../../public/js/${n}.js`)
 );
 const STYLES = path.join(__dirname, "../../public/css/dev-portal.css");
 
@@ -149,7 +149,9 @@ function boot() {
 	// The page loads this file before frappe-web.bundle.js, so nothing may touch
 	// `frappe` at load time.
 	for (const src of SOURCES) {
-		vm.runInContext(fs.readFileSync(src, "utf8"), dom.getInternalVMContext(), { filename: src });
+		vm.runInContext(fs.readFileSync(src, "utf8"), dom.getInternalVMContext(), {
+			filename: src,
+		});
 	}
 	assert.ok(
 		window.upande_dev_tools && window.upande_dev_tools.BacklogBoard,
@@ -368,7 +370,10 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	// Two people on this bench share a display name, so the cell has to round-trip the
 	// email - a bare list of labels would assign whichever duplicate sorts first.
 	const assignee_col = sheet.config.columns[4];
-	assert.ok(assignee_col.autocomplete, "the assignee dropdown is type-to-search, not a 440-row scroll");
+	assert.ok(
+		assignee_col.autocomplete,
+		"the assignee dropdown is type-to-search, not a 440-row scroll"
+	);
 	// Field-by-field, not deepStrictEqual: these objects are built inside the jsdom realm,
 	// so their prototype is not this one's and a strict deep compare always fails.
 	assert.strictEqual(assignee_col.source[0].id, "dev@example.com", "option id is the email");

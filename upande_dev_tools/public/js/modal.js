@@ -27,16 +27,20 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 				const id = `bb-modal-${f.name}`;
 				let input;
 				if (f.type === "select") {
-					input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(f.options || [])
+					input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(
+						f.options || []
+					)
 						.map(
 							([v, l]) =>
-								`<option value="${esc(v)}"${v === f.value ? " selected" : ""}>${esc(l)}</option>`
+								`<option value="${esc(v)}"${
+									v === f.value ? " selected" : ""
+								}>${esc(l)}</option>`
 						)
 						.join("")}</select>`;
 				} else if (f.type === "textarea") {
-					input = `<textarea class="dpx-bb-field" id="${id}" name="${f.name}" rows="3">${esc(
-						f.value || ""
-					)}</textarea>`;
+					input = `<textarea class="dpx-bb-field" id="${id}" name="${
+						f.name
+					}" rows="3">${esc(f.value || "")}</textarea>`;
 				} else if (f.type === "tagpicker") {
 					input = upande_dev_tools.tag_picker_html({
 						name: f.name,
@@ -60,9 +64,13 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 				} else {
 					const listAttr = f.datalist ? ` list="${id}-list"` : "";
 					const datalist = f.datalist
-						? `<datalist id="${id}-list">${f.datalist.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`
+						? `<datalist id="${id}-list">${f.datalist
+								.map((v) => `<option value="${esc(v)}">`)
+								.join("")}</datalist>`
 						: "";
-					input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${f.type || "text"}"
+					input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${
+						f.type || "text"
+					}"
 						value="${esc(f.value || "")}"${f.required ? " required" : ""}${listAttr}
 						${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ""}>${datalist}`;
 				}
@@ -99,7 +107,9 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			if (e.key === "Escape") close();
 		}
 		document.addEventListener("keydown", on_key);
-		overlay.querySelectorAll(".bb-modal-close").forEach((b) => b.addEventListener("click", close));
+		overlay
+			.querySelectorAll(".bb-modal-close")
+			.forEach((b) => b.addEventListener("click", close));
 		overlay.querySelector(".rp-scrim").addEventListener("click", close);
 		overlay.querySelector("form").addEventListener("submit", (e) => {
 			e.preventDefault();
@@ -115,8 +125,8 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 						f.type === "userlink"
 							? __("Pick someone for {0}.", [f.label])
 							: f.type === "date"
-								? __("Pick a date for {0}.", [f.label])
-								: __("Pick at least one {0}.", [f.label]),
+							? __("Pick a date for {0}.", [f.label])
+							: __("Pick at least one {0}.", [f.label]),
 						"orange"
 					);
 					return;

@@ -133,9 +133,7 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		project = self._make_project()
 
 		frappe.set_user(pm)
-		created = create_request(
-			title="Small fix", request_type="Bug", project=project, tags=["Bug"]
-		)
+		created = create_request(title="Small fix", request_type="Bug", project=project, tags=["Bug"])
 		triage_request(created["name"], "Approve", priority="Low")
 		promote_to_task(created["name"])
 
@@ -213,9 +211,7 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		project = self._make_project()
 
 		frappe.set_user(dev)
-		create_request(
-			title="Customer workload test", request_type="Bug", project=project, tags=["Bug"]
-		)
+		create_request(title="Customer workload test", request_type="Bug", project=project, tags=["Bug"])
 
 		task = frappe.get_doc(
 			{"doctype": "Task", "subject": "Active work for the customer", "project": project}

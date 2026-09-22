@@ -190,9 +190,13 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 	visible() {
 		let rows = this.requests;
 		if (this.filter === "open")
-			rows = rows.filter((r) => !["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state));
+			rows = rows.filter(
+				(r) => !["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state)
+			);
 		else if (this.filter === "done")
-			rows = rows.filter((r) => ["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state));
+			rows = rows.filter((r) =>
+				["Completed", "Rejected", "Withdrawn", "Closed"].includes(r.workflow_state)
+			);
 
 		if (this.raised_by) rows = rows.filter((r) => r.owner === this.raised_by);
 		if (this.assignee) rows = rows.filter((r) => (r.assignees || []).includes(this.assignee));
@@ -217,14 +221,19 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			raisers.append(
 				[...seen.entries()]
 					.sort((a, b) => a[1].localeCompare(b[1]))
-					.map(([email, name]) => `<option value="${rp_esc(email)}">${rp_esc(name)}</option>`)
+					.map(
+						([email, name]) =>
+							`<option value="${rp_esc(email)}">${rp_esc(name)}</option>`
+					)
 					.join("")
 			);
 		}
 		const assignees = root.find(".rp-assignee");
 		if (assignees.children().length <= 1) {
 			const names = [...new Set(this.requests.flatMap((r) => r.assignees || []))].sort();
-			assignees.append(names.map((n) => `<option value="${rp_esc(n)}">${rp_esc(n)}</option>`).join(""));
+			assignees.append(
+				names.map((n) => `<option value="${rp_esc(n)}">${rp_esc(n)}</option>`).join("")
+			);
 		}
 	}
 
@@ -328,7 +337,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				description: data.description || null,
 				raised_by_employee: data.raised_by_employee || null,
 				requested_assignee: data.requested_assignee || null,
-				tags: (data.tags || "").split(",").map((t) => t.trim()).filter(Boolean),
+				tags: (data.tags || "")
+					.split(",")
+					.map((t) => t.trim())
+					.filter(Boolean),
 				source: "Web Portal",
 			})
 			.then((created) => {
@@ -341,7 +353,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			})
 			.catch((e) => {
 				form.find("button,input,select,textarea").prop("disabled", false);
-				upande_dev_tools.toast(String((e && e.message) || e) || __("That did not send."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("That did not send."),
+					"red"
+				);
 			});
 	}
 
@@ -358,7 +373,10 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			})
 			.catch((e) => {
 				console.error(`requests-portal: ${method} failed for ${name}`, e);
-				upande_dev_tools.toast(String((e && e.message) || e) || __("That did not go through."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("That did not go through."),
+					"red"
+				);
 			});
 	}
 };
@@ -389,7 +407,11 @@ function rp_card(r) {
 				can_withdraw || can_confirm
 					? `<div class="rp-card-act">
 						${can_withdraw ? `<button type="button" class="dpx-bb-btn rp-withdraw">Withdraw</button>` : ""}
-						${can_confirm ? `<button type="button" class="dpx-bb-btn primary rp-confirm-done">Confirm complete</button>` : ""}
+						${
+							can_confirm
+								? `<button type="button" class="dpx-bb-btn primary rp-confirm-done">Confirm complete</button>`
+								: ""
+						}
 					</div>`
 					: ""
 			}
