@@ -38,9 +38,9 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 						)
 						.join("")}</select>`;
 				} else if (f.type === "textarea") {
-					input = `<textarea class="dpx-bb-field" id="${id}" name="${
-						f.name
-					}" rows="3">${esc(f.value || "")}</textarea>`;
+					input = `<textarea class="dpx-bb-field" id="${id}" name="${f.name}" rows="3"${
+						f.readonly ? " readonly" : ""
+					}>${esc(f.value || "")}</textarea>`;
 				} else if (f.type === "tagpicker") {
 					input = upande_dev_tools.tag_picker_html({
 						name: f.name,

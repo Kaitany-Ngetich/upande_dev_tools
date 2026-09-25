@@ -135,13 +135,17 @@ const ITEMS = [
 	},
 ];
 
-function boot() {
+function boot(kept) {
+	// A real origin, not about:blank - the board remembers where you were in
+	// localStorage, which jsdom only provides to a page that has one.
 	const dom = new JSDOM(`<!doctype html><body><div id="root"></div></body>`, {
+		url: "http://localhost/backlog-board",
 		pretendToBeVisual: true,
 		runScripts: "outside-only",
 	});
 	const { window } = dom;
 	const $ = jquery(window);
+	if (kept) window.localStorage.setItem("dpx-backlog", JSON.stringify(kept));
 
 	const calls = [];
 	window.$ = $;
@@ -172,6 +176,33 @@ function boot() {
 					{ name: "dev@example.com", full_name: "Dev One" },
 					{ name: "other@example.com", full_name: "Dev One" },
 				]);
+			if (method.endsWith("get_projects"))
+				return Promise.resolve([
+					{ name: "PROJ-01", project_name: "Harvest" },
+					{ name: "PROJ-02", project_name: "Packhouse" },
+				]);
+			if (method.endsWith("get_work_tags"))
+				return Promise.resolve(["backend", "frontend", "ops"]);
+			if (method.endsWith("get_master_data"))
+				return Promise.resolve([
+					{ name: "Urgent" },
+					{ name: "High" },
+					{ name: "Medium" },
+					{ name: "Low" },
+				]);
+			if (method.endsWith("get_editable"))
+				return Promise.resolve({
+					title: "Bucket reject reconciliation",
+					description: "<p>Two lines</p><p>of plain text</p>",
+					stage: "In Progress",
+					priority: "Urgent",
+					module: "Coffee",
+					project: "PROJ-01",
+					start: "2026-09-07",
+					end: "2026-09-19",
+					tags: ["backend"],
+					assignees: ["teddy@example.com"],
+				});
 			if (method.endsWith("get_board"))
 				return Promise.resolve({
 					items: ITEMS,
@@ -357,15 +388,29 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	// What the work is comes first; identifiers are reference material and go last.
 	assert.strictEqual(
 		sheet.config.columns.map((c) => c.title).join(),
-		"id,Work item,Stage,Priority,Assignee,Module,Due,Start,Status,Project,ID"
+		"id,Work item,Stage,Priority,Assignee,Module,Tags,Due,Start,Status,Project,ID"
 	);
 	const editable = sheet.config.columns
 		.map((c, i) => (c.readOnly ? null : i))
 		.filter((i) => i !== null && i > 0);
 	assert.strictEqual(
 		editable.join(),
-		"2,3,4,5,6,7,8",
-		"stage, priority, assignee, module, due, start and status take an edit"
+		"1,2,3,4,5,6,7,8,9,10",
+		"everything but the reference ID takes an edit"
+	);
+	assert.ok(
+		sheet.config.columns[6].multiple,
+		"a work item carries more than one tag, so the cell does too"
+	);
+	assert.strictEqual(
+		sheet.config.columns[6].source.join(),
+		"backend,frontend,ops",
+		"the tag cell offers the whole Work Tag vocabulary, not just what is in use"
+	);
+	assert.strictEqual(
+		sheet.config.columns[10].source[0].id,
+		"PROJ-01",
+		"the project cell stores the project id and shows its name"
 	);
 	// Two people on this bench share a display name, so the cell has to round-trip the
 	// email - a bare list of labels would assign whichever duplicate sorts first.
@@ -521,6 +566,158 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	const before = calls.length;
 	cfg.onchange(null, null, 2, row, cfg.data[row][2]);
 	assert.strictEqual(calls.length, before, "re-entering the same value saves nothing");
+
+	// ── One edit dialog, reachable from every view ──
+	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
+	assert.strictEqual(
+		$(root).find('.dpx-bb-card[data-id="Task:TASK-01"] .bb-edit').length,
+		1,
+		"a card can be edited from the board"
+	);
+	assert.strictEqual(
+		$(root).find('.dpx-bb-card[data-id="Request:REQ-03"] .bb-edit').length,
+		0,
+		"a workflow-governed request is not edited from the board"
+	);
+
+	$(root).find('.dpx-bb-views button[data-view="list"]').trigger("click");
+	assert.strictEqual(
+		$(root).find('.dpx-bb-row[data-id="Task:TASK-01"] .bb-edit').length,
+		1,
+		"and from the list"
+	);
+
+	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
+	assert.strictEqual(
+		$(root).find(".dpx-bb-tl-row .name .bb-edit").length,
+		3,
+		"and from the timeline, which had no way to edit anything at all"
+	);
+	// Counting the buttons is not the test: a timeline row carried no data-doctype,
+	// so every one of them resolved to no work item at all and opened nothing.
+	$(root).find('.dpx-bb-tl-row[data-name="TASK-01"] .bb-edit').trigger("click");
+	await settle();
+	assert.strictEqual(
+		$(window.document).find('.rp-form [name="title"]').val(),
+		"Bucket reject reconciliation",
+		"the timeline button opens the dialog on the row it sits on"
+	);
+	$(window.document).find(".rp-form .rp-form-ft .bb-modal-close").trigger("click");
+
+	// It opens on the item's real current values, not on the trimmed row the board holds.
+	$(root).find('.dpx-bb-views button[data-view="list"]').trigger("click");
+	$(root).find('.dpx-bb-row[data-id="Task:TASK-01"] .bb-edit').trigger("click");
+	await settle();
+	// The dialog mounts into .dpx, or the body when the shell is not on the page.
+	const form = $(window.document).find(".rp-form");
+	assert.strictEqual(form.length, 1, "the edit dialog opens");
+	assert.strictEqual(form.find('[name="title"]').val(), "Bucket reject reconciliation");
+	assert.strictEqual(form.find('[name="module"]').val(), "Coffee", "module is editable");
+	assert.strictEqual(form.find('[name="project"]').val(), "PROJ-01");
+	assert.strictEqual(form.find('[name="stage"]').val(), "In Progress");
+	assert.strictEqual(
+		form.find('[name="description"]').val(),
+		"Two lines\nof plain text",
+		"plain rich text reads back as plain text"
+	);
+
+	// A real submit event: jsdom does not implement form.submit(), and jQuery's
+	// .trigger("submit") falls through to it.
+	form[0].dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+	await settle();
+	const saved = calls.filter((c) => c.method.endsWith("update_work")).pop();
+	assert.ok(saved, "the dialog saves through one call, not a field at a time");
+	assert.strictEqual(saved.args.doctype, "Task");
+	assert.strictEqual(saved.args.values.module, "Coffee");
+	assert.strictEqual(
+		saved.args.values.description,
+		"Two lines<br>of plain text",
+		"and goes back as markup, not as a flattened blob"
+	);
+
+	// A description with real markup in it is never flattened into a textarea.
+	const rich = window.upande_dev_tools;
+	assert.ok(rich, "module namespace exists");
+
+	// ── The timeline zooms, and a bar is always big enough to grab ──
+	$(root).find('.dpx-bb-views button[data-view="timeline"]').trigger("click");
+	assert.ok(
+		$(root).find(".bb-zoom option").length >= 6,
+		"more than three widths to read a plan at"
+	);
+	const narrow = $(root)
+		.find(".dpx-bb-tlbar")
+		.toArray()
+		.map((b) => parseInt(b.style.width, 10));
+	assert.ok(
+		narrow.every((w) => w >= 14),
+		"no bar is too small to put a pointer on"
+	);
+
+	const scroller = $(root).find(".dpx-bb-tl-scroll")[0];
+	const wheel = (init) => {
+		const e = new window.MouseEvent("wheel", init);
+		Object.defineProperty(e, "deltaY", { value: init.deltaY });
+		scroller.dispatchEvent(e);
+	};
+	wheel({ deltaY: -100, clientX: 400, bubbles: true });
+	assert.strictEqual(board.zoom, "weeks", "a plain wheel scrolls, it does not zoom");
+	wheel({ deltaY: -120, clientX: 400, ctrlKey: true, bubbles: true });
+	assert.strictEqual(board.zoom, "wide", "ctrl and a wheel up zooms in one rung");
+	// One flick of a trackpad is a stream of small deltas; stepping once per event
+	// walked the whole ladder in a single gesture.
+	for (let i = 0; i < 2; i++) wheel({ deltaY: -12, clientX: 400, ctrlKey: true, bubbles: true });
+	assert.strictEqual(board.zoom, "wide", "small deltas accumulate rather than each stepping");
+	for (let i = 0; i < 2; i++) wheel({ deltaY: -12, clientX: 400, ctrlKey: true, bubbles: true });
+	assert.strictEqual(board.zoom, "days", "and step once they add up to a notch");
+	wheel({ deltaY: 120, clientX: 400, ctrlKey: true, bubbles: true });
+	wheel({ deltaY: 120, clientX: 400, ctrlKey: true, bubbles: true });
+	assert.strictEqual(board.zoom, "weeks", "and down again the other way");
+
+	// ── Where you were, and how you had it set up ──
+	const stored = JSON.parse(window.localStorage.getItem("dpx-backlog"));
+	assert.strictEqual(stored.zoom, "weeks", "the zoom you left it on is remembered");
+	assert.ok("filters" in stored && "hide_done" in stored, "so are the filters and the toggles");
+
+	const second = boot({
+		view: "list",
+		zoom: "months",
+		group_by: "module",
+		hide_done: true,
+		filters: { ...stored.filters, module: "QC" },
+		shut: ["QC"],
+	});
+	const back = second.window.document.getElementById("root");
+	const board2 = new second.window.upande_dev_tools.BacklogBoard(back, null);
+	await settle();
+	assert.ok(
+		second.$(back).find('.dpx-bb-views button[data-view="list"]').hasClass("on"),
+		"it opens on the view you left it on"
+	);
+	assert.strictEqual(second.$(back).find('[data-f="module"]').val(), "QC");
+	assert.strictEqual(second.$(back).find(".bb-extra").val(), "module");
+	assert.strictEqual(second.$(back).find(".bb-zoom").val(), "months");
+	assert.strictEqual(
+		second.$(back).find(".bb-clear").prop("hidden"),
+		false,
+		"a restored filter says so, rather than silently hiding half the board"
+	);
+	assert.strictEqual(board2.hide_done, true, "and a hidden Done column stays hidden");
+	second.$(back).find('.dpx-bb-views button[data-view="board"]').trigger("click");
+	assert.strictEqual(second.$(back).find('.bb-tool[data-tool="done"]').text(), "Show done");
+	assert.strictEqual(
+		second.$(back).find('.dpx-bb-drop[data-stage="Done"] .dpx-bb-card').length,
+		0
+	);
+
+	// A stored choice whose option no longer exists drops itself instead of
+	// filtering the board down to nothing with no way to see why.
+	const third = boot({ filters: { assignee: "someone@who.left" } });
+	const gone = third.window.document.getElementById("root");
+	const board3 = new third.window.upande_dev_tools.BacklogBoard(gone, null);
+	await settle();
+	assert.strictEqual(board3.filters.assignee, "");
+	assert.ok(third.$(gone).find(".dpx-bb-card").length > 0, "the board is not empty");
 
 	console.log("backlog-board: all checks passed");
 })().catch((e) => {

@@ -204,6 +204,34 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
 
+	def _with_last_page(self, route: str | None):
+		"""Stands in for the browser cookie dev-portal-shell.js writes on every page."""
+		request = frappe._dict(cookies={} if route is None else {"dpx_last": route})
+		return patch.object(frappe.local, "request", request, create=True)
+
+	def test_home_route_returns_you_to_the_page_you_were_last_on(self) -> None:
+		self._make_page("portal-test-last-page", ["Dev Team"])
+		dev = self._make_user("portal-last@example.test", ["Dev Team"])
+		with self._with_last_page("/portal-test-last-page"):
+			self.assertEqual(resolve_home_route(dev), "/portal-test-last-page")
+
+	def test_home_route_ignores_a_last_page_the_user_may_no_longer_open(self) -> None:
+		self._make_page("portal-test-last-denied", ["Projects Manager"])
+		dev = self._make_user("portal-last-denied@example.test", ["Dev Team"])
+		with self._with_last_page("/portal-test-last-denied"):
+			self.assertEqual(resolve_home_route(dev), "/dev-dashboard")
+
+	def test_home_route_ignores_a_cookie_that_is_not_a_portal_page(self) -> None:
+		"""A path in a cookie is not a route - only a registered Dev Portal Page is."""
+		dev = self._make_user("portal-last-bogus@example.test", ["Dev Team"])
+		for junk in ("/app/user", "https://elsewhere.test/x", "/not-registered-anywhere", "//evil"):
+			with self._with_last_page(junk):
+				self.assertEqual(resolve_home_route(dev), "/dev-dashboard")
+
+	def test_home_route_still_sends_a_guest_to_login(self) -> None:
+		with self._with_last_page("/dev-dashboard"):
+			self.assertEqual(resolve_home_route("Guest"), "/login")
+
 	def test_resolve_home_route_skips_role_priority_route_that_denies_user(self) -> None:
 		self._make_page("portal-test-home-route-skip", [])  # registered but denies everyone
 		dev = self._make_user("home-route-skip@example.test", ["Dev Team"])

@@ -39,9 +39,33 @@ const MONTHS_LONG = [
 	"November",
 	"December",
 ];
-const ZOOM = { days: 34, weeks: 15, months: 5 };
+// A schedule with three widths is unreadable at both ends: a quarter of work at a
+// day per 34px is a kilometre of scrolling, and a one-day task at a month is a
+// sliver nobody can grab. Ctrl+wheel walks this ladder a rung at a time.
+const ZOOMS = [
+	{ key: "closeup", label: "Close-up", w: 110 },
+	{ key: "days", label: "Days", w: 34 },
+	{ key: "wide", label: "Wide weeks", w: 22 },
+	{ key: "weeks", label: "Weeks", w: 15 },
+	{ key: "fortnights", label: "Fortnights", w: 9 },
+	{ key: "months", label: "Months", w: 5 },
+	{ key: "quarters", label: "Quarters", w: 3 },
+];
+const ZOOM = {};
+ZOOMS.forEach((z) => (ZOOM[z.key] = z.w));
+// Coarse to fine, which is the direction a wheel pushed away from you should travel.
+const ZOOM_KEYS = ZOOMS.map((z) => z.key).reverse();
+// Below this a bar cannot be grabbed at all, and below EDGE_BAR there is no room
+// for two edge handles and a middle - so the whole bar moves and the dialog or the
+// sheet is where one end gets changed on its own.
+const MIN_BAR = 14;
+const EDGE_BAR = 30;
+const EDGE = 7;
+const WHEEL_STEP = 40;
 const PAGE = 60;
 const PREFS = "dpx-backlog";
+const VIEWS = ["board", "list", "timeline", "sheet"];
+const BLANK_FILTERS = { q: "", source: "", assignee: "", module: "", priority: "", tag: "" };
 
 function read_prefs() {
 	try {
@@ -53,13 +77,16 @@ function read_prefs() {
 const COLUMN_CAP = 25;
 const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
 const SHEET_FIELDS = {
+	1: "title",
 	2: "stage",
 	3: "priority",
 	4: "assignee",
 	5: "module",
-	6: "end",
-	7: "start",
-	8: "status",
+	6: "tags",
+	7: "end",
+	8: "start",
+	9: "status",
+	10: "project",
 };
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 // Each of these mirrors the real markup of its view, so the switch from
@@ -142,10 +169,10 @@ const SKELETON = {
 };
 
 const HINTS = {
-	board: "Drag a card between stages to move it",
-	list: "Click a group to collapse it",
-	timeline: "Bars run from start to due date",
-	sheet: "Editable: Stage · Priority · Start · Due",
+	board: "Drag a card between stages · hover one to edit it",
+	list: "Click a group to collapse it · hover a row to edit it",
+	timeline: "Drag a bar to move it · Ctrl + scroll to zoom",
+	sheet: "Click a cell to edit it · funnel in a header to filter",
 };
 const ICONS = {
 	board: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
@@ -159,6 +186,7 @@ const ICONS = {
 	trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 	more: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
 };
 
 function load_jspreadsheet() {
@@ -218,12 +246,18 @@ function paint_cell(cell, x, item) {
 			: '<span class="cellwrap" style="color:var(--ink-faint)">Unassigned</span>';
 	} else if (x === 5) {
 		cell.classList.add("bb-quiet");
-	} else if (x === 6 || x === 7) {
+	} else if (x === 6) {
+		cell.innerHTML = (item.tags || []).length
+			? `<span class="cellwrap">${(item.tags || [])
+					.map((t) => `<span class="dpx-bb-chip">${esc(t)}</span>`)
+					.join(" ")}</span>`
+			: "";
+	} else if (x === 7 || x === 8) {
 		cell.classList.add("bb-mono");
-		if (x === 6 && item.late) cell.classList.add("bb-late");
-	} else if (x === 8 || x === 9) {
+		if (x === 7 && item.late) cell.classList.add("bb-late");
+	} else if (x === 9 || x === 10) {
 		cell.classList.add("bb-quiet");
-	} else if (x === 10) {
+	} else if (x === 11) {
 		cell.classList.add("bb-mono");
 	}
 }
@@ -253,15 +287,18 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.stages = [];
 		this.total = 0;
 		this.modules = [];
+		// Where you left off, and how you had it set up. A board you have to re-filter
+		// and re-arrange every morning is a board people stop arranging at all.
 		const kept = read_prefs();
-		this.view = kept.view || "board";
+		this.view = VIEWS.includes(kept.view) ? kept.view : "board";
 		this.group_by = kept.group_by || "stage";
-		this.zoom = kept.zoom || "weeks";
-		this.shut = new Set();
+		this.zoom = ZOOM[kept.zoom] ? kept.zoom : "weeks";
+		this.shut = new Set(kept.shut || []);
 		this.caps = {};
-		this.hide_done = false;
+		this.hide_done = !!kept.hide_done;
 		this.limit = PAGE;
-		this.filters = { q: "", source: "", assignee: "", module: "", priority: "", tag: "" };
+		this.filters = { ...BLANK_FILTERS, ...(kept.filters || {}) };
+		this.tl_scroll = kept.tl_scroll || null;
 		this.render_shell();
 		this.load();
 	}
@@ -273,7 +310,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		frappe
 			.xcall("upande_dev_tools.api.board.get_modules")
 			.then((m) => {
-				this.modules = ["", ...(m || [])];
+				this.modules = ["", ...(Array.isArray(m) ? m : [])];
 				if (this.items.length) this.render();
 			})
 			.catch(() => {});
@@ -281,7 +318,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			frappe
 				.xcall("upande_dev_tools.api.requests.get_assignable_users")
 				.then((people) => {
-					this.people = people || [];
+					this.people = Array.isArray(people) ? people : [];
 					// Guarded: this .then has a .catch that blanks the list, so an undefined
 					// helper here would silently cost the board every assignee it knows.
 					if (upande_dev_tools.seed_users) upande_dev_tools.seed_users(this.people);
@@ -298,7 +335,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			frappe
 				.xcall("upande_dev_tools.api.board.get_projects")
 				.then((projects) => {
-					this.projects = projects || [];
+					this.projects = Array.isArray(projects) ? projects : [];
 				})
 				.catch(() => {
 					this.projects = [];
@@ -310,7 +347,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			frappe
 				.xcall("upande_dev_tools.api.board.get_work_tags")
 				.then((tags) => {
-					this.work_tags = tags || [];
+					this.work_tags = Array.isArray(tags) ? tags : [];
 				})
 				.catch(() => {
 					this.work_tags = [];
@@ -324,7 +361,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					key: "priority_level",
 				})
 				.then((levels) => {
-					this.priority_levels = (levels || [])
+					this.priority_levels = (Array.isArray(levels) ? levels : [])
 						.filter((p) => !p.disabled)
 						.map((p) => p.name);
 				})
@@ -355,7 +392,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		try {
 			localStorage.setItem(
 				PREFS,
-				JSON.stringify({ view: this.view, group_by: this.group_by, zoom: this.zoom })
+				JSON.stringify({
+					view: this.view,
+					group_by: this.group_by,
+					zoom: this.zoom,
+					filters: this.filters,
+					hide_done: this.hide_done,
+					shut: [...this.shut],
+					tl_scroll: this.tl_scroll,
+				})
 			);
 		} catch (e) {}
 	}
@@ -458,6 +503,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<select class="dpx-bb-field" data-f="tag" aria-label="Tag">
 								<option value="">Any tag</option>
 							</select>
+							<button type="button" class="dpx-bb-btn bb-clear" hidden>Clear</button>
 						</div>
 						<span class="dpx-bb-sep"></span>
 						<div class="dpx-bb-grp">
@@ -473,9 +519,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						<div class="dpx-bb-grp bb-zoom-grp" hidden>
 							<span class="dpx-bb-grp-lbl">Zoom</span>
 							<select class="dpx-bb-field bb-zoom" aria-label="Zoom">
-								<option value="days">Days</option>
-								<option value="weeks">Weeks</option>
-								<option value="months">Months</option>
+								${ZOOMS.map(
+									(z) => `<option value="${z.key}">${z.label}</option>`
+								).join("")}
 							</select>
 						</div>
 						<span class="dpx-bb-sep bb-tools-sep" hidden></span>
@@ -509,8 +555,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			this.filters[el.data("f")] = el.val();
 			this.limit = PAGE;
 			this.caps = {};
+			this.save_prefs();
 			clearTimeout(this.typing);
 			this.typing = setTimeout(() => this.render(), e.type === "input" ? 180 : 0);
+		});
+		root.on("click", ".bb-clear", () => {
+			this.filters = { ...BLANK_FILTERS };
+			this.limit = PAGE;
+			this.caps = {};
+			this.save_prefs();
+			this.render();
 		});
 		root.on("change", ".bb-extra", (e) => {
 			this.group_by = $(e.currentTarget).val();
@@ -525,6 +579,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.on("click", ".dpx-bb-ghd button", (e) => {
 			const key = $(e.currentTarget).data("group");
 			this.shut.has(key) ? this.shut.delete(key) : this.shut.add(key);
+			this.save_prefs();
 			this.render();
 		});
 		root.on("click", ".dpx-bb-more", () => {
@@ -535,10 +590,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.on("click", ".bb-tool", (e) => this.tool($(e.currentTarget).data("tool")));
 		root.on("click", ".bb-delete", (e) => this.delete_item($(e.currentTarget)));
 		root.on("click", ".bb-reassign", (e) => this.reassign_item($(e.currentTarget)));
-		root.on("click", ".bb-card-quick", (e) => {
+		// One dialog, reachable from every view - a card, a list row, a bar on the
+		// timeline. Editing work should not depend on which way you happen to be
+		// looking at it.
+		root.on("click", ".bb-edit", (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.quick_actions($(e.currentTarget));
+			this.edit_item($(e.currentTarget));
 		});
 
 		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
@@ -589,11 +647,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	render() {
-		const rows = this.visible();
 		this.render_assignees();
 		this.render_priorities();
 		this.render_tags();
+		// render_extra drops a stored filter whose option no longer exists, so it has
+		// to run before the rows are worked out rather than after - otherwise the first
+		// paint is still filtered by a choice the toolbar has already given up on.
 		this.render_extra();
+
+		const rows = this.visible();
 		this.render_tools();
 		this.render_count(rows);
 
@@ -739,84 +801,137 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		);
 	}
 
-	quick_actions(btn) {
-		const card_el = btn.closest("[data-doctype]");
-		const name = card_el.data("name");
-		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
+	edit_item(btn) {
+		const row = btn.closest("[data-doctype]");
+		const doctype = row.data("doctype");
+		const name = row.data("name");
+		const item = this.items.find((i) => i.doctype === doctype && i.name === name);
 		if (!item) return;
 
+		// The board carries no descriptions - thousands of rows of rich text that no
+		// view renders - so the one item being edited fetches its own current values.
+		btn.addClass("spin");
+		frappe
+			.xcall("upande_dev_tools.api.board.get_editable", { doctype, name })
+			.then((values) => {
+				btn.removeClass("spin");
+				this.edit_form(item, values || {});
+			})
+			.catch((e) => {
+				btn.removeClass("spin");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not open that one."),
+					"red"
+				);
+			});
+	}
+
+	edit_form(item, values) {
+		const pairs = (list) => (list || []).map((v) => [v, v]);
+		const desc = plain_description(values.description);
+		const fields = [
+			{
+				name: "title",
+				label: __("Title"),
+				type: "text",
+				value: values.title || item.title,
+				required: true,
+			},
+			{
+				name: "description",
+				label: desc.rich
+					? __("Description — has formatting, edit it on the item itself")
+					: __("Description"),
+				type: "textarea",
+				value: desc.text,
+				readonly: desc.rich,
+			},
+			{
+				name: "stage",
+				label: __("Stage"),
+				type: "select",
+				options: pairs(this.stages),
+				value: values.stage || item.stage,
+			},
+			{
+				name: "priority",
+				label: __("Priority"),
+				type: "select",
+				options: [["", __("No priority")], ...pairs(this.priority_levels)],
+				value: values.priority || "",
+			},
+			{
+				name: "module",
+				label: __("Module"),
+				type: "select",
+				options: [["", __("No module")], ...pairs((this.modules || []).filter(Boolean))],
+				value: values.module || "",
+			},
+			{
+				name: "project",
+				label: __("Project"),
+				type: "select",
+				options: [
+					["", __("No project")],
+					...(this.projects || []).map((p) => [p.name, p.project_name || p.name]),
+				],
+				value: values.project || "",
+			},
+			{ name: "start", label: __("Start"), type: "date", value: values.start || "" },
+			{ name: "end", label: __("Due date"), type: "date", value: values.end || "" },
+			{
+				name: "tags",
+				label: __("Tags"),
+				type: "tagpicker",
+				tags: this.work_tags || [],
+				selected: values.tags || [],
+			},
+		];
+		if (item.doctype === "Task") {
+			fields.push({
+				name: "assign_to",
+				label: __("Assigned to"),
+				type: "userlink",
+				multiple: true,
+				value: (values.assignees || []).join(","),
+				placeholder: __("Nobody yet"),
+			});
+		}
+
 		upande_dev_tools.open_modal(
-			__("Quick actions - {0}", [item.title]),
-			[
-				{
-					name: "status",
-					label: __("Status"),
-					type: "select",
-					options: TASK_QUICK_STATUSES.map((s) => [s, s]),
-					value: item.status,
-				},
-				{
-					name: "assign_to",
-					label: __("Reassign to"),
-					type: "userlink",
-					multiple: true,
-					placeholder: __("Keep current assignee(s)"),
-				},
-				{
-					name: "complete_by",
-					label: __("Due date"),
-					type: "date",
-					value: item.end || "",
-				},
-			],
-			(values) => {
-				if (values.complete_by && item.start && values.complete_by < item.start) {
+			__("Edit {0}", [item.name]),
+			fields,
+			(v) => {
+				if (v.start && v.end && v.end < v.start) {
 					upande_dev_tools.toast(
-						__("Due date can't be before the start date ({0}).", [item.start]),
+						__("Due date can't be before the start date."),
 						"orange"
 					);
 					return;
 				}
+				// Leaving the key out entirely is what tells the server to keep what is
+				// already there - sending the flattened text back would drop the markup.
+				if (desc.rich) delete v.description;
+				else v.description = rich_description(v.description);
 
-				const calls = [];
-				if (values.status && values.status !== item.status)
-					calls.push(
-						frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
-							name,
-							status: values.status,
-						})
-					);
-				if (values.assign_to)
-					calls.push(
-						frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
-							name,
-							assign_to: values.assign_to,
-							complete_by: values.complete_by || null,
-						})
-					);
-				else if (values.complete_by && values.complete_by !== item.end)
-					calls.push(
-						frappe.xcall("upande_dev_tools.api.board.set_field", {
-							doctype: "Task",
-							name,
-							field: "end",
-							value: values.complete_by,
-						})
-					);
-
-				Promise.all(calls)
+				frappe
+					.xcall("upande_dev_tools.api.board.update_work", {
+						doctype: item.doctype,
+						name: item.name,
+						values: v,
+					})
 					.then(() => {
-						upande_dev_tools.toast(__("Updated."), "green");
+						upande_dev_tools.toast(__("Saved."), "green");
 						this.load();
 					})
 					.catch((e) => {
 						upande_dev_tools.toast(
-							String((e && e.message) || e) || __("Could not update that."),
+							String((e && e.message) || e) || __("Could not save that."),
 							"red"
 						);
 					});
 			},
-			__("Save")
+			__("Save changes")
 		);
 	}
 
@@ -886,14 +1001,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	tool(name) {
 		if (name === "collapse") {
 			this.group(this.visible()).forEach(([key]) => this.shut.add(key));
+			this.save_prefs();
 			return this.render();
 		}
 		if (name === "expand") {
 			this.shut.clear();
+			this.save_prefs();
 			return this.render();
 		}
 		if (name === "done") {
 			this.hide_done = !this.hide_done;
+			this.save_prefs();
 			return this.render();
 		}
 		if (name === "today") {
@@ -961,6 +1079,25 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.find(".bb-extra").val(this.group_by);
 		root.find(".bb-zoom").val(this.zoom);
 		root.find(".bb-zoom-grp").prop("hidden", this.view !== "timeline");
+
+		// Filters come back from storage, so the controls have to show what is actually
+		// being applied - a board quietly hiding half its rows is a bug report. A stored
+		// choice whose option no longer exists (the last task on someone left the board)
+		// drops itself rather than filtering to nothing invisibly.
+		let on = 0;
+		Object.keys(BLANK_FILTERS).forEach((key) => {
+			const el = root.find(`[data-f="${key}"]`);
+			if (!el.length) return;
+			const held = this.filters[key];
+			if (held && el.is("select") && ![...el[0].options].some((o) => o.value === held)) {
+				this.filters[key] = "";
+			}
+			if (this.filters[key]) on++;
+			if (!el.is(":focus") && el.val() !== this.filters[key]) el.val(this.filters[key]);
+		});
+		root.find(".bb-clear")
+			.prop("hidden", !on)
+			.text(on === 1 ? __("Clear filter") : __("Clear {0} filters", [on]));
 	}
 
 	render_count(rows) {
@@ -1187,6 +1324,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			// jspreadsheet joins a multi-dropdown's values with ";" - see the Assignee column.
 			(item.assignee_ids || []).join(";"),
 			item.module || "",
+			(item.tags || []).join(";"),
 			item.end || "",
 			item.start || "",
 			item.status,
@@ -1199,7 +1337,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			data,
 			columns: [
 				{ type: "hidden", title: "id" },
-				{ type: "text", title: "Work item", width: 372, ...locked },
+				{ type: "text", title: "Work item", width: 372 },
 				{ type: "dropdown", title: "Stage", width: 124, source: this.stages },
 				{
 					type: "dropdown",
@@ -1224,6 +1362,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					})),
 				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
+				{
+					type: "dropdown",
+					title: "Tags",
+					width: 150,
+					autocomplete: true,
+					multiple: true,
+					// Work Tag is the whole vocabulary, not just what is already in use -
+					// the same list the New task and Edit dialogs pick from.
+					source: this.work_tags || [],
+				},
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
 				{
 					type: "calendar",
@@ -1232,7 +1380,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					options: { format: "YYYY-MM-DD" },
 				},
 				{ type: "dropdown", title: "Status", width: 104, source: TASK_QUICK_STATUSES },
-				{ type: "text", title: "Project", width: 102, ...locked },
+				{
+					type: "dropdown",
+					title: "Project",
+					width: 140,
+					autocomplete: true,
+					source: (this.projects || []).map((p) => ({
+						id: p.name,
+						name: p.project_name || p.name,
+					})),
+				},
 				{ type: "text", title: "ID", width: 118, ...locked },
 			],
 			defaultColAlign: "left",
@@ -1341,7 +1498,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 			const x = Number(td.getAttribute("data-x"));
 			const y = Number(td.getAttribute("data-y"));
-			if (!SHEET_FIELDS[x]) return;
+			// The title is a plain text cell and also the thing you click to read a row,
+			// so it keeps the normal double-click. The pickers open on one.
+			if (!SHEET_FIELDS[x] || x === 1) return;
 
 			const item = this.row_item(y);
 			if (!item || !item.movable) return;
@@ -1382,6 +1541,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			return;
 		}
 
+		if (field === "title" && !String(value || "").trim()) {
+			this.render();
+			upande_dev_tools.toast(__("A work item needs a title."), "orange");
+			return;
+		}
+
 		// The assignee cell holds an email, which lives on assignee_ids - not item.assignee,
 		// which has never existed, so this comparison used to never short-circuit.
 		const current =
@@ -1389,6 +1554,8 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				? item.stage
 				: field === "assignee"
 				? (item.assignee_ids || []).join(";")
+				: field === "tags"
+				? (item.tags || []).join(";")
 				: item[field] || "";
 		if (String(value || "") === String(current || "")) return;
 
@@ -1423,6 +1590,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
 				name: item.name,
 				status: value,
+			});
+		} else if (field === "tags") {
+			const tags = String(value || "")
+				.split(";")
+				.map((t) => t.trim())
+				.filter(Boolean);
+			item.tags = tags;
+			call = frappe.xcall("upande_dev_tools.api.board.update_work", {
+				doctype: item.doctype,
+				name: item.name,
+				values: { tags },
 			});
 		} else if (field === "assignee") {
 			const emails = String(value || "")
@@ -1508,9 +1686,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const width = days * day_w;
 		const x = (d) => Math.round(((d - first) / DAY) * day_w);
 
+		// What the header can hold depends on how wide a day is, not on what the zoom
+		// level happens to be called - there are seven rungs on the ladder now, and a
+		// weekly gridline every 21px is noise rather than scale.
+		const per_day = day_w >= 24;
+		const week_step = day_w >= 12 ? 1 : day_w >= 7 ? 2 : 4;
+		const weekends = day_w >= 8;
+
 		const months = [];
 		const ticks = [];
 		const rules = [];
+		let week = 0;
 		for (let i = 0; i <= days; i++) {
 			const d = new Date(first.getTime() + i * DAY);
 			const at = i * day_w;
@@ -1521,7 +1707,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					} ${d.getUTCFullYear()}</div>`
 				);
 				rules.push(`<div class="mo" style="left:${at}px"></div>`);
-			} else if (this.zoom === "days") {
+			} else if (per_day) {
 				rules.push(`<div class="wk" style="left:${at}px"></div>`);
 				ticks.push(
 					`<div class="dpx-bb-tk${d.getUTCDay() % 6 === 0 ? " dim" : ""}" style="left:${
@@ -1529,10 +1715,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					}px">${DOW[d.getUTCDay()]}<b>${d.getUTCDate()}</b></div>`
 				);
 			} else if (d.getUTCDay() === 1) {
-				rules.push(`<div class="wk" style="left:${at}px"></div>`);
-				ticks.push(`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`);
+				if (week % week_step === 0) {
+					rules.push(`<div class="wk" style="left:${at}px"></div>`);
+					ticks.push(
+						`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`
+					);
+				}
+				week++;
 			}
-			if (d.getUTCDay() === 6)
+			if (weekends && d.getUTCDay() === 6)
 				rules.push(`<div class="we" style="left:${at}px;width:${day_w * 2}px"></div>`);
 		}
 
@@ -1577,6 +1768,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				<span><i class="late"></i>Past due</span>
 				<span><i class="done"></i>Done</span>
 				<span><i class="today"></i>Today</span>
+				<span class="sp"><span class="dpx-bb-kbd">Ctrl</span> + scroll to zoom</span>
 				<span class="sp">${spans.length} of ${rows.length} items have dates</span>
 			</div></div>
 		`);
@@ -1591,7 +1783,47 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			}
 			scroll.addEventListener("scroll", () => {
 				this.tl_scroll = { left: scroll.scrollLeft, top: scroll.scrollTop };
+				clearTimeout(this.tl_keep);
+				this.tl_keep = setTimeout(() => this.save_prefs(), 400);
 			});
+
+			// Ctrl + wheel is what every timeline in this category does. The date under
+			// the pointer is what has to stay put while the scale changes underneath it -
+			// zooming that re-anchors on the left edge throws you somewhere else entirely.
+			scroll.addEventListener(
+				"wheel",
+				(e) => {
+					if (!e.ctrlKey && !e.metaKey) return;
+					e.preventDefault();
+
+					// One gesture is one rung. A wheel notch arrives as several events
+					// and a trackpad as dozens, so stepping per event walks the whole
+					// ladder from a single flick.
+					// deltaMode: 0 pixels, 1 lines, 2 pages - a mouse reports one notch
+					// as about 100px, a trackpad as a stream of small ones.
+					const delta =
+						e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+					this.wheel = (this.wheel || 0) + delta;
+					if (Math.abs(this.wheel) < WHEEL_STEP) return;
+					const step = this.wheel < 0 ? 1 : -1;
+					this.wheel = 0;
+
+					const at = ZOOM_KEYS.indexOf(this.zoom);
+					const next = ZOOM_KEYS[Math.min(ZOOM_KEYS.length - 1, Math.max(0, at + step))];
+					if (!next || next === this.zoom) return;
+
+					const cursor = e.clientX - scroll.getBoundingClientRect().left;
+					const day = (scroll.scrollLeft + cursor) / day_w;
+					this.zoom = next;
+					this.tl_scroll = {
+						left: Math.max(0, day * ZOOM[next] - cursor),
+						top: scroll.scrollTop,
+					};
+					this.save_prefs();
+					this.render();
+				},
+				{ passive: false }
+			);
 		}
 
 		if (this.moved) {
@@ -1658,9 +1890,18 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const item = this.items.find((i) => `${i.doctype}:${i.name}` === $(bar).data("id"));
 			if (!item) return;
 
+			// A narrow bar has no room for two handles and a middle: grabbing anywhere on
+			// it moves the whole thing, and one end gets changed from the sheet or the
+			// edit dialog instead of by a 3px target nobody can hit.
 			const box = bar.getBoundingClientRect();
 			const edge =
-				e.clientX - box.left < 7 ? "start" : box.right - e.clientX < 7 ? "end" : "move";
+				box.width < EDGE_BAR
+					? "move"
+					: e.clientX - box.left < EDGE
+					? "start"
+					: box.right - e.clientX < EDGE
+					? "end"
+					: "move";
 			const readout = document.createElement("div");
 			readout.className = "dpx-bb-readout";
 			bar.parentNode.appendChild(readout);
@@ -1725,11 +1966,9 @@ function card(item) {
 			${item.movable ? 'draggable="true"' : ""}>
 			<div class="hd">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				${
-					item.doctype === "Task"
-						? `<button type="button" class="dpx-bb-ico bb-card-quick" title="Quick actions">${ico(
-								"more",
-								13
-						  )}</button>`
+					item.movable
+						? `<button type="button" class="dpx-bb-ico bb-edit" title="Edit"
+							aria-label="Edit ${esc(item.title)}">${ico("edit", 13)}</button>`
 						: ""
 				}</div>
 			<div class="t">${esc(item.title)}</div>
@@ -1768,6 +2007,12 @@ function list_row(item) {
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
 			<td class="bb-row-act">
 				${
+					item.movable
+						? `<button type="button" class="dpx-bb-ico bb-edit" title="Edit"
+							aria-label="Edit ${esc(item.title)}">${ico("edit")}</button>`
+						: ""
+				}
+				${
 					can_reassign
 						? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico(
 								"assign"
@@ -1787,7 +2032,7 @@ function list_row(item) {
 
 function tl_row({ item, start, end }, x, width) {
 	const left = x(start);
-	const bar_w = Math.max(x(end) - left + 4, 6);
+	const bar_w = Math.max(x(end) - left + 4, MIN_BAR);
 	const done = item.stage === "Done";
 	const cls = done ? "done" : item.late ? "late" : `st-${slug(item.stage)}`;
 	const label = start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
@@ -1799,7 +2044,8 @@ function tl_row({ item, start, end }, x, width) {
 		bar_w > 70 ? "" : `<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>`;
 
 	return `
-		<div class="dpx-bb-tl-row${done ? " done" : ""}">
+		<div class="dpx-bb-tl-row${done ? " done" : ""}"
+			data-doctype="${esc(item.doctype)}" data-name="${esc(item.name)}">
 			<div class="name">
 				<span class="dpx-bb-pri p${item.rank - 1}" title="${esc(item.priority || "No priority")}"></span>
 				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a>
@@ -1811,6 +2057,12 @@ function tl_row({ item, start, end }, x, width) {
 						? `<span class="dpx-bb-av" title="${esc(item.assignees.join(", "))}">${esc(
 								initials(item.assignees[0])
 						  )}</span>`
+						: ""
+				}
+				${
+					item.movable
+						? `<button type="button" class="dpx-bb-ico bb-edit" title="Edit"
+							aria-label="Edit ${esc(item.title)}">${ico("edit", 12)}</button>`
 						: ""
 				}
 			</div>
@@ -1915,6 +2167,29 @@ function date_of(value) {
 
 function fmt(date) {
 	return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+// A description is a Text Editor field. Flattening one that carries a screenshot or
+// a table into a textarea and saving it back would quietly destroy it, so only the
+// plain ones are editable here and the rest say where to go instead.
+function plain_description(html) {
+	if (!html) return { text: "", rich: false };
+	const rich = /<(?!\/?(p|br|div|b|i|em|strong|span)\b)[a-z]/i.test(html);
+	const text = String(html)
+		.replace(/<\/(p|div)>/gi, "\n")
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<[^>]*>/g, "")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.trim();
+	return { text, rich };
+}
+
+function rich_description(text) {
+	const body = String(text || "").trim();
+	return body ? esc(body).replace(/\n/g, "<br>") : "";
 }
 
 function esc(value) {

@@ -7,10 +7,12 @@ from frappe.utils import add_days, today
 from upande_dev_tools.api.board import (
 	STAGES,
 	get_board,
+	get_editable,
 	get_modules,
 	get_preview,
 	set_field,
 	set_stage,
+	update_work,
 )
 
 
@@ -278,5 +280,135 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				set_stage("Task", task, "Done")
+		finally:
+			frappe.set_user("Administrator")
+
+	def _work_tag(self, name: str) -> str:
+		if not frappe.db.exists("Work Tag", name):
+			frappe.get_doc({"doctype": "Work Tag", "tag_name": name}).insert(ignore_permissions=True)
+		return name
+
+	def test_set_field_renames_a_work_item(self) -> None:
+		task = self._task(self._project(), subject="Old name")
+		set_field("Task", task, "title", "New name")
+		self.assertEqual(frappe.db.get_value("Task", task, "subject"), "New name")
+
+	def test_a_work_item_cannot_be_left_without_a_title(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			set_field("Task", task, "title", "   ")
+
+	def test_set_field_rejects_an_unknown_project(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			set_field("Task", task, "project", "Not A Project")
+
+	def test_get_editable_carries_what_the_dialog_needs(self) -> None:
+		project = self._project()
+		tag = self._work_tag("board-edit-test")
+		task = self._task(
+			project,
+			subject="Read me back",
+			description="<p>A description the board never carries</p>",
+			exp_start_date=today(),
+			exp_end_date=add_days(today(), 3),
+		)
+		update_work("Task", task, {"tags": [tag]})
+
+		values = get_editable("Task", task)
+		self.assertEqual(values["title"], "Read me back")
+		self.assertIn("never carries", values["description"])
+		self.assertEqual(values["project"], project)
+		self.assertEqual(values["start"], today())
+		self.assertEqual(values["end"], add_days(today(), 3))
+		self.assertEqual(values["assignees"], [])
+		self.assertEqual(values["tags"], [tag])
+		self.assertIn(values["stage"], STAGES)
+
+	def test_get_editable_refuses_a_workflow_governed_request(self) -> None:
+		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
+			ignore_permissions=True
+		)
+		with self.assertRaises(frappe.ValidationError):
+			get_editable("Request", request.name)
+
+	def test_update_work_saves_every_field_in_one_go(self) -> None:
+		area = frappe.get_all("Product Area", limit=1, pluck="name")
+		if not area:
+			self.skipTest("No Product Area master data on this site.")
+		task = self._task(self._project(), subject="Before")
+		project = self._project()
+
+		update_work(
+			"Task",
+			task,
+			{
+				"title": "After",
+				"description": "Rewritten",
+				"module": area[0],
+				"project": project,
+				"start": today(),
+				"end": add_days(today(), 5),
+				"stage": "In Progress",
+			},
+		)
+
+		row = frappe.db.get_value(
+			"Task",
+			task,
+			["subject", "description", "custom_module", "project", "exp_start_date", "exp_end_date", "status"],
+			as_dict=True,
+		)
+		self.assertEqual(row.subject, "After")
+		self.assertEqual(row.description, "Rewritten")
+		self.assertEqual(row.custom_module, area[0])
+		self.assertEqual(row.project, project)
+		# exp_start_date/exp_end_date are Datetime on this bench, so _coerce stamps an
+		# end-of-day time onto them - the date is what the board ever reads back.
+		self.assertEqual(str(row.exp_start_date)[:10], today())
+		self.assertEqual(str(row.exp_end_date)[:10], add_days(today(), 5))
+		self.assertEqual(row.status, "Working")
+
+	def test_update_work_leaves_out_what_it_was_not_given(self) -> None:
+		"""The edit dialog drops the description when it carries formatting it cannot
+		safely flatten - so a save that says nothing about a field must not blank it."""
+		task = self._task(self._project(), description="<p>Keep me</p>")
+		update_work("Task", task, {"title": "Renamed only"})
+		self.assertEqual(frappe.db.get_value("Task", task, "description"), "<p>Keep me</p>")
+
+	def test_update_work_refuses_a_due_date_before_the_start(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			update_work("Task", task, {"start": today(), "end": add_days(today(), -2)})
+
+	def test_update_work_refuses_a_work_item_with_no_title(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			update_work("Task", task, {"title": ""})
+
+	def test_update_work_stamps_a_task_it_finishes(self) -> None:
+		task = self._task(self._project())
+		update_work("Task", task, {"stage": "Done"})
+		self.assertEqual(str(frappe.db.get_value("Task", task, "completed_on")), today())
+
+	def test_update_work_rejects_a_tag_that_is_not_master_data(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			update_work("Task", task, {"tags": ["not-in-master-data"]})
+
+	def test_update_work_refuses_a_workflow_governed_request(self) -> None:
+		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
+			ignore_permissions=True
+		)
+		with self.assertRaises(frappe.ValidationError):
+			update_work("Request", request.name, {"title": "Renamed"})
+
+	def test_update_work_denies_users_without_a_board_role(self) -> None:
+		task = self._task(self._project())
+		outsider = self._user("board-writer@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				update_work("Task", task, {"title": "Not yours"})
 		finally:
 			frappe.set_user("Administrator")
