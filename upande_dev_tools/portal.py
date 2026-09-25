@@ -9,7 +9,10 @@ HOME_ROUTE_BY_ROLE = (
 	("Projects Manager", "/pm-dashboard"),
 )
 DEFAULT_AUTHENTICATED_ROUTE = "/requests-portal"
-LOGIN_ROUTE = "/login"
+# Not /login. Frappe already asks anyone who is not signed in to sign in, and sending
+# them to the desk means that is where they land afterwards - rather than being handed
+# straight back to a portal they may have no business in.
+DESK_ROUTE = "/app"
 LAST_PAGE_COOKIE = "dpx_last"
 ROUTE_PATTERN = re.compile(r"^/[a-z0-9-]{1,64}$")
 
@@ -31,7 +34,7 @@ def _last_page(roles: set[str]) -> str | None:
 def resolve_home_route(user: str | None = None) -> str:
 	user = user or frappe.session.user
 	if user == "Guest":
-		return LOGIN_ROUTE
+		return DESK_ROUTE
 
 	roles = set(frappe.get_roles(user))
 	kept = _last_page(roles)
@@ -43,7 +46,7 @@ def resolve_home_route(user: str | None = None) -> str:
 			return route
 	if _route_permits(DEFAULT_AUTHENTICATED_ROUTE, roles):
 		return DEFAULT_AUTHENTICATED_ROUTE
-	return "/app"
+	return DESK_ROUTE
 
 
 def _fetch_page(route: str) -> frappe._dict | None:
@@ -78,7 +81,7 @@ def _route_permits(route: str, user_roles: set[str]) -> bool:
 
 def enforce_page_access(route: str) -> None:
 	if frappe.session.user == "Guest":
-		frappe.local.flags.redirect_location = f"{LOGIN_ROUTE}?redirect-to=/{route}"
+		frappe.local.flags.redirect_location = DESK_ROUTE
 		raise frappe.Redirect
 
 	page = _fetch_page(route)
@@ -90,7 +93,7 @@ def enforce_page_access(route: str) -> None:
 	target = resolve_home_route()
 	if target == f"/{route}":
 		# avoid redirect loop: target must not equal the denied route
-		target = "/app"
+		target = DESK_ROUTE
 	frappe.local.flags.redirect_location = target
 	raise frappe.Redirect
 
