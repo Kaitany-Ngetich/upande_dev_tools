@@ -1,6 +1,8 @@
 # Copyright (c) 2026, Upande LTD and contributors
 # For license information, please see license.txt
 
+import json
+
 import frappe
 from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests import IntegrationTestCase
@@ -9,15 +11,16 @@ from frappe.utils import add_to_date, now_datetime, today
 from upande_dev_tools.api.requests import (
 	accept_request,
 	create_request,
+	create_requests_bulk,
 	get_assignable_users,
 	get_backlog_board,
 	get_customer_workload,
-	get_developer_backlog,
-	get_my_day,
 	get_my_requests,
 	get_review_queue,
 	get_upcoming_meetings,
+	parse_users,
 	promote_to_task,
+	reassign_task,
 	triage_request,
 )
 
@@ -26,7 +29,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 	def test_task_has_request_custom_fields(self) -> None:
 		meta = frappe.get_meta("Task")
 		self.assertTrue(meta.has_field("custom_request"))
-		self.assertTrue(meta.has_field("custom_planned_for"))
+		# custom_planned_for was retired in favour of Task's own native exp_end_date - see
+		# remove_retired_custom_fields().
+		self.assertFalse(meta.has_field("custom_planned_for"))
 
 	def _make_user(self, email: str, roles: list[str]) -> str:
 		if not frappe.db.exists("User", email):
@@ -48,14 +53,16 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 			frappe.set_user("Administrator")
 
 	def test_get_my_requests_scopes_to_caller(self) -> None:
-		dev = self._make_user("dev-scope@example.test", ["Dev Team"])
-		other = self._make_user("other-scope@example.test", ["Dev Team"])
+		# A plain user (no Dev Team/PM role) only sees their own - broader visibility for those
+		# roles is covered by the Review Queue/Backlog Board tests instead.
+		dev = self._make_user("dev-scope@example.test", [])
+		other = self._make_user("other-scope@example.test", [])
 
 		try:
 			frappe.set_user(dev)
-			created = create_request(title="My own request", request_type="Bug")
+			created = create_request(title="My own request", request_type="Bug", tags=["Bug"])
 			frappe.set_user(other)
-			create_request(title="Someone else's request", request_type="Bug")
+			create_request(title="Someone else's request", request_type="Bug", tags=["Bug"])
 
 			frappe.set_user(dev)
 			mine = get_my_requests()
@@ -97,7 +104,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		project = self._make_project()
 
 		frappe.set_user(dev)
-		created = create_request(title="Add CSV export", request_type="Feature", project=project)
+		created = create_request(
+			title="Add CSV export", request_type="Feature", project=project, tags=["Feature"]
+		)
 
 		frappe.set_user(pm)
 		triage_request(created["name"], "Approve", priority="High")
@@ -111,7 +120,7 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 	def test_promote_to_task_lets_dev_team_self_promote_a_note(self) -> None:
 		dev = self._make_user("dev-note-promote@example.test", ["Dev Team"])
 		frappe.set_user(dev)
-		created = create_request(title="Remember to refactor this", request_type="Note")
+		created = create_request(title="Remember to refactor this", request_type="Note", tags=["Note"])
 		promote_to_task(created["name"])
 		frappe.set_user("Administrator")
 
@@ -124,7 +133,7 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		project = self._make_project()
 
 		frappe.set_user(pm)
-		created = create_request(title="Small fix", request_type="Bug", project=project)
+		created = create_request(title="Small fix", request_type="Bug", project=project, tags=["Bug"])
 		triage_request(created["name"], "Approve", priority="Low")
 		promote_to_task(created["name"])
 
@@ -138,7 +147,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 
 	def test_get_backlog_board_returns_requests_for_project(self) -> None:
 		project = self._make_project()
-		created = create_request(title="Board item", request_type="Feature", project=project)
+		created = create_request(
+			title="Board item", request_type="Feature", project=project, tags=["Feature"]
+		)
 
 		board = get_backlog_board(project=project)
 		self.assertIn(created["name"], [r["name"] for r in board["requests"]])
@@ -150,7 +161,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 
 		frappe.set_user(dev)
 		try:
-			created = create_request(title="Needs an owner shown", request_type="Bug", project=project)
+			created = create_request(
+				title="Needs an owner shown", request_type="Bug", project=project, tags=["Bug"]
+			)
 		finally:
 			frappe.set_user("Administrator")
 
@@ -193,107 +206,12 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		meetings = get_upcoming_meetings(project=project)
 		self.assertIn(event.name, [m["name"] for m in meetings])
 
-	def test_get_my_day_returns_assigned_planned_task_and_events(self) -> None:
-		dev = self._make_user("dev-myday@example.test", ["Dev Team"])
-		project = self._make_project()
-
-		task = frappe.get_doc(
-			{
-				"doctype": "Task",
-				"subject": "Fix login bug",
-				"project": project,
-				"custom_planned_for": today(),
-			}
-		)
-		task.flags.ignore_recursion_check = True  # see Global Constraints (pypika)
-		task.insert(ignore_permissions=True)
-		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
-
-		event = frappe.get_doc(
-			{
-				"doctype": "Event",
-				"subject": "Standup",
-				"event_type": "Private",
-				"starts_on": add_to_date(now_datetime(), hours=1),
-				"ends_on": add_to_date(now_datetime(), hours=1, minutes=15),
-			}
-		)
-		# Event Participant.reference_doctype/reference_docname are mandatory on this version.
-		event.append(
-			"event_participants", {"reference_doctype": "User", "reference_docname": dev, "email": dev}
-		)
-		event.insert(ignore_permissions=True)
-
-		frappe.set_user(dev)
-		try:
-			day = get_my_day()
-		finally:
-			frappe.set_user("Administrator")
-
-		self.assertEqual([t["name"] for t in day["tasks"]], [task.name])
-		self.assertIn(event.name, [m["name"] for m in day["meetings"]])
-
-	def test_get_my_day_denies_viewing_another_users_day(self) -> None:
-		dev = self._make_user("dev-myday-owner@example.test", ["Dev Team"])
-		outsider = self._make_user("outsider-myday@example.test", [])
-
-		frappe.set_user(outsider)
-		try:
-			with self.assertRaises(frappe.PermissionError):
-				get_my_day(user=dev)
-		finally:
-			frappe.set_user("Administrator")
-
-	def test_get_developer_backlog_includes_open_tasks_regardless_of_planned_date(self) -> None:
-		dev = self._make_user("dev-backlog-owner@example.test", ["Dev Team"])
-		project = self._make_project()
-
-		task = frappe.get_doc(
-			{
-				"doctype": "Task",
-				"subject": "Not planned for today, still open",
-				"project": project,
-				"status": "Open",
-			}
-		)
-		task.flags.ignore_recursion_check = True
-		task.insert(ignore_permissions=True)
-		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
-
-		done_task = frappe.get_doc(
-			{"doctype": "Task", "subject": "Already done", "project": project, "status": "Completed"}
-		)
-		done_task.flags.ignore_recursion_check = True
-		done_task.insert(ignore_permissions=True)
-		add_assignment({"doctype": "Task", "name": done_task.name, "assign_to": [dev]})
-
-		frappe.set_user(dev)
-		try:
-			backlog = get_developer_backlog()
-		finally:
-			frappe.set_user("Administrator")
-
-		names = [t["name"] for t in backlog]
-		self.assertIn(task.name, names)
-		self.assertNotIn(done_task.name, names)
-
-	def test_get_developer_backlog_denies_viewing_another_users_backlog(self) -> None:
-		dev = self._make_user("dev-backlog-viewee@example.test", ["Dev Team"])
-		outsider = self._make_user("outsider-backlog@example.test", [])
-
-		frappe.set_user(outsider)
-		try:
-			with self.assertRaises(frappe.PermissionError):
-				get_developer_backlog(user=dev)
-		finally:
-			frappe.set_user("Administrator")
-
 	def test_get_customer_workload_permits_a_requester_of_that_project(self) -> None:
 		dev = self._make_user("dev-customer-workload@example.test", ["Dev Team", "Projects User"])
 		project = self._make_project()
 
 		frappe.set_user(dev)
-		create_request(title="Customer workload test", request_type="Bug", project=project)
+		create_request(title="Customer workload test", request_type="Bug", project=project, tags=["Bug"])
 
 		task = frappe.get_doc(
 			{"doctype": "Task", "subject": "Active work for the customer", "project": project}
@@ -321,10 +239,39 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_get_assignable_users_lists_dev_team(self) -> None:
+	def test_get_assignable_users_lists_everyone_not_just_dev_team(self) -> None:
+		"""The regression this guards: the list used to be Has Role/"Dev Team" only, which on
+		a bench that grants Dev Team through a Role Profile returned nobody at all, and on
+		staging returned 20 of 441 while omitting two people who already held open tasks."""
 		dev = self._make_user("queue-dev@example.test", ["Dev Team"])
+		# "Employee", not [] - a user with no desk-access role is typed Website User by
+		# frappe, and those are excluded on purpose. The point here is "not Dev Team".
+		plain = self._make_user("queue-nodevrole@example.test", ["Employee"])
 		frappe.set_user("Administrator")
-		self.assertIn(dev, [row["name"] for row in get_assignable_users()])
+		names = [row["name"] for row in get_assignable_users()]
+		self.assertIn(dev, names)
+		self.assertIn(plain, names)
+
+	def test_get_assignable_users_excludes_built_ins_and_disabled_people(self) -> None:
+		off = self._make_user("queue-disabled@example.test", [])
+		frappe.db.set_value("User", off, "enabled", 0)
+		frappe.set_user("Administrator")
+		names = [row["name"] for row in get_assignable_users()]
+		self.assertNotIn("Administrator", names)
+		self.assertNotIn("Guest", names)
+		self.assertNotIn(off, names)
+		frappe.db.set_value("User", off, "enabled", 1)
+
+	def test_get_assignable_users_searches_name_and_email(self) -> None:
+		"""What the link control sends on every keystroke - a hit on either half counts, so
+		someone whose full name shares nothing with their address is still reachable."""
+		user = self._make_user("queue-searchme@example.test", ["Employee"])
+		frappe.db.set_value("User", user, {"first_name": "Zamira", "full_name": "Zamira Quarry"})
+		frappe.set_user("Administrator")
+		self.assertIn(user, [r["name"] for r in get_assignable_users(txt="zamira")])
+		self.assertIn(user, [r["name"] for r in get_assignable_users(txt="searchme")])
+		self.assertEqual(get_assignable_users(txt="nobodyhasthisstring"), [])
+		self.assertLessEqual(len(get_assignable_users(limit=2)), 2)
 
 	def test_accept_request_schedules_it_and_assigns_the_task(self) -> None:
 		dev = self._make_user("queue-owner@example.test", ["Dev Team"])
@@ -334,7 +281,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 			{"doctype": "Request", "title": "Needs doing", "request_type": "Feature"}
 		).insert(ignore_permissions=True)
 
-		result = accept_request(request.name, project=project, priority="High", assign_to=dev)
+		result = accept_request(
+			request.name, project=project, priority="High", complete_by=today(), assign_to=dev
+		)
 
 		self.assertEqual(result["workflow_state"], "Scheduled")
 		self.assertTrue(result["task"])
@@ -345,12 +294,84 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		)
 		self.assertIn(dev, owners)
 
+	def test_parse_users_reads_every_shape_the_pickers_send(self) -> None:
+		self.assertEqual(parse_users(None), [])
+		self.assertEqual(parse_users(""), [])
+		self.assertEqual(parse_users("a@x.test"), ["a@x.test"])
+		# the widget's hidden input
+		self.assertEqual(parse_users(" a@x.test , b@x.test ,"), ["a@x.test", "b@x.test"])
+		# frappe.xcall serialising a JS array
+		self.assertEqual(parse_users('["a@x.test","b@x.test"]'), ["a@x.test", "b@x.test"])
+		# order kept, duplicates dropped
+		self.assertEqual(parse_users(["b@x.test", "a@x.test", "b@x.test"]), ["b@x.test", "a@x.test"])
+
+	def test_accept_request_assigns_every_person_named(self) -> None:
+		one = self._make_user("queue-pair-1@example.test", ["Dev Team"])
+		two = self._make_user("queue-pair-2@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user("Administrator")
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "Needs two people", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+
+		result = accept_request(
+			request.name,
+			project=project,
+			priority="High",
+			complete_by=today(),
+			assign_to=f"{one},{two}",
+		)
+
+		self.assertEqual(result["assigned_to"], [one, two])
+		owners = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Task", "reference_name": result["task"], "status": "Open"},
+			pluck="allocated_to",
+		)
+		self.assertCountEqual(owners, [one, two])
+
+	def test_reassign_task_closes_out_only_the_people_dropped(self) -> None:
+		one = self._make_user("reassign-1@example.test", ["Dev Team"])
+		two = self._make_user("reassign-2@example.test", ["Dev Team"])
+		three = self._make_user("reassign-3@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user("Administrator")
+		request = frappe.get_doc(
+			{"doctype": "Request", "title": "Hand it around", "request_type": "Feature"}
+		).insert(ignore_permissions=True)
+		accepted = accept_request(
+			request.name,
+			project=project,
+			priority="High",
+			complete_by=today(),
+			assign_to=[one, two],
+		)
+		task = accepted["task"]
+
+		# one stays (keeps its ToDo), two goes, three arrives
+		result = reassign_task(task, assign_to=[one, three])
+
+		self.assertEqual(result["assigned_to"], [one, three])
+		open_owners = frappe.get_all(
+			"ToDo",
+			filters={"reference_type": "Task", "reference_name": task, "status": "Open"},
+			pluck="allocated_to",
+		)
+		self.assertCountEqual(open_owners, [one, three])
+		self.assertCountEqual(json.loads(frappe.db.get_value("Task", task, "_assign") or "[]"), [one, three])
+
+	def test_reassign_task_refuses_an_empty_list(self) -> None:
+		self._make_user("reassign-none@example.test", ["Dev Team"])
+		frappe.set_user("Administrator")
+		with self.assertRaises(frappe.ValidationError):
+			reassign_task("SOME-TASK", assign_to="")
+
 	def test_accept_request_refuses_without_a_project(self) -> None:
 		request = frappe.get_doc(
 			{"doctype": "Request", "title": "No project", "request_type": "Feature"}
 		).insert(ignore_permissions=True)
 		with self.assertRaises(frappe.ValidationError):
-			accept_request(request.name, project="", priority="High")
+			accept_request(request.name, project="", priority="High", complete_by=today())
 
 	def test_accept_request_denies_a_non_reviewer(self) -> None:
 		request = frappe.get_doc(
@@ -360,6 +381,57 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		frappe.set_user(outsider)
 		try:
 			with self.assertRaises(frappe.PermissionError):
-				accept_request(request.name, project="X", priority="High")
+				accept_request(request.name, project="X", priority="High", complete_by=today())
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_create_requests_bulk_creates_one_request_per_title(self) -> None:
+		dev = self._make_user("dev-bulk-notes@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			result = create_requests_bulk(["fix-login", "dark-mode", "typo-fix"])
+		finally:
+			frappe.set_user("Administrator")
+
+		self.assertEqual(len(result["created"]), 3)
+		self.assertEqual(result["failed"], [])
+		titles = frappe.get_all("Request", filters={"name": ["in", result["created"]]}, pluck="title")
+		self.assertEqual(sorted(titles), ["dark-mode", "fix-login", "typo-fix"])
+		for name in result["created"]:
+			doc = frappe.get_doc("Request", name)
+			self.assertEqual(doc.request_type, "Note")
+			self.assertEqual(doc.source, "Mobile App")
+
+	def test_create_requests_bulk_skips_blank_titles(self) -> None:
+		dev = self._make_user("dev-bulk-blank@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			result = create_requests_bulk(["real-title", "   ", ""])
+		finally:
+			frappe.set_user("Administrator")
+
+		self.assertEqual(len(result["created"]), 1)
+		self.assertEqual(result["failed"], [])
+
+	def test_create_requests_bulk_reports_a_failed_title_without_losing_the_others(self) -> None:
+		dev = self._make_user("dev-bulk-partial@example.test", ["Dev Team"])
+		too_long = "x" * 200  # Request.title is a Data field - Frappe rejects values over 140 chars
+		frappe.set_user(dev)
+		try:
+			result = create_requests_bulk(["good-title", too_long])
+		finally:
+			frappe.set_user("Administrator")
+
+		self.assertEqual(len(result["created"]), 1)
+		self.assertEqual(len(result["failed"]), 1)
+		self.assertEqual(result["failed"][0]["title"], too_long)
+		self.assertEqual(frappe.db.get_value("Request", result["created"][0], "title"), "good-title")
+
+	def test_create_requests_bulk_denies_non_dev_team_caller(self) -> None:
+		outsider = self._make_user("outsider-bulk@example.test", [])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				create_requests_bulk(["anything"])
 		finally:
 			frappe.set_user("Administrator")

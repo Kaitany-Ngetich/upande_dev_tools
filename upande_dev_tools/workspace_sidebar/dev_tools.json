@@ -73,15 +73,15 @@
   {
    "child": 1,
    "collapsible": 1,
-   "icon": "today",
+   "icon": "list-alt",
    "indent": 0,
    "keep_closed": 0,
-   "label": "My Day",
+   "label": "My Backlog",
    "link_type": "URL",
    "open_in_new_tab": 1,
    "show_arrow": 0,
    "type": "Link",
-   "url": "/my-day"
+   "url": "/my-backlog"
   },
   {
    "child": 1,
@@ -219,19 +219,6 @@
    "keep_closed": 0,
    "label": "Request Type",
    "link_to": "Request Type",
-   "link_type": "DocType",
-   "open_in_new_tab": 0,
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 1,
-   "collapsible": 1,
-   "icon": "assign",
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "Request Tag",
-   "link_to": "Request Tag",
    "link_type": "DocType",
    "open_in_new_tab": 0,
    "show_arrow": 0,

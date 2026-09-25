@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class RequestTag(Document):
+class WorkTag(Document):
 	pass

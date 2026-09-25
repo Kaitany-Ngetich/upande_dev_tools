@@ -64,20 +64,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - uses: actions/setup-node@v4
-        if: github.event_name == 'pull_request'
-        with:
-          node-version: 24
-          check-latest: true
-
-      - name: Check PR title
-        if: github.event_name == 'pull_request'
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          npm install @commitlint/cli @commitlint/config-conventional
-          echo "$PR_TITLE" | npx commitlint --verbose
-
       - name: Write message filter
         if: github.event_name == 'pull_request'
         run: |
@@ -157,6 +143,21 @@ jobs:
           echo "::notice::Branch $BRANCH rewritten. Anyone with it checked out must run: git fetch origin && git reset --hard origin/$BRANCH"
 
       # ---- push to main ----
+
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request'
+        with:
+          node-version: 24
+          check-latest: true
+
+      - name: Check PR title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          npm install --no-save --no-package-lock @commitlint/cli @commitlint/config-conventional
+          echo "$PR_TITLE" | npx commitlint --verbose
+
       - uses: actions/checkout@v4
         if: github.event_name == 'push'
         with:

@@ -39,7 +39,11 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 				"project": project,
 				**kwargs,
 			}
-		).insert(ignore_permissions=True)
+		)
+		# Same pypika/recursive-CTE incompatibility worked around in Request.on_update() and
+		# board.py's set_stage/set_field - this bench's pypika can't run the recursion check.
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
 		return task.name
 
 	def _issue(self, project: str, **kwargs) -> str:

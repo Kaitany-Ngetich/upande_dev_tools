@@ -12,7 +12,11 @@ try {
 	process.exit(0);
 }
 
-const SOURCE = path.join(__dirname, "../../public/js/backlog-board.js");
+// The same set backlog-board.html loads, in the same order - the board calls into
+// toast/modal/user-link, so loading it alone lets a missing dependency pass as green.
+const SOURCES = ["toast", "tag-picker", "modal", "user-link", "date-field", "backlog-board"].map(
+	(n) => path.join(__dirname, `../../public/js/${n}.js`)
+);
 const STYLES = path.join(__dirname, "../../public/css/dev-portal.css");
 
 // jsdom does not cascade, so a class defined twice with incompatible layout
@@ -75,6 +79,7 @@ const ITEMS = [
 		end: "2026-09-19",
 		movable: true,
 		assignees: ["Teddy Kaitany"],
+		assignee_ids: ["teddy@example.com"],
 		late: false,
 	},
 	{
@@ -91,6 +96,7 @@ const ITEMS = [
 		end: "2026-09-02",
 		movable: true,
 		assignees: [],
+		assignee_ids: [],
 		late: true,
 	},
 	{
@@ -107,6 +113,7 @@ const ITEMS = [
 		end: "",
 		movable: false,
 		assignees: ["Jane Doe", "Sam Otieno"],
+		assignee_ids: ["jane@example.com", "sam@example.com"],
 		late: false,
 	},
 	{
@@ -123,6 +130,7 @@ const ITEMS = [
 		end: "2026-10-09",
 		movable: true,
 		assignees: ["Teddy Kaitany"],
+		assignee_ids: ["teddy@example.com"],
 		late: false,
 	},
 ];
@@ -140,9 +148,11 @@ function boot() {
 
 	// The page loads this file before frappe-web.bundle.js, so nothing may touch
 	// `frappe` at load time.
-	vm.runInContext(fs.readFileSync(SOURCE, "utf8"), dom.getInternalVMContext(), {
-		filename: SOURCE,
-	});
+	for (const src of SOURCES) {
+		vm.runInContext(fs.readFileSync(src, "utf8"), dom.getInternalVMContext(), {
+			filename: src,
+		});
+	}
 	assert.ok(
 		window.upande_dev_tools && window.upande_dev_tools.BacklogBoard,
 		"board must define itself without frappe on the page yet"
@@ -155,6 +165,13 @@ function boot() {
 			calls.push({ method, args });
 			if (method.endsWith("get_modules"))
 				return Promise.resolve(["Coffee", "QC", "Sales", "Stores"]);
+			// Deliberately two people with the SAME display name: the sheet has to keep
+			// them apart by email, which is the whole point of the {id, name} source.
+			if (method.endsWith("get_assignable_users"))
+				return Promise.resolve([
+					{ name: "dev@example.com", full_name: "Dev One" },
+					{ name: "other@example.com", full_name: "Dev One" },
+				]);
 			if (method.endsWith("get_board"))
 				return Promise.resolve({
 					items: ITEMS,
@@ -347,8 +364,29 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 		.filter((i) => i !== null && i > 0);
 	assert.strictEqual(
 		editable.join(),
-		"2,3,5,6,7",
-		"stage, priority, module, due and start take an edit"
+		"2,3,4,5,6,7,8",
+		"stage, priority, assignee, module, due, start and status take an edit"
+	);
+	// Two people on this bench share a display name, so the cell has to round-trip the
+	// email - a bare list of labels would assign whichever duplicate sorts first.
+	const assignee_col = sheet.config.columns[4];
+	assert.ok(
+		assignee_col.autocomplete,
+		"the assignee dropdown is type-to-search, not a 440-row scroll"
+	);
+	// Field-by-field, not deepStrictEqual: these objects are built inside the jsdom realm,
+	// so their prototype is not this one's and a strict deep compare always fails.
+	assert.strictEqual(assignee_col.source[0].id, "dev@example.com", "option id is the email");
+	assert.strictEqual(assignee_col.source[0].name, "Dev One", "option label is the display name");
+	assert.strictEqual(
+		assignee_col.source.length,
+		2,
+		"two people sharing a display name stay two separate options"
+	);
+	assert.strictEqual(
+		sheet.config.data[0][4],
+		"teddy@example.com",
+		"the assignee cell holds the email, not the rendered name"
 	);
 	assert.strictEqual(
 		sheet.config.columns[2].source.join(),

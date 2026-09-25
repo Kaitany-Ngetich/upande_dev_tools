@@ -4,7 +4,7 @@
   "description": "Development tools",
   "main": "index.js",
   "scripts": {
-    "test": "node upande_dev_tools/tests/js/test_backlog_board.js && node upande_dev_tools/tests/js/test_review_queue.js"
+    "test": "node upande_dev_tools/tests/js/test_user_link.js && node upande_dev_tools/tests/js/test_backlog_board.js && node upande_dev_tools/tests/js/test_review_queue.js"
   },
   "keywords": [],
   "author": "Upande LTD <dev@upande.com>",

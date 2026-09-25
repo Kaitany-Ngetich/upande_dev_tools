@@ -1,9 +1,14 @@
 {
  "app": "upande_dev_tools",
  "charts": [],
- "content": "[{\"id\":\"1KzzpMLKXj\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Dashboard</b></span>\",\"col\":12}},{\"id\":\"35bltqrEUL\",\"type\":\"paragraph\",\"data\":{\"text\":\"Developer Tools\",\"col\":12}},{\"id\":\"C-rb4vY5re\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Backup Snapshots\",\"col\":3}},{\"id\":\"0b_zJLbNPB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Version Check\",\"col\":3}},{\"id\":\"DBAoTswlzI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Code Backup Settings\",\"col\":3}},{\"id\":\"reqSectionHd\",\"type\":\"paragraph\",\"data\":{\"text\":\"Requests\",\"col\":12}},{\"id\":\"reqShortcut1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Requests\",\"col\":3}},{\"id\":\"reqShortcut2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Review Queue\",\"col\":3}},{\"id\":\"depSectionHd\",\"type\":\"paragraph\",\"data\":{\"text\":\"Deployments\",\"col\":12}},{\"id\":\"depShortcut1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Deployment Requests\",\"col\":3}},{\"id\":\"depShortcut2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Open Queue\",\"col\":3}},{\"id\":\"depShortcut3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Instances\",\"col\":3}},{\"id\":\"depShortcut4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Apps\",\"col\":3}}]",
+ "content": "[{\"id\": \"dtn_block_1\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Dev Tools Navigation\", \"col\": 12}}]",
  "creation": "2026-06-25 16:40:25.944780",
- "custom_blocks": [],
+ "custom_blocks": [
+  {
+   "custom_block_name": "Dev Tools Navigation",
+   "label": "Dev Tools Navigation"
+  }
+ ],
  "docstatus": 0,
  "doctype": "Workspace",
  "hide_custom": 0,
@@ -13,7 +18,7 @@
  "label": "Dev Tools",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-09-14 12:00:00.000000",
+ "modified": "2026-09-17 12:36:31.286380",
  "modified_by": "Administrator",
  "module": "Upande Dev Tools",
  "name": "Dev Tools",

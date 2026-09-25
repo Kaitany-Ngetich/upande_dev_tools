@@ -6,6 +6,8 @@
  {"docstatus": 0, "doctype": "Workflow State", "icon": "calendar", "modified": "2026-09-13 00:00:00.000000", "name": "Scheduled", "style": "Info", "workflow_state_name": "Scheduled"},
  {"docstatus": 0, "doctype": "Workflow State", "icon": "cog", "modified": "2026-09-13 00:00:00.000000", "name": "In Progress", "style": "Primary", "workflow_state_name": "In Progress"},
  {"docstatus": 0, "doctype": "Workflow State", "icon": "ok-circle", "modified": "2026-09-13 00:00:00.000000", "name": "Completed", "style": "Success", "workflow_state_name": "Completed"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "ban-circle", "modified": "2026-09-16 00:00:00.000000", "name": "Withdrawn", "style": "Inverse", "workflow_state_name": "Withdrawn"},
+ {"docstatus": 0, "doctype": "Workflow State", "icon": "lock", "modified": "2026-09-16 00:00:00.000000", "name": "Closed", "style": "Success", "workflow_state_name": "Closed"},
  {"docstatus": 0, "doctype": "Workflow State", "icon": "inbox", "modified": "2026-09-13 00:00:00.000000", "name": "Requested", "style": "Warning", "workflow_state_name": "Requested"},
  {"docstatus": 0, "doctype": "Workflow State", "icon": "upload", "modified": "2026-09-13 00:00:00.000000", "name": "Deployed", "style": "Success", "workflow_state_name": "Deployed"},
  {"docstatus": 0, "doctype": "Workflow State", "icon": "remove-circle", "modified": "2026-09-13 00:00:00.000000", "name": "Failed", "style": "Danger", "workflow_state_name": "Failed"}

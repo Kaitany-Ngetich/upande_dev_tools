@@ -7,7 +7,10 @@
 {% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
 {% call dpx_shell() %}
 <div id="udt-review-queue"></div>
+<script src="/assets/upande_dev_tools/js/toast.js?v={{ asset_version('js/toast.js') }}"></script>
 <script src="/assets/upande_dev_tools/js/work-preview.js?v={{ asset_version('js/work-preview.js') }}"></script>
+<script src="/assets/upande_dev_tools/js/user-link.js?v={{ asset_version('js/user-link.js') }}"></script>
+<script src="/assets/upande_dev_tools/js/date-field.js?v={{ asset_version('js/date-field.js') }}"></script>
 <script src="/assets/upande_dev_tools/js/review-queue.js?v={{ asset_version('js/review-queue.js') }}"></script>
 <script>
 frappe.ready(function() {

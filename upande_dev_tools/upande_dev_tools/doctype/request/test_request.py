@@ -6,7 +6,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 EXTRA_TEST_RECORD_DEPENDENCIES = []
-IGNORE_TEST_RECORD_DEPENDENCIES = ["Project", "Task", "User", "Employee", "Contact"]
+IGNORE_TEST_RECORD_DEPENDENCIES = ["Project", "Task", "User", "Employee"]
 
 
 class IntegrationTestRequest(IntegrationTestCase):
@@ -80,7 +80,7 @@ class IntegrationTestRequest(IntegrationTestCase):
 			.name
 		)
 
-	def test_raised_by_user_defaults_to_session_user(self) -> None:
+	def test_owner_defaults_to_session_user(self) -> None:
 		if not frappe.db.exists("User", "dev-note@example.test"):
 			frappe.get_doc(
 				{
@@ -97,7 +97,7 @@ class IntegrationTestRequest(IntegrationTestCase):
 			doc = frappe.get_doc(
 				{"doctype": "Request", "title": "Quick note", "request_type": "Note"}
 			).insert(ignore_permissions=True)
-			self.assertEqual(doc.raised_by_user, "dev-note@example.test")
+			self.assertEqual(doc.owner, "dev-note@example.test")
 		finally:
 			frappe.set_user("Administrator")
 
