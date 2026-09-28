@@ -964,3 +964,8 @@ body:has(.dpx) .datepicker.active{z-index:2147483550!important}
 /* frappe's Date control ships a tooltip span holding the fieldname, which this portal's
    type scale renders as a visible second label under every date field. */
 .dpx .udt-date .tooltip-content{display:none}
+/* Cell contents are decorative - chips, an avatar, a priority dot. jspreadsheet reads
+   data-x/data-y off the event target itself rather than walking up to the cell, so a
+   span in the way meant a drag across a range never registered as crossing any cell:
+   no range selection, no fill handle, no paste over more than one row. */
+.dpx .dpx-bb-sheet table.jexcel > tbody > tr > td .cellwrap{pointer-events:none}

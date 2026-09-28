@@ -5,11 +5,13 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
 from upande_dev_tools.api.board import (
+	BULK_LIMIT,
 	STAGES,
 	get_board,
 	get_editable,
 	get_modules,
 	get_preview,
+	bulk_update,
 	set_field,
 	set_stage,
 	update_work,
@@ -412,3 +414,97 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 				update_work("Task", task, {"title": "Not yours"})
 		finally:
 			frappe.set_user("Administrator")
+
+	def test_bulk_update_fills_a_column_in_one_call(self) -> None:
+		project = self._project()
+		tasks = [self._task(project, subject=f"Bulk {i}") for i in range(3)]
+
+		result = bulk_update(
+			[{"doctype": "Task", "name": name, "values": {"priority": "High"}} for name in tasks]
+		)
+
+		self.assertEqual(sorted(result["saved"]), sorted(tasks))
+		self.assertEqual(result["failed"], [])
+		for name in tasks:
+			self.assertEqual(frappe.db.get_value("Task", name, "priority"), "High")
+
+	def test_bulk_update_carries_several_fields_per_row(self) -> None:
+		task = self._task(self._project())
+		bulk_update(
+			[
+				{
+					"doctype": "Task",
+					"name": task,
+					"values": {"priority": "Low", "stage": "In Progress", "title": "Two cells"},
+				}
+			]
+		)
+		row = frappe.db.get_value("Task", task, ["priority", "status", "subject"], as_dict=True)
+		self.assertEqual(row.priority, "Low")
+		self.assertEqual(row.status, "Working")
+		self.assertEqual(row.subject, "Two cells")
+
+	def test_one_bad_row_does_not_undo_the_others(self) -> None:
+		"""A paste over twenty rows should not be thrown away by the one among them that
+		cannot take the value - each row stands or falls on its own savepoint."""
+		project = self._project()
+		good, other = self._task(project, subject="Keeps"), self._task(project, subject="Also keeps")
+
+		result = bulk_update(
+			[
+				{"doctype": "Task", "name": good, "values": {"priority": "High"}},
+				{"doctype": "Task", "name": "TASK-DOES-NOT-EXIST", "values": {"priority": "High"}},
+				{"doctype": "Task", "name": other, "values": {"priority": "High"}},
+			]
+		)
+
+		self.assertEqual(sorted(result["saved"]), sorted([good, other]))
+		self.assertEqual([f["name"] for f in result["failed"]], ["TASK-DOES-NOT-EXIST"])
+		self.assertTrue(result["failed"][0]["error"])
+		self.assertEqual(frappe.db.get_value("Task", good, "priority"), "High")
+		self.assertEqual(frappe.db.get_value("Task", other, "priority"), "High")
+
+	def test_bulk_update_names_the_row_that_refused(self) -> None:
+		project = self._project()
+		task = self._task(project)
+		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
+			ignore_permissions=True
+		)
+
+		result = bulk_update(
+			[
+				{"doctype": "Task", "name": task, "values": {"priority": "Low"}},
+				{"doctype": "Request", "name": request.name, "values": {"priority": "Low"}},
+			]
+		)
+		self.assertEqual(result["saved"], [task])
+		self.assertEqual([f["name"] for f in result["failed"]], [request.name])
+
+	def test_bulk_update_refuses_more_rows_than_anyone_meant_to_touch(self) -> None:
+		task = self._task(self._project())
+		with self.assertRaises(frappe.ValidationError):
+			bulk_update(
+				[{"doctype": "Task", "name": task, "values": {"priority": "Low"}}] * (BULK_LIMIT + 1)
+			)
+
+	def test_bulk_update_denies_users_without_a_board_role(self) -> None:
+		task = self._task(self._project())
+		outsider = self._user("board-bulk@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				bulk_update([{"doctype": "Task", "name": task, "values": {"priority": "Low"}}])
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_update_work_writes_a_raw_status(self) -> None:
+		"""The sheet has a Status column as well as a Stage one - it is the finer of the
+		two, so it has to be writable on its own."""
+		task = self._task(self._project())
+		update_work("Task", task, {"status": "Pending Review"})
+		self.assertEqual(frappe.db.get_value("Task", task, "status"), "Pending Review")
+
+	def test_a_status_that_finishes_the_work_is_stamped_too(self) -> None:
+		task = self._task(self._project())
+		update_work("Task", task, {"status": "Completed"})
+		self.assertEqual(str(frappe.db.get_value("Task", task, "completed_on")), today())

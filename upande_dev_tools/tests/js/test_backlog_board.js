@@ -203,6 +203,11 @@ function boot(kept) {
 					tags: ["backend"],
 					assignees: ["teddy@example.com"],
 				});
+			if (method.endsWith("bulk_update"))
+				return Promise.resolve({
+					saved: ((args || {}).changes || []).map((c) => c.name),
+					failed: [],
+				});
 			if (method.endsWith("get_board"))
 				return Promise.resolve({
 					items: ITEMS,
@@ -552,20 +557,65 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	assert.strictEqual(moved[0].args.value, "2026-09-11", "start shifts by the days dragged");
 	assert.strictEqual(moved[1].args.value, "2026-09-23", "and so does due, by the same amount");
 
-	// ── Editing a sheet cell saves (mutates state, so it runs last) ──
+	// ── Editing sheet cells saves (mutates state, so it runs last) ──
 	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
 	await new Promise((r) => setTimeout(r, 30));
 	const cfg = window.__sheet.config;
 	const row = cfg.data.findIndex((r) => r[0] === "Task:TASK-04");
+	const bulks = () => calls.filter((c) => c.method.endsWith("bulk_update"));
+
 	cfg.onchange(null, null, 3, row, "Low");
-	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_field");
-	assert.strictEqual(calls[calls.length - 1].args.field, "priority");
-	assert.strictEqual(calls[calls.length - 1].args.value, "Low");
+	assert.strictEqual(bulks().length, 0, "nothing goes out on the keystroke itself");
+	await settle();
+	assert.strictEqual(bulks().length, 1, "one call, not one per cell");
+	assert.deepStrictEqual(
+		JSON.parse(JSON.stringify(bulks()[0].args.changes)),
+		[{ doctype: "Task", name: "TASK-04", values: { priority: "Low" } }]
+	);
 
 	// an unchanged value must not fire a save
 	const before = calls.length;
 	cfg.onchange(null, null, 2, row, cfg.data[row][2]);
+	await settle();
 	assert.strictEqual(calls.length, before, "re-entering the same value saves nothing");
+
+	// ── A fill or a paste: onchange once per cell, one request for the lot ──
+	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
+	await new Promise((r) => setTimeout(r, 30));
+	const sheet2 = window.__sheet.config;
+	const at = (id) => sheet2.data.findIndex((r) => r[0] === id);
+	calls.length = 0;
+	// Two tasks and one issue get a new priority, and one of them a new stage too.
+	// Each value differs from what that row already holds - an unchanged cell is
+	// deliberately dropped, which is asserted just above.
+	sheet2.onchange(null, null, 3, at("Task:TASK-01"), "Medium");
+	sheet2.onchange(null, null, 3, at("Issue:ISS-02"), "High");
+	sheet2.onchange(null, null, 3, at("Task:TASK-04"), "Urgent");
+	sheet2.onchange(null, null, 2, at("Task:TASK-04"), "Blocked");
+	await settle();
+
+	const filled = bulks();
+	assert.strictEqual(filled.length, 1, "a filled column is one request, not four");
+	const sent = JSON.parse(JSON.stringify(filled[0].args.changes));
+	assert.strictEqual(sent.length, 3, "one entry per row, however many cells it touched");
+	const task04 = sent.find((c) => c.name === "TASK-04");
+	assert.deepStrictEqual(
+		task04.values,
+		{ priority: "Urgent", stage: "Blocked" },
+		"two cells on the same row travel together"
+	);
+	assert.ok(
+		sent.some((c) => c.doctype === "Issue"),
+		"issues fill alongside tasks"
+	);
+
+	// A workflow-governed request refuses the cell before it is ever queued.
+	calls.length = 0;
+	const req = at("Request:REQ-03");
+	assert.strictEqual(sheet2.onbeforechange(null, null, 3, req, "Medium"), false);
+	sheet2.onchange(null, null, 3, req, "Medium");
+	await settle();
+	assert.strictEqual(bulks().length, 0, "a request is never in the batch");
 
 	// ── One edit dialog, reachable from every view ──
 	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");
