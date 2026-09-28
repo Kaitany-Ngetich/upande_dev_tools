@@ -443,7 +443,11 @@ body:has(.dpx) .datepicker.active{z-index:2147483550!important}
 .dpx .dpx-bb-sheet thead td.filtered .dpx-bb-funnel::after{background:var(--bb-accent)}
 
 /* ── Floating menus (jsuites) ── */
-.dpx-menu-skin .jdropdown-default .jdropdown-container,.dpx-menu-skin .jcalendar-container{border:0;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(10,10,10,.08),0 10px 30px -10px rgba(10,10,10,.3);overflow:hidden;font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.dpx-menu-skin .jdropdown-default .jdropdown-container{border:0;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(10,10,10,.08),0 10px 30px -10px rgba(10,10,10,.3);overflow:hidden;font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+/* NOT .jcalendar-container: that wrapper is zero-height, because the panel inside it is
+   absolutely positioned - so an overflow:hidden meant for the dropdown clipped the whole
+   calendar away. The panel itself is what carries the chrome. */
+.dpx-menu-skin .jcalendar-content{border:0;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(10,10,10,.08),0 10px 30px -10px rgba(10,10,10,.3);font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
 .dpx-menu-skin .jdropdown-container-header{padding:5px}
 .dpx-menu-skin .jdropdown-header{border:1px solid #eceae4!important;border-radius:6px!important;height:27px!important;font:500 11px ui-sans-serif,sans-serif!important;padding:0 8px!important}
 .dpx-menu-skin .jdropdown-content{padding:4px;max-height:250px}
@@ -451,10 +455,32 @@ body:has(.dpx) .datepicker.active{z-index:2147483550!important}
 .dpx-menu-skin .jdropdown-item:hover,.dpx-menu-skin .jdropdown-cursor{background:rgba(10,10,10,.05)}
 .dpx-menu-skin .jdropdown-item.jdropdown-selected{background:rgba(0,133,115,.1);color:#0a0a0a;font-weight:600}
 .dpx-menu-skin .jdropdown-item .jdropdown-image,.dpx-menu-skin .jdropdown-icon{display:none}
-.dpx-menu-skin .jcalendar-content{padding:7px}
+.dpx-menu-skin .jcalendar-content{padding:8px;min-width:238px}
 .dpx-menu-skin .jcalendar-header,.dpx-menu-skin .jcalendar-controls{border:0;background:transparent}
-.dpx-menu-skin .jcalendar-table td{border-radius:5px;font:500 10.5px ui-sans-serif,sans-serif}
-.dpx-menu-skin .jcalendar-selected{background:#008573!important;color:#fff!important;border-radius:5px}
+.dpx-menu-skin .jcalendar-header{padding:2px 2px 5px}
+.dpx-menu-skin .jcalendar-month,.dpx-menu-skin .jcalendar-year{font:600 11.5px ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;color:#2a2a26}
+.dpx-menu-skin .jcalendar-prev,.dpx-menu-skin .jcalendar-next{width:24px;height:24px;border-radius:6px;background-size:13px}
+.dpx-menu-skin .jcalendar-prev:hover,.dpx-menu-skin .jcalendar-next:hover{background-color:rgba(10,10,10,.06)}
+.dpx-menu-skin .jcalendar-table{padding:0}
+.dpx-menu-skin .jcalendar-weekday{font:600 8.5px ui-sans-serif,sans-serif;letter-spacing:.7px;text-transform:uppercase;color:#8b8880;background:transparent;padding:4px 0}
+.dpx-menu-skin .jcalendar-table thead td{height:auto;padding:4px 0}
+.dpx-menu-skin .jcalendar-table > table > tbody > tr{height:28px;border:0}
+.dpx-menu-skin .jcalendar-table > table > tbody td{padding:0}
+.dpx-menu-skin .jcalendar-table td{height:26px;border-radius:6px;font:500 10.5px ui-sans-serif,sans-serif;color:#2a2a26;border:0}
+/* The empty strip under the last week. jsuites lays out six week rows so the panel
+   keeps its height as you page through months - worth keeping - but it draws a
+   seventh that is never used, and a trailing controls row holding only the hidden
+   time picker and the hidden Update button. */
+.dpx-menu-skin .jcalendar-table tfoot{display:none}
+.dpx-menu-skin .jcalendar-table > table > tbody > tr:nth-child(n+7){display:none}
+.dpx-menu-skin .jcalendar-content > .jcalendar-controls:last-child{display:none}
+.dpx-menu-skin .jcalendar-set-day:hover{background-color:rgba(10,10,10,.06)}
+.dpx-menu-skin .jcalendar-selected{background:#008573!important;color:#fff!important;border-radius:6px}
+.dpx-menu-skin .jcalendar-reset,.dpx-menu-skin .jcalendar-confirm{font:600 9.5px ui-sans-serif,sans-serif;letter-spacing:.6px}
+.dpx-menu-skin .jcalendar-reset{color:#8b8880}
+.dpx-menu-skin .jcalendar-confirm{color:#008573}
+/* The day you click is the answer - jsuites' own Update button asks for it a second time. */
+.dpx-menu-skin .jcalendar-update{display:none}
 .dpx-menu-skin .jcalendar-backdrop,.dpx-menu-skin .jdropdown-backdrop{background:rgba(10,10,10,.1)}
 
 /* ── Buttons ── */

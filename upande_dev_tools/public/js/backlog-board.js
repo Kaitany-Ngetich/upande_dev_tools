@@ -1655,6 +1655,12 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	sheet_changed(x, y, value) {
 		if (this.applying) return;
 
+		// jsuites' calendar hands back "YYYY-MM-DD HH:MM:SS" whatever format it was
+		// given, and a date column here only ever means a day. Left as-is, re-picking
+		// the same date never matched what the row already held and saved every time.
+		const field = SHEET_FIELDS[x];
+		if ((field === "start" || field === "end") && value) value = String(value).slice(0, 10);
+
 		const range = this.bulk;
 		if (range && range.x === x && y >= range.from && y <= range.to) {
 			this.bulk = null;
