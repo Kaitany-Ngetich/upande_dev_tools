@@ -235,9 +235,23 @@ function boot(kept) {
 	window.__ = (v) => v;
 
 	// the sheet is jspreadsheet; record the config rather than loading 770KB of it
+	// Faithful enough that mount_sheet runs to the end: the old stub had no `options`,
+	// so label_filters threw and everything after it - the range chip included - never
+	// ran at all, while the assertions below still passed off the captured config.
 	window.jspreadsheet = (host, config) => {
-		window.__sheet = { host, config };
-		return { destroy() {} };
+		const sheet = {
+			options: config,
+			selectedCell: null,
+			destroy() {},
+			getValueFromCoords: (x, y) => (config.data[y] || [])[x],
+			setValueFromCoords(x, y, v) {
+				if (config.data[y]) config.data[y][x] = v;
+			},
+			getCellFromCoords: () => window.document.createElement("td"),
+			openEditor() {},
+		};
+		window.__sheet = { host, config, sheet };
+		return sheet;
 	};
 	return { window, $, calls };
 }
@@ -608,6 +622,53 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 		sent.some((c) => c.doctype === "Issue"),
 		"issues fill alongside tasks"
 	);
+
+	// ── Select a column of rows, pick once, every row takes it ──
+	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
+	await new Promise((r) => setTimeout(r, 30));
+	const grid = window.__sheet.sheet;
+	const rowOfId = (id) => grid.options.data.findIndex((r) => r[0] === id);
+
+	// Four rows of the Priority column, one of them the workflow-governed request.
+	grid.selectedCell = ["3", "0", "3", "3"];
+	board.show_range();
+	const chip = window.document.querySelector(".dpx-bb-range");
+	assert.ok(chip && !chip.hidden, "a dragged selection offers to set the whole thing");
+	assert.ok(/4 rows/.test(chip.textContent), "it says how many rows");
+	assert.ok(/set priority/i.test(chip.textContent), "and which column");
+
+	calls.length = 0;
+	chip.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+	// Field by field: board.bulk is built inside the jsdom realm, so its prototype is
+	// not this one's and a strict deep compare always fails.
+	assert.strictEqual(board.bulk.x, 3, "the chip arms the range");
+	assert.strictEqual(board.bulk.from, 0);
+	assert.strictEqual(board.bulk.to, 3);
+	// The picker commits on the anchor row; that one value is what fans out.
+	grid.options.onchange(null, null, 3, 0, "Urgent");
+	await settle();
+
+	const ranged = bulks();
+	assert.strictEqual(ranged.length, 1, "one request for the whole selection");
+	const names = JSON.parse(JSON.stringify(ranged[0].args.changes));
+	assert.ok(
+		names.every((c) => c.values.priority === "Urgent"),
+		"every row takes the value that was picked once"
+	);
+	assert.ok(
+		!names.some((c) => c.doctype === "Request"),
+		"the request in the middle of the selection is left alone"
+	);
+	assert.strictEqual(
+		window.document.querySelector(".dpx-bb-range").hidden,
+		true,
+		"and the chip goes once it has been used"
+	);
+
+	// A single cell is not a range, so nothing is offered.
+	grid.selectedCell = ["3", "1", "3", "1"];
+	board.show_range();
+	assert.strictEqual(window.document.querySelector(".dpx-bb-range").hidden, true);
 
 	// A workflow-governed request refuses the cell before it is ever queued.
 	calls.length = 0;

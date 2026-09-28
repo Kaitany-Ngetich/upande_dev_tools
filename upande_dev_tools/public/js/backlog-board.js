@@ -186,6 +186,7 @@ const ICONS = {
 	trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 	more: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+	chevron: '<path d="m6 9 6 6 6-6"/>',
 	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
 };
 
@@ -1304,6 +1305,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	mount_sheet(host, rows) {
+		if (this.drop_range) {
+			this.drop_range();
+			this.drop_range = null;
+			this.range_chip = null;
+		}
 		if (this.sheet) {
 			try {
 				this.sheet.destroy();
@@ -1417,6 +1423,94 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		document.body.classList.add("dpx-menu-skin");
 		this.label_filters(host);
 		this.watch_clicks(host);
+		this.watch_range(host);
+	}
+
+	// Selecting rows and setting them all at once is the thing people actually want from
+	// a grid, and nothing on screen said it was possible. Drag down a column and a chip
+	// appears on the selection naming the column and the count; one click opens the same
+	// picker a single cell uses, and the choice lands on every row.
+	watch_range(host) {
+		const chip = document.createElement("button");
+		chip.type = "button";
+		chip.className = "dpx-bb-range";
+		chip.hidden = true;
+		// Inside .dpx-board, not .dpx: the colour tokens are declared on .dpx-board, so a
+		// chip mounted one level above it renders with no background at all.
+		const home = $(this.wrapper).find(".dpx-board")[0] || document.querySelector(".dpx");
+		(home || document.body).appendChild(chip);
+		this.range_chip = chip;
+
+		// The chip sits outside the grid, so a press on it would reach jspreadsheet's own
+		// document handler and throw the selection away before the picker could open on
+		// it. Swallow the press; act on the click.
+		["pointerdown", "mousedown"].forEach((type) =>
+			chip.addEventListener(type, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+			})
+		);
+
+		chip.addEventListener("click", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const at = this.range_span();
+			if (!at) return;
+			this.bulk = { x: at.x, from: at.from, to: at.to };
+			setTimeout(() => {
+				const cell = this.sheet.getCellFromCoords(at.x, at.from);
+				if (cell) this.sheet.openEditor(cell);
+			}, 0);
+		});
+
+		const refresh = () => this.show_range();
+		host.addEventListener("pointerup", () => setTimeout(refresh, 0));
+		host.addEventListener("keyup", () => setTimeout(refresh, 0));
+		const scroller = host.querySelector(".jexcel_content") || host;
+		scroller.addEventListener("scroll", refresh, { passive: true });
+		this.drop_range = () => {
+			chip.remove();
+			scroller.removeEventListener("scroll", refresh);
+		};
+	}
+
+	// The selection, but only when it is something this board can set in one go: one
+	// column, more than one row, and a column that takes an edit at all.
+	range_span() {
+		const at = this.sheet && this.sheet.selectedCell;
+		if (!at) return null;
+		const x = Number(at[0]);
+		if (Number(at[2]) !== x || !SHEET_FIELDS[x]) return null;
+		const from = Math.min(Number(at[1]), Number(at[3]));
+		const to = Math.max(Number(at[1]), Number(at[3]));
+		return to > from ? { x, from, to } : null;
+	}
+
+	show_range() {
+		const chip = this.range_chip;
+		if (!chip) return;
+		const at = this.range_span();
+		if (!at) return this.clear_range();
+
+		// A row scrolled out of the virtualised range has no cell at all, which is the
+		// case worth hiding for - a rendered one always has a box.
+		const last = this.sheet.getCellFromCoords(at.x, at.to);
+		const box = last && last.getBoundingClientRect();
+		if (!box) return this.clear_range();
+
+		const rows = at.to - at.from + 1;
+		const title = (this.sheet.options.columns[at.x] || {}).title || "";
+		chip.innerHTML = `<b>${rows}</b> ${__("rows")} <span>·</span> ${__("Set")} ${esc(
+			title.toLowerCase()
+		)}${ico("chevron", 11)}`;
+		chip.hidden = false;
+		chip.style.top = `${Math.round(box.bottom + 6)}px`;
+		chip.style.left = `${Math.round(box.left)}px`;
+	}
+
+	clear_range() {
+		this.bulk = null;
+		if (this.range_chip) this.range_chip.hidden = true;
 	}
 
 	// Google Sheets opens a picker on one click; jspreadsheet waits for a second.
@@ -1556,12 +1650,61 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		return value;
 	}
 
+	// One cell arriving from the grid. A picked value that was meant for a whole
+	// selection is expanded here, before anything is queued.
 	sheet_changed(x, y, value) {
+		if (this.applying) return;
+
+		const range = this.bulk;
+		if (range && range.x === x && y >= range.from && y <= range.to) {
+			this.bulk = null;
+			return this.apply_to_range(x, range.from, range.to, value);
+		}
+		this.change_cell(x, y, value);
+	}
+
+	// Pick once, and every row in the selection takes it. Rows that cannot - a Request,
+	// or an unchanged value - are counted and said out loud rather than skipped quietly.
+	apply_to_range(x, from, to, value) {
+		let changed = 0;
+		let locked = 0;
+		this.applying = true;
+		try {
+			for (let y = from; y <= to; y++) {
+				const item = this.row_item(y);
+				if (!item) continue;
+				if (!item.movable) {
+					locked += 1;
+					continue;
+				}
+				// The grid has to show it too, or only the row that was clicked would
+				// look changed until the board reloads.
+				this.sheet.setValueFromCoords(x, y, value, true);
+				if (this.change_cell(x, y, value)) changed += 1;
+			}
+		} finally {
+			this.applying = false;
+		}
+
+		this.clear_range();
+		if (!changed && !locked) return;
+		upande_dev_tools.toast(
+			locked
+				? __("{0} rows changed. {1} left alone - requests move through their own workflow.", [
+						changed,
+						locked,
+				  ])
+				: __("{0} rows changed.", [changed]),
+			locked ? "orange" : "green"
+		);
+	}
+
+	change_cell(x, y, value) {
 		const item = this.row_item(y);
-		if (!item || !item.movable) return;
+		if (!item || !item.movable) return false;
 
 		const field = SHEET_FIELDS[x];
-		if (!field) return;
+		if (!field) return false;
 
 		if ((field === "assignee" || field === "status") && item.doctype !== "Task") {
 			this.render();
@@ -1569,13 +1712,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				__("Only tasks can have their {0} changed here.", [field]),
 				"orange"
 			);
-			return;
+			return false;
 		}
 
 		if (field === "title" && !String(value || "").trim()) {
 			this.render();
 			upande_dev_tools.toast(__("A work item needs a title."), "orange");
-			return;
+			return false;
 		}
 
 		// The assignee cell holds an email, which lives on assignee_ids - not item.assignee,
@@ -1588,20 +1731,21 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				: field === "tags"
 				? (item.tags || []).join(";")
 				: item[field] || "";
-		if (String(value || "") === String(current || "")) return;
+		if (String(value || "") === String(current || "")) return false;
 
 		if (field === "end" && item.start && value && value < item.start) {
 			this.render();
 			upande_dev_tools.toast(__("Due date can't be before the start date."), "orange");
-			return;
+			return false;
 		}
 		if (field === "start" && item.end && value && value > item.end) {
 			this.render();
 			upande_dev_tools.toast(__("Start date can't be after the due date."), "orange");
-			return;
+			return false;
 		}
 
 		this.queue_cell(item, field, value || "");
+		return true;
 	}
 
 	// A fill dragged down a column, or a paste, fires onchange once per cell. Saving each

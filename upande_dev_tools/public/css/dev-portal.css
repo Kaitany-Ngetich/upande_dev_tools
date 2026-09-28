@@ -969,3 +969,12 @@ body:has(.dpx) .datepicker.active{z-index:2147483550!important}
    span in the way meant a drag across a range never registered as crossing any cell:
    no range selection, no fill handle, no paste over more than one row. */
 .dpx .dpx-bb-sheet table.jexcel > tbody > tr > td .cellwrap{pointer-events:none}
+
+/* The chip that turns a dragged selection into one edit. Fixed, because the grid it sits
+   over scrolls in its own box - it repositions with that scroll rather than riding it. */
+.dpx .dpx-bb-range{position:fixed;z-index:60;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px 0 10px;border:1px solid var(--bb-accent);border-radius:7px;background:var(--bb-accent);color:#fff;font:600 10.5px var(--ui);letter-spacing:.1px;cursor:pointer;box-shadow:0 4px 12px rgba(10,10,10,.16);white-space:nowrap}
+.dpx .dpx-bb-range[hidden]{display:none}
+.dpx .dpx-bb-range b{font-weight:700}
+.dpx .dpx-bb-range span{opacity:.6}
+.dpx .dpx-bb-range svg{margin-left:1px;opacity:.85}
+.dpx .dpx-bb-range:hover{filter:brightness(1.08)}
