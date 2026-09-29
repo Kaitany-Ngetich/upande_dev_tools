@@ -504,6 +504,32 @@ def _resolve_people(items: list[dict]) -> None:
 		item["assignees"] = [names.get(email, email) for email in item["assignee_ids"]]
 
 
+def _apply_status(doc, status: str) -> str:
+	"""Puts a doc on a status without saving it. The sheet's Status column writes one of
+	these directly; a stage is just a status this board has a friendlier name for."""
+	if doc.doctype not in STAGE_SETTERS:
+		frappe.throw(_("{0} is moved through its own workflow, not the board.").format(_(doc.doctype)))
+
+	_, fieldname = STAGE_SETTERS[doc.doctype]
+	if status not in frappe.get_meta(doc.doctype).get_field(fieldname).options.split("\n"):
+		frappe.throw(_("{0} has no status {1}.").format(_(doc.doctype), status), frappe.ValidationError)
+
+	doc.set(fieldname, status)
+
+	# Stamp when the work actually finished. Nothing recorded this before, so no
+	# measure of delivery or cycle time could ever be computed from it.
+	stage_map = TASK_STAGE if doc.doctype == "Task" else ISSUE_STAGE
+	if doc.doctype == "Task" and doc.meta.has_field("completed_on"):
+		if stage_map.get(status) == "Done":
+			doc.completed_on = doc.completed_on or nowdate()
+			if doc.meta.has_field("completed_by"):
+				doc.completed_by = doc.completed_by or frappe.session.user
+		else:
+			doc.completed_on = None
+
+	return status
+
+
 def _apply_stage(doc, stage: str) -> str:
 	"""Puts a doc on a stage without saving it, so a stage change can ride along with the
 	rest of an edit in one save instead of needing its own round trip."""
@@ -513,24 +539,8 @@ def _apply_stage(doc, stage: str) -> str:
 	if stage not in STAGES:
 		frappe.throw(_("Unknown stage {0}.").format(stage), frappe.ValidationError)
 
-	status_map, fieldname = STAGE_SETTERS[doc.doctype]
-	status = status_map[stage]
-	if status not in frappe.get_meta(doc.doctype).get_field(fieldname).options.split("\n"):
-		frappe.throw(_("{0} has no status {1}.").format(_(doc.doctype), status), frappe.ValidationError)
-
-	doc.set(fieldname, status)
-
-	# Stamp when the work actually finished. Nothing recorded this before, so no
-	# measure of delivery or cycle time could ever be computed from it.
-	if doc.doctype == "Task" and doc.meta.has_field("completed_on"):
-		if stage == "Done":
-			doc.completed_on = doc.completed_on or nowdate()
-			if doc.meta.has_field("completed_by"):
-				doc.completed_by = doc.completed_by or frappe.session.user
-		else:
-			doc.completed_on = None
-
-	return status
+	status_map, _fieldname = STAGE_SETTERS[doc.doctype]
+	return _apply_status(doc, status_map[stage])
 
 
 def _save(doc) -> None:
@@ -659,6 +669,9 @@ def update_work(doctype: str, name: str, values: dict | str) -> dict:
 
 	if values.get("stage"):
 		_apply_stage(doc, values["stage"])
+	# The sheet's Status column is more specific than a stage, so it wins if both arrive.
+	if values.get("status"):
+		_apply_status(doc, values["status"])
 	_save(doc)
 
 	if "tags" in values:
@@ -679,6 +692,48 @@ def update_work(doctype: str, name: str, values: dict | str) -> dict:
 			reassign_task(name, people)
 
 	return {"name": name}
+
+
+# A fill dragged down a long column, or a paste out of a real spreadsheet, can name more
+# rows than anyone meant to touch. Past this the sheet is told to make a smaller selection
+# rather than the server quietly working through thousands of saves.
+BULK_LIMIT = 200
+
+
+@frappe.whitelist()
+def bulk_update(changes: list | str) -> dict:
+	"""Every cell a fill or a paste touched, in one request. Rows are independent: one that
+	fails is rolled back to its own savepoint and reported by name, and the rest still save
+	- a paste over twenty rows should not be undone by the one Request hiding among them."""
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	if isinstance(changes, str):
+		changes = json.loads(changes)
+	changes = changes or []
+
+	if len(changes) > BULK_LIMIT:
+		frappe.throw(
+			_("That is {0} rows at once. Select up to {1} and try again.").format(
+				len(changes), BULK_LIMIT
+			),
+			frappe.ValidationError,
+		)
+
+	saved: list[str] = []
+	failed: list[dict] = []
+	for i, change in enumerate(changes):
+		doctype, name = change.get("doctype"), change.get("name")
+		point = f"udt_bulk_{i}"
+		frappe.db.savepoint(point)
+		try:
+			update_work(doctype, name, change.get("values") or {})
+			saved.append(name)
+		except Exception as e:
+			frappe.db.rollback(save_point=point)
+			failed.append({"name": name, "error": str(e) or _("Could not save that row.")})
+
+	return {"saved": saved, "failed": failed}
 
 
 def _coerce(fieldtype: str, value: str | None):

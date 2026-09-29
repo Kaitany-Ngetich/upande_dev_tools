@@ -203,6 +203,11 @@ function boot(kept) {
 					tags: ["backend"],
 					assignees: ["teddy@example.com"],
 				});
+			if (method.endsWith("bulk_update"))
+				return Promise.resolve({
+					saved: ((args || {}).changes || []).map((c) => c.name),
+					failed: [],
+				});
 			if (method.endsWith("get_board"))
 				return Promise.resolve({
 					items: ITEMS,
@@ -230,9 +235,23 @@ function boot(kept) {
 	window.__ = (v) => v;
 
 	// the sheet is jspreadsheet; record the config rather than loading 770KB of it
+	// Faithful enough that mount_sheet runs to the end: the old stub had no `options`,
+	// so label_filters threw and everything after it - the range chip included - never
+	// ran at all, while the assertions below still passed off the captured config.
 	window.jspreadsheet = (host, config) => {
-		window.__sheet = { host, config };
-		return { destroy() {} };
+		const sheet = {
+			options: config,
+			selectedCell: null,
+			destroy() {},
+			getValueFromCoords: (x, y) => (config.data[y] || [])[x],
+			setValueFromCoords(x, y, v) {
+				if (config.data[y]) config.data[y][x] = v;
+			},
+			getCellFromCoords: () => window.document.createElement("td"),
+			openEditor() {},
+		};
+		window.__sheet = { host, config, sheet };
+		return sheet;
 	};
 	return { window, $, calls };
 }
@@ -552,20 +571,112 @@ const settle = () => new Promise((r) => setTimeout(r, 260));
 	assert.strictEqual(moved[0].args.value, "2026-09-11", "start shifts by the days dragged");
 	assert.strictEqual(moved[1].args.value, "2026-09-23", "and so does due, by the same amount");
 
-	// ── Editing a sheet cell saves (mutates state, so it runs last) ──
+	// ── Editing sheet cells saves (mutates state, so it runs last) ──
 	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
 	await new Promise((r) => setTimeout(r, 30));
 	const cfg = window.__sheet.config;
 	const row = cfg.data.findIndex((r) => r[0] === "Task:TASK-04");
+	const bulks = () => calls.filter((c) => c.method.endsWith("bulk_update"));
+
 	cfg.onchange(null, null, 3, row, "Low");
-	assert.strictEqual(calls[calls.length - 1].method, "upande_dev_tools.api.board.set_field");
-	assert.strictEqual(calls[calls.length - 1].args.field, "priority");
-	assert.strictEqual(calls[calls.length - 1].args.value, "Low");
+	assert.strictEqual(bulks().length, 0, "nothing goes out on the keystroke itself");
+	await settle();
+	assert.strictEqual(bulks().length, 1, "one call, not one per cell");
+	assert.deepStrictEqual(
+		JSON.parse(JSON.stringify(bulks()[0].args.changes)),
+		[{ doctype: "Task", name: "TASK-04", values: { priority: "Low" } }]
+	);
 
 	// an unchanged value must not fire a save
 	const before = calls.length;
 	cfg.onchange(null, null, 2, row, cfg.data[row][2]);
+	await settle();
 	assert.strictEqual(calls.length, before, "re-entering the same value saves nothing");
+
+	// ── A fill or a paste: onchange once per cell, one request for the lot ──
+	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
+	await new Promise((r) => setTimeout(r, 30));
+	const sheet2 = window.__sheet.config;
+	const at = (id) => sheet2.data.findIndex((r) => r[0] === id);
+	calls.length = 0;
+	// Two tasks and one issue get a new priority, and one of them a new stage too.
+	// Each value differs from what that row already holds - an unchanged cell is
+	// deliberately dropped, which is asserted just above.
+	sheet2.onchange(null, null, 3, at("Task:TASK-01"), "Medium");
+	sheet2.onchange(null, null, 3, at("Issue:ISS-02"), "High");
+	sheet2.onchange(null, null, 3, at("Task:TASK-04"), "Urgent");
+	sheet2.onchange(null, null, 2, at("Task:TASK-04"), "Blocked");
+	await settle();
+
+	const filled = bulks();
+	assert.strictEqual(filled.length, 1, "a filled column is one request, not four");
+	const sent = JSON.parse(JSON.stringify(filled[0].args.changes));
+	assert.strictEqual(sent.length, 3, "one entry per row, however many cells it touched");
+	const task04 = sent.find((c) => c.name === "TASK-04");
+	assert.deepStrictEqual(
+		task04.values,
+		{ priority: "Urgent", stage: "Blocked" },
+		"two cells on the same row travel together"
+	);
+	assert.ok(
+		sent.some((c) => c.doctype === "Issue"),
+		"issues fill alongside tasks"
+	);
+
+	// ── Select a column of rows, pick once, every row takes it ──
+	$(root).find('.dpx-bb-views button[data-view="sheet"]').trigger("click");
+	await new Promise((r) => setTimeout(r, 30));
+	const grid = window.__sheet.sheet;
+	const rowOfId = (id) => grid.options.data.findIndex((r) => r[0] === id);
+
+	// Four rows of the Priority column, one of them the workflow-governed request.
+	grid.selectedCell = ["3", "0", "3", "3"];
+	board.show_range();
+	const chip = window.document.querySelector(".dpx-bb-range");
+	assert.ok(chip && !chip.hidden, "a dragged selection offers to set the whole thing");
+	assert.ok(/4 rows/.test(chip.textContent), "it says how many rows");
+	assert.ok(/set priority/i.test(chip.textContent), "and which column");
+
+	calls.length = 0;
+	chip.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+	// Field by field: board.bulk is built inside the jsdom realm, so its prototype is
+	// not this one's and a strict deep compare always fails.
+	assert.strictEqual(board.bulk.x, 3, "the chip arms the range");
+	assert.strictEqual(board.bulk.from, 0);
+	assert.strictEqual(board.bulk.to, 3);
+	// The picker commits on the anchor row; that one value is what fans out.
+	grid.options.onchange(null, null, 3, 0, "Urgent");
+	await settle();
+
+	const ranged = bulks();
+	assert.strictEqual(ranged.length, 1, "one request for the whole selection");
+	const names = JSON.parse(JSON.stringify(ranged[0].args.changes));
+	assert.ok(
+		names.every((c) => c.values.priority === "Urgent"),
+		"every row takes the value that was picked once"
+	);
+	assert.ok(
+		!names.some((c) => c.doctype === "Request"),
+		"the request in the middle of the selection is left alone"
+	);
+	assert.strictEqual(
+		window.document.querySelector(".dpx-bb-range").hidden,
+		true,
+		"and the chip goes once it has been used"
+	);
+
+	// A single cell is not a range, so nothing is offered.
+	grid.selectedCell = ["3", "1", "3", "1"];
+	board.show_range();
+	assert.strictEqual(window.document.querySelector(".dpx-bb-range").hidden, true);
+
+	// A workflow-governed request refuses the cell before it is ever queued.
+	calls.length = 0;
+	const req = at("Request:REQ-03");
+	assert.strictEqual(sheet2.onbeforechange(null, null, 3, req, "Medium"), false);
+	sheet2.onchange(null, null, 3, req, "Medium");
+	await settle();
+	assert.strictEqual(bulks().length, 0, "a request is never in the batch");
 
 	// ── One edit dialog, reachable from every view ──
 	$(root).find('.dpx-bb-views button[data-view="board"]').trigger("click");

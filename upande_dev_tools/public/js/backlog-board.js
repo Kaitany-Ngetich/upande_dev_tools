@@ -186,6 +186,7 @@ const ICONS = {
 	trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 	more: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+	chevron: '<path d="m6 9 6 6 6-6"/>',
 	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
 };
 
@@ -1304,6 +1305,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	mount_sheet(host, rows) {
+		if (this.drop_range) {
+			this.drop_range();
+			this.drop_range = null;
+			this.range_chip = null;
+		}
 		if (this.sheet) {
 			try {
 				this.sheet.destroy();
@@ -1417,6 +1423,94 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		document.body.classList.add("dpx-menu-skin");
 		this.label_filters(host);
 		this.watch_clicks(host);
+		this.watch_range(host);
+	}
+
+	// Selecting rows and setting them all at once is the thing people actually want from
+	// a grid, and nothing on screen said it was possible. Drag down a column and a chip
+	// appears on the selection naming the column and the count; one click opens the same
+	// picker a single cell uses, and the choice lands on every row.
+	watch_range(host) {
+		const chip = document.createElement("button");
+		chip.type = "button";
+		chip.className = "dpx-bb-range";
+		chip.hidden = true;
+		// Inside .dpx-board, not .dpx: the colour tokens are declared on .dpx-board, so a
+		// chip mounted one level above it renders with no background at all.
+		const home = $(this.wrapper).find(".dpx-board")[0] || document.querySelector(".dpx");
+		(home || document.body).appendChild(chip);
+		this.range_chip = chip;
+
+		// The chip sits outside the grid, so a press on it would reach jspreadsheet's own
+		// document handler and throw the selection away before the picker could open on
+		// it. Swallow the press; act on the click.
+		["pointerdown", "mousedown"].forEach((type) =>
+			chip.addEventListener(type, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+			})
+		);
+
+		chip.addEventListener("click", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const at = this.range_span();
+			if (!at) return;
+			this.bulk = { x: at.x, from: at.from, to: at.to };
+			setTimeout(() => {
+				const cell = this.sheet.getCellFromCoords(at.x, at.from);
+				if (cell) this.sheet.openEditor(cell);
+			}, 0);
+		});
+
+		const refresh = () => this.show_range();
+		host.addEventListener("pointerup", () => setTimeout(refresh, 0));
+		host.addEventListener("keyup", () => setTimeout(refresh, 0));
+		const scroller = host.querySelector(".jexcel_content") || host;
+		scroller.addEventListener("scroll", refresh, { passive: true });
+		this.drop_range = () => {
+			chip.remove();
+			scroller.removeEventListener("scroll", refresh);
+		};
+	}
+
+	// The selection, but only when it is something this board can set in one go: one
+	// column, more than one row, and a column that takes an edit at all.
+	range_span() {
+		const at = this.sheet && this.sheet.selectedCell;
+		if (!at) return null;
+		const x = Number(at[0]);
+		if (Number(at[2]) !== x || !SHEET_FIELDS[x]) return null;
+		const from = Math.min(Number(at[1]), Number(at[3]));
+		const to = Math.max(Number(at[1]), Number(at[3]));
+		return to > from ? { x, from, to } : null;
+	}
+
+	show_range() {
+		const chip = this.range_chip;
+		if (!chip) return;
+		const at = this.range_span();
+		if (!at) return this.clear_range();
+
+		// A row scrolled out of the virtualised range has no cell at all, which is the
+		// case worth hiding for - a rendered one always has a box.
+		const last = this.sheet.getCellFromCoords(at.x, at.to);
+		const box = last && last.getBoundingClientRect();
+		if (!box) return this.clear_range();
+
+		const rows = at.to - at.from + 1;
+		const title = (this.sheet.options.columns[at.x] || {}).title || "";
+		chip.innerHTML = `<b>${rows}</b> ${__("rows")} <span>·</span> ${__("Set")} ${esc(
+			title.toLowerCase()
+		)}${ico("chevron", 11)}`;
+		chip.hidden = false;
+		chip.style.top = `${Math.round(box.bottom + 6)}px`;
+		chip.style.left = `${Math.round(box.left)}px`;
+	}
+
+	clear_range() {
+		this.bulk = null;
+		if (this.range_chip) this.range_chip.hidden = true;
 	}
 
 	// Google Sheets opens a picker on one click; jspreadsheet waits for a second.
@@ -1491,8 +1585,31 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		return this.sheet_rows[y];
 	}
 
+	// Opening a picker on one click is what makes this feel like Sheets, but it was
+	// also eating every gesture that starts with a press on a cell: dragging across a
+	// range, and the fill handle. So the editor now opens only on a click that stayed
+	// still, carried no modifier, and left exactly one cell selected.
 	watch_clicks(host) {
+		host.addEventListener(
+			"pointerdown",
+			(e) => {
+				this.press = {
+					x: e.clientX,
+					y: e.clientY,
+					held: e.shiftKey || e.ctrlKey || e.metaKey,
+					corner: !!e.target.closest(".jexcel_corner"),
+				};
+			},
+			true
+		);
+
 		host.addEventListener("click", (e) => {
+			const press = this.press;
+			this.press = null;
+			if (!press || press.held || press.corner) return;
+			// A drag, not a click. 4px is about the wobble of a real finger or mouse.
+			if (Math.abs(e.clientX - press.x) > 4 || Math.abs(e.clientY - press.y) > 4) return;
+
 			const td = e.target.closest("td[data-x]");
 			if (!td || td.classList.contains("editor")) return;
 
@@ -1501,16 +1618,24 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			// The title is a plain text cell and also the thing you click to read a row,
 			// so it keeps the normal double-click. The pickers open on one.
 			if (!SHEET_FIELDS[x] || x === 1) return;
+			if (this.spans_a_range()) return;
 
 			const item = this.row_item(y);
 			if (!item || !item.movable) return;
 
 			clearTimeout(this.opening);
 			this.opening = setTimeout(() => {
+				if (this.spans_a_range()) return;
 				const cell = this.sheet.getCellFromCoords(x, y);
 				if (cell && !cell.classList.contains("editor")) this.sheet.openEditor(cell);
 			}, 0);
 		});
+	}
+
+	spans_a_range() {
+		const at = this.sheet && this.sheet.selectedCell;
+		if (!at) return false;
+		return Number(at[0]) !== Number(at[2]) || Number(at[1]) !== Number(at[3]);
 	}
 
 	guard_cell(y, value) {
@@ -1525,12 +1650,67 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		return value;
 	}
 
+	// One cell arriving from the grid. A picked value that was meant for a whole
+	// selection is expanded here, before anything is queued.
 	sheet_changed(x, y, value) {
+		if (this.applying) return;
+
+		// jsuites' calendar hands back "YYYY-MM-DD HH:MM:SS" whatever format it was
+		// given, and a date column here only ever means a day. Left as-is, re-picking
+		// the same date never matched what the row already held and saved every time.
+		const field = SHEET_FIELDS[x];
+		if ((field === "start" || field === "end") && value) value = String(value).slice(0, 10);
+
+		const range = this.bulk;
+		if (range && range.x === x && y >= range.from && y <= range.to) {
+			this.bulk = null;
+			return this.apply_to_range(x, range.from, range.to, value);
+		}
+		this.change_cell(x, y, value);
+	}
+
+	// Pick once, and every row in the selection takes it. Rows that cannot - a Request,
+	// or an unchanged value - are counted and said out loud rather than skipped quietly.
+	apply_to_range(x, from, to, value) {
+		let changed = 0;
+		let locked = 0;
+		this.applying = true;
+		try {
+			for (let y = from; y <= to; y++) {
+				const item = this.row_item(y);
+				if (!item) continue;
+				if (!item.movable) {
+					locked += 1;
+					continue;
+				}
+				// The grid has to show it too, or only the row that was clicked would
+				// look changed until the board reloads.
+				this.sheet.setValueFromCoords(x, y, value, true);
+				if (this.change_cell(x, y, value)) changed += 1;
+			}
+		} finally {
+			this.applying = false;
+		}
+
+		this.clear_range();
+		if (!changed && !locked) return;
+		upande_dev_tools.toast(
+			locked
+				? __("{0} rows changed. {1} left alone - requests move through their own workflow.", [
+						changed,
+						locked,
+				  ])
+				: __("{0} rows changed.", [changed]),
+			locked ? "orange" : "green"
+		);
+	}
+
+	change_cell(x, y, value) {
 		const item = this.row_item(y);
-		if (!item || !item.movable) return;
+		if (!item || !item.movable) return false;
 
 		const field = SHEET_FIELDS[x];
-		if (!field) return;
+		if (!field) return false;
 
 		if ((field === "assignee" || field === "status") && item.doctype !== "Task") {
 			this.render();
@@ -1538,13 +1718,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				__("Only tasks can have their {0} changed here.", [field]),
 				"orange"
 			);
-			return;
+			return false;
 		}
 
 		if (field === "title" && !String(value || "").trim()) {
 			this.render();
 			upande_dev_tools.toast(__("A work item needs a title."), "orange");
-			return;
+			return false;
 		}
 
 		// The assignee cell holds an email, which lives on assignee_ids - not item.assignee,
@@ -1557,52 +1737,46 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				: field === "tags"
 				? (item.tags || []).join(";")
 				: item[field] || "";
-		if (String(value || "") === String(current || "")) return;
+		if (String(value || "") === String(current || "")) return false;
 
 		if (field === "end" && item.start && value && value < item.start) {
 			this.render();
 			upande_dev_tools.toast(__("Due date can't be before the start date."), "orange");
-			return;
+			return false;
 		}
 		if (field === "start" && item.end && value && value > item.end) {
 			this.render();
 			upande_dev_tools.toast(__("Start date can't be after the due date."), "orange");
-			return;
+			return false;
 		}
 
-		this.save_cell(item, field, value || "");
+		this.queue_cell(item, field, value || "");
+		return true;
 	}
 
-	save_cell(item, field, value) {
-		const previous = { ...item };
-		this.set_save_status("saving");
+	// A fill dragged down a column, or a paste, fires onchange once per cell. Saving each
+	// one on its own meant a request and a whole board reload per cell - twenty rows was
+	// twenty reloads, and the last one always won the race. They are collected here and
+	// sent as a single call instead.
+	queue_cell(item, field, value) {
+		this.pending = this.pending || new Map();
+		const key = `${item.doctype}:${item.name}`;
+		const held = this.pending.get(key) || { item, before: { ...item }, values: {} };
 
-		let call;
-		if (field === "stage") {
-			item.stage = value;
-			call = frappe.xcall("upande_dev_tools.api.board.set_stage", {
-				doctype: item.doctype,
-				name: item.name,
-				stage: value,
-			});
-		} else if (field === "status") {
-			item.status = value;
-			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
-				name: item.name,
-				status: value,
-			});
-		} else if (field === "tags") {
-			const tags = String(value || "")
-				.split(";")
-				.map((t) => t.trim())
-				.filter(Boolean);
-			item.tags = tags;
-			call = frappe.xcall("upande_dev_tools.api.board.update_work", {
-				doctype: item.doctype,
-				name: item.name,
-				values: { tags },
-			});
-		} else if (field === "assignee") {
+		const change = this.apply_locally(item, field, value);
+		if (!change) return;
+
+		Object.assign(held.values, change);
+		this.pending.set(key, held);
+
+		clearTimeout(this.flushing);
+		this.flushing = setTimeout(() => this.flush_cells(), 140);
+	}
+
+	// Moves the board's own copy first so the sheet answers immediately, and returns what
+	// the server needs for that field - or nothing at all if the value cannot be used.
+	apply_locally(item, field, value) {
+		if (field === "assignee") {
 			const emails = String(value || "")
 				.split(";")
 				.map((e) => e.trim())
@@ -1616,48 +1790,85 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				this.set_save_status("error");
 				this.render();
 				upande_dev_tools.toast(
-					people.length
-						? __("Pick names from the list.")
-						: __("Pick at least one name."),
+					people.length ? __("Pick names from the list.") : __("Pick at least one name."),
 					"orange"
 				);
-				return;
+				return null;
 			}
 			item.assignee_ids = people.map((p) => p.name);
 			item.assignees = people.map((p) => p.full_name || p.name);
-			call = frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
-				name: item.name,
-				assign_to: item.assignee_ids,
-			});
-		} else {
-			item[field] = value;
-			if (field === "priority") item.rank = RANK[value] || 0;
-			call = frappe.xcall("upande_dev_tools.api.board.set_field", {
-				doctype: item.doctype,
-				name: item.name,
-				field,
-				value,
-			});
+			return { assign_to: item.assignee_ids };
 		}
 
-		call.then(() => {
-			this.set_save_status("saved");
-			this.load();
-		}).catch(() => {
-			Object.assign(item, previous);
-			this.set_save_status("error");
-			this.render();
-			upande_dev_tools.toast(__("Could not save that cell."), "red");
-		});
+		if (field === "tags") {
+			item.tags = String(value || "")
+				.split(";")
+				.map((t) => t.trim())
+				.filter(Boolean);
+			return { tags: item.tags };
+		}
+
+		item[field] = value;
+		if (field === "priority") item.rank = RANK[value] || 0;
+		return { [field]: value };
 	}
 
-	set_save_status(state) {
+	flush_cells() {
+		const batch = [...(this.pending || new Map()).values()];
+		this.pending = null;
+		if (!batch.length) return;
+
+		this.set_save_status("saving", batch.length);
+		frappe
+			.xcall("upande_dev_tools.api.board.bulk_update", {
+				changes: batch.map(({ item, values }) => ({
+					doctype: item.doctype,
+					name: item.name,
+					values,
+				})),
+			})
+			.then((result) => {
+				const failed = (result && result.failed) || [];
+				if (failed.length) {
+					// Rows are independent on the server, so the ones that saved stay saved
+					// and only the rest are named.
+					this.set_save_status("error", failed.length);
+					upande_dev_tools.toast(
+						failed.length === 1
+							? failed[0].error
+							: __("{0} of {1} rows could not be saved.", [
+									failed.length,
+									batch.length,
+							  ]),
+						"red"
+					);
+				} else {
+					this.set_save_status("saved", batch.length);
+				}
+				// One reload for the whole batch, not one per cell.
+				this.load();
+			})
+			.catch((e) => {
+				batch.forEach(({ item, before }) => Object.assign(item, before));
+				this.set_save_status("error", batch.length);
+				this.render();
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not save those cells."),
+					"red"
+				);
+			});
+	}
+
+	set_save_status(state, n) {
 		const el = $(this.wrapper).find(".bb-save-status");
 		if (!el.length) return;
 		clearTimeout(this._save_status_timer);
-		if (state === "saving") return el.text(__("Saving…")).attr("data-state", "saving");
-		if (state === "error") return el.text(__("Could not save")).attr("data-state", "error");
-		el.text(__("All changes saved")).attr("data-state", "saved");
+		const rows = n > 1 ? __("{0} changes", [n]) : __("1 change");
+		if (state === "saving")
+			return el.text(__("Saving {0}…", [rows])).attr("data-state", "saving");
+		if (state === "error")
+			return el.text(__("{0} could not be saved", [rows])).attr("data-state", "error");
+		el.text(__("{0} saved", [rows])).attr("data-state", "saved");
 		this._save_status_timer = setTimeout(() => el.text("").removeAttr("data-state"), 2500);
 	}
 
