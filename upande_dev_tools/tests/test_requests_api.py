@@ -263,6 +263,32 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		row = next(r for r in data["requests"] if r["name"] == created["name"])
 		self.assertEqual(row["workflow_state"], "Under Review")
 
+	def test_get_my_backlog_reports_a_plain_date_not_a_datetime_string(self) -> None:
+		"""exp_end_date is a Datetime field - the server used to hand back
+		"2026-10-01 00:00:00" verbatim, which my-backlog.js's due-today/due-tomorrow
+		buckets compare with strict equality against frappe.datetime.get_today()'s plain
+		"2026-10-01" and so never matched anything, regardless of what was actually due."""
+		dev = self._make_user("backlog-date-shape@example.test", [])
+		task = frappe.get_doc(
+			{
+				"doctype": "Task",
+				"subject": "Due tomorrow, date-shape check",
+				"exp_end_date": frappe.utils.add_days(today(), 1),
+			}
+		)
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
+
+		frappe.set_user(dev)
+		try:
+			data = get_my_backlog()
+		finally:
+			frappe.set_user("Administrator")
+		row = next(t for t in data["tasks"] if t["name"] == task.name)
+		self.assertEqual(row["exp_end_date"], frappe.utils.add_days(today(), 1))
+		self.assertNotIn(" ", row["exp_end_date"])
+
 	def test_get_my_backlog_reports_completion_trend(self) -> None:
 		dev = self._make_user("backlog-progress@example.test", [])
 		task = frappe.get_doc({"doctype": "Task", "subject": "Completed for trend test", "status": "Completed"})

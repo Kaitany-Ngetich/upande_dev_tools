@@ -7,7 +7,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
-from upande_dev_tools.api.board import _attach_tags, _set_doc_tags, _validate_tags, normalize_priority
+from upande_dev_tools.api.board import _attach_tags, _date, _set_doc_tags, _validate_tags, normalize_priority
 
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
 
@@ -684,6 +684,12 @@ def get_my_backlog(user: str | None = None, project: str | None = None) -> dict:
 	# a string fallback for undated tasks crashes sort() outright. Sorting on
 	# (has_no_date, date) instead means Python only ever compares same-typed values.
 	tasks.sort(key=lambda t: (t.exp_end_date is None, t.exp_end_date))
+	# exp_end_date is a Datetime field - sort above needs the real value to compare
+	# correctly, but every consumer of this response (My Backlog's due-today/due-tomorrow
+	# buckets included) wants a plain date, the same normalization get_board's _tasks
+	# already applies.
+	for t in tasks:
+		t.exp_end_date = _date(t.exp_end_date)
 
 	meetings = get_upcoming_meetings(for_user=user, within_days=1)
 

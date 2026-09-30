@@ -53,7 +53,8 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 		this.project = "";
 		this.overdue_only = false;
 		this.undated_only = false;
-		this.view = mb_read_prefs().view === "kanban" ? "kanban" : "list";
+		// Kanban by default - an explicit switch to List is still remembered either way.
+		this.view = mb_read_prefs().view === "list" ? "list" : "kanban";
 		const kept_tab = mb_read_prefs().tab;
 		this.tab = MB_TABS.some(([key]) => key === kept_tab) ? kept_tab : "today";
 		this.render_shell();
@@ -195,15 +196,13 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 		const today = frappe.datetime.get_today();
 		const tomorrow = frappe.datetime.add_days(today, 1);
 
-		const is_overdue = (t) =>
-			t.status === "Overdue" ||
-			(t.exp_end_date && t.exp_end_date < today && t.status !== "Completed" && t.status !== "Cancelled");
+		const is_overdue = (t) => mb_is_overdue(t, today);
 		const is_open = (t) => t.status !== "Completed" && t.status !== "Cancelled";
 
 		const overdue_all = this.tasks.filter(is_overdue);
 		const open_all = this.tasks.filter(is_open);
-		const due_today = open_all.filter((t) => t.exp_end_date === today && !is_overdue(t));
-		const due_tomorrow = open_all.filter((t) => t.exp_end_date === tomorrow);
+		const due_today = open_all.filter((t) => mb_date_only(t.exp_end_date) === today && !is_overdue(t));
+		const due_tomorrow = open_all.filter((t) => mb_date_only(t.exp_end_date) === tomorrow);
 		const requests_open = this.requests.filter((r) => MB_REQUEST_OPEN_STATES.includes(r.workflow_state || ""));
 
 		$(this.wrapper)
@@ -408,7 +407,10 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 function mb_week_ahead(tasks, today) {
 	const days = Array.from({ length: 7 }, (_, i) => frappe.datetime.add_days(today, i));
 	const counts = days.map(
-		(d) => tasks.filter((t) => t.exp_end_date === d && t.status !== "Completed" && t.status !== "Cancelled").length
+		(d) =>
+			tasks.filter(
+				(t) => mb_date_only(t.exp_end_date) === d && t.status !== "Completed" && t.status !== "Cancelled"
+			).length
 	);
 	const max = Math.max(1, ...counts);
 	const dow = (d) => {
@@ -435,22 +437,43 @@ function mb_week_ahead(tasks, today) {
 
 // What's due today/tomorrow, spelled out - not just counted. This is the section meant
 // to answer "what's expected of me" without a developer having to scan the whole list.
-function mb_due_hero(due_today, due_tomorrow, overdue_all, today) {
-	const col = (title, tasks, tone) => `
-		<div class="mb-due-col">
-			<div class="mb-due-hd">${mb_esc(title)}<span class="dpx-bb-hint">${tasks.length}</span></div>
-			${
-				tasks.length
-					? tasks.map((t) => mb_task(t, today)).join("")
-					: `<div class="dpx-bb-col-blank">${tone === "bad" ? "Nothing overdue." : "Nothing here. Clear."}</div>`
-			}
+// The task itself is the one thing that has to be legible at a glance - project/priority
+// are a small secondary line, and "how overdue" only shows up in the Overdue group (Today/
+// Tomorrow's items are all the same day, so repeating that per row would just be noise).
+function mb_timeline_item(t, today, show_when) {
+	const sub = [t.project, t.priority && t.priority !== "Low" ? t.priority : ""].filter(Boolean);
+	const when = show_when && t.exp_end_date ? `${mb_days_overdue(t.exp_end_date, today)}d` : "";
+	return `
+		<a class="mb-tl-item" href="/app/task/${encodeURIComponent(t.name)}" data-name="${mb_esc(t.name)}">
+			<div class="ti-main">
+				<span class="ti-title">${mb_esc(t.subject)}</span>
+				${sub.length ? `<span class="ti-sub">${mb_esc(sub.join(" · "))}</span>` : ""}
+			</div>
+			${when ? `<span class="ti-when">${mb_esc(when)}</span>` : ""}
+		</a>`;
+}
+
+function mb_timeline_group(label, tasks, tone, today) {
+	const body = tasks.length
+		? `<div class="mb-tl-items">${tasks.map((t) => mb_timeline_item(t, today, tone === "bad")).join("")}</div>`
+		: `<div class="mb-tl-empty">${tone === "bad" ? "Nothing overdue." : "Nothing here. Clear."}</div>`;
+	return `
+		<div class="mb-tl-group${tone ? ` ${tone}` : ""}">
+			<div class="mb-tl-dot"></div>
+			<div class="mb-tl-content">
+				<div class="mb-tl-hd">${mb_esc(label)}${tasks.length ? `<span class="dpx-bb-hint">${tasks.length}</span>` : ""}</div>
+				${body}
+			</div>
 		</div>`;
+}
+
+function mb_due_hero(due_today, due_tomorrow, overdue_all, today) {
 	return `<div class="dpx-card mb-due">
 		<div class="dpx-card-hd"><div class="ttl">What's expected of you</div></div>
-		<div class="dpx-card-body mb-due-grid" style="padding:4px 22px 16px">
-			${col("Overdue", overdue_all, "bad")}
-			${col("Due today", due_today)}
-			${col("Due tomorrow", due_tomorrow)}
+		<div class="dpx-card-body mb-tl">
+			${mb_timeline_group("Overdue", overdue_all, "bad", today)}
+			${mb_timeline_group("Today", due_today, "now", today)}
+			${mb_timeline_group("Tomorrow", due_tomorrow, "", today)}
 		</div>
 	</div>`;
 }
@@ -667,7 +690,8 @@ function mb_section(title, tasks, today, tone) {
 }
 
 function mb_task(t, today) {
-	const overdue = t.exp_end_date && t.exp_end_date < today && t.status !== "Completed";
+	const overdue = mb_is_overdue(t, today);
+	const due_soon = !overdue && t.exp_end_date && mb_date_only(t.exp_end_date) === today;
 	return `
 		<div class="md-task" data-name="${mb_esc(t.name)}" data-id="Task:${mb_esc(t.name)}">
 			<select class="dpx-bb-field mb-status" style="width:132px">
@@ -678,26 +702,29 @@ function mb_task(t, today) {
 						)}</option>`
 				).join("")}
 			</select>
-			<a class="t" href="/app/task/${encodeURIComponent(t.name)}">${mb_esc(t.subject)}</a>
-			${t.custom_module ? `<span class="dpx-bb-chip">${mb_esc(t.custom_module)}</span>` : ""}
-			${t.project ? `<span class="dpx-bb-chip">${mb_esc(t.project)}</span>` : ""}
-			${
-				t.exp_end_date
-					? `<span class="dpx-bb-chip${overdue ? " st-blocked" : ""}">${mb_esc(t.exp_end_date)}</span>`
-					: `<span class="dpx-bb-chip">No due date</span>`
-			}
-			${
-				t.priority && t.priority !== "Low"
-					? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${mb_esc(
-							t.priority
-					  )}</span>`
-					: ""
-			}
+			<div class="md-task-body">
+				<a class="t" href="/app/task/${encodeURIComponent(t.name)}">${mb_esc(t.subject)}</a>
+				<div class="md-task-meta">
+					${t.custom_module ? `<span class="dpx-bb-chip">${mb_esc(t.custom_module)}</span>` : ""}
+					${t.project ? `<span class="dpx-bb-chip">${mb_esc(t.project)}</span>` : ""}
+					${
+						t.priority && t.priority !== "Low"
+							? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${mb_esc(
+									t.priority
+							  )}</span>`
+							: ""
+					}
+				</div>
+			</div>
+			<div class="md-task-due${overdue ? " bad" : due_soon ? " warn" : ""}" title="${mb_esc(mb_date_label(t.exp_end_date))}">
+				<span class="lbl">${mb_esc(t.exp_end_date ? mb_relative_due(t.exp_end_date, today) : "No due date")}</span>
+				${t.exp_end_date ? `<span class="cal">${mb_esc(mb_date_label(t.exp_end_date))}</span>` : ""}
+			</div>
 		</div>`;
 }
 
 function mb_kanban_card(t, today) {
-	const overdue = t.exp_end_date && t.exp_end_date < today && t.status !== "Completed";
+	const overdue = mb_is_overdue(t, today);
 	return `
 		<a class="dpx-bb-card" draggable="true" data-name="${mb_esc(t.name)}" data-id="Task:${mb_esc(t.name)}"
 			href="/app/task/${encodeURIComponent(t.name)}">
@@ -712,7 +739,11 @@ function mb_kanban_card(t, today) {
 			<div class="t">${mb_esc(t.subject)}</div>
 			<div class="m">
 				${t.project ? `<span>${mb_esc(t.project)}</span>` : ""}
-				${t.exp_end_date ? `<span class="d${overdue ? " late" : ""}">${mb_esc(t.exp_end_date)}</span>` : ""}
+				${
+					t.exp_end_date
+						? `<span class="d${overdue ? " late" : ""}">${mb_esc(mb_relative_due(t.exp_end_date, today))}</span>`
+						: ""
+				}
 			</div>
 		</a>`;
 }
@@ -758,4 +789,49 @@ function mb_ico(name, size) {
 
 function mb_esc(value) {
 	return frappe.utils.escape_html(value == null ? "" : String(value));
+}
+
+// Task.exp_end_date is a Datetime field, not a Date one - the server always sends
+// "2026-10-01 00:00:00", never "2026-10-01". Comparing that raw against
+// frappe.datetime.get_today()/add_days() (plain "YYYY-MM-DD") never matches, which is
+// why "Due today"/"Due tomorrow" always read 0 regardless of what's actually due. Every
+// comparison and every display of this field goes through here instead.
+function mb_date_only(value) {
+	return value ? String(value).slice(0, 10) : "";
+}
+
+function mb_date_label(value) {
+	const d = mb_date_only(value);
+	return d ? frappe.datetime.str_to_user(d) : "";
+}
+
+// A due date is the ground truth, not the status field - a Task's status only flips to
+// "Overdue" via a background job that runs once and never un-flips it, so a task
+// rescheduled to today or later after having slipped once would otherwise stay stuck
+// showing as overdue even though it plainly isn't anymore. Falling back to status only
+// covers the (rare) case of a flagged task with no due date to check against at all.
+function mb_is_overdue(t, today) {
+	if (t.status === "Completed" || t.status === "Cancelled") return false;
+	if (t.exp_end_date) return mb_date_only(t.exp_end_date) < today;
+	return t.status === "Overdue";
+}
+
+function mb_days_overdue(value, today) {
+	const d = mb_date_only(value);
+	if (!d) return 0;
+	return Math.round((new Date(`${today}T00:00:00Z`) - new Date(`${d}T00:00:00Z`)) / MB_DAY_MS);
+}
+
+// "3 days overdue" / "Due tomorrow" says more at a glance than a bare calendar date -
+// the actual date is still shown, just secondary (see mb_task/mb_kanban_card).
+function mb_relative_due(value, today) {
+	const d = mb_date_only(value);
+	if (!d) return "";
+	const diff = Math.round((new Date(`${d}T00:00:00Z`) - new Date(`${today}T00:00:00Z`)) / MB_DAY_MS);
+	if (diff === 0) return __("Due today");
+	if (diff === 1) return __("Due tomorrow");
+	if (diff === -1) return __("1 day overdue");
+	if (diff < 0) return __("{0} days overdue", [-diff]);
+	if (diff <= 6) return __("Due in {0} days", [diff]);
+	return frappe.datetime.str_to_user(d);
 }

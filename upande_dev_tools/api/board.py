@@ -7,8 +7,28 @@ from frappe.utils import getdate, nowdate, today
 from upande_dev_tools.setup import DEV_TOOLS_PROJECT_TYPE
 
 BOARD_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
+TASK_CREATION_ROLES = {"Dev Team", "Projects Manager"}
 
 STAGES = ["Triage", "Todo", "In Progress", "In Review", "Blocked", "Done"]
+
+
+def can_create_task_directly(user: str | None = None) -> bool:
+	"""Dev Team and Projects Manager together - not either alone - are trusted to skip
+	review. System Manager is the same admin bypass every other board action in this
+	file already grants via BOARD_ROLES. Shared by create_task's own gate and by the
+	www controller that tells the "New task" popup which fields to show, so the two
+	can't drift the way they just did."""
+	roles = set(frappe.get_roles(user))
+	return "System Manager" in roles or TASK_CREATION_ROLES <= roles
+
+
+def is_board_role(user: str | None = None) -> bool:
+	"""Dev Team, Projects Manager or System Manager - matches get_projects/get_editable/
+	set_field/set_stage/etc.'s own BOARD_ROLES gate exactly, so a viewer without it is
+	never asked to fetch something one of those is about to refuse anyway. The board's
+	own read (get_board) is public now and doesn't need this - only the board-role-only
+	extras (the project picker, the edit dialogs) do."""
+	return bool(BOARD_ROLES & set(frappe.get_roles(user)))
 
 
 def _priority_rank() -> dict[str, int]:
@@ -149,11 +169,18 @@ EDITABLE = {
 
 @frappe.whitelist()
 def get_board(project: str | None = None, limit: int = BOARD_LIMIT, tag: str | None = None) -> dict:
+	"""The board is public the same way Requests are (get_my_requests: "every user sees
+	every request and its status, not just their own") - backlog-board's Dev Portal Page
+	is open to "All" now, and this is the one call that page can't render anything
+	without. A specific project still needs real read permission on it; the unscoped
+	Dev-Tools-wide view has no per-row secrets to gate (every field it returns already
+	goes out with ignore_permissions=True below) - the only door here was ever this role
+	check, and any logged-in user is fine on the other side of it (Guest can't reach a
+	@frappe.whitelist() function at all). Editing anything still goes through set_field/
+	set_stage/create_task/etc., each with its own BOARD_ROLES or dual-role check."""
 	if project:
 		if not frappe.has_permission("Project", "read", project):
 			frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
-	elif not set(frappe.get_roles()) & BOARD_ROLES:
-		frappe.throw(_("Not permitted."), frappe.PermissionError)
 
 	if project:
 		filters = {"project": project}
@@ -429,8 +456,8 @@ def delete_task(name: str) -> None:
 
 @frappe.whitelist()
 def create_task(
-	project: str,
-	subject: str,
+	project: str | None = None,
+	subject: str = "",
 	tags: list[str] | str | None = None,
 	description: str | None = None,
 	priority: str | None = None,
@@ -445,15 +472,16 @@ def create_task(
 	mandatory - it's the one classification the board can actually filter on, for a Task the
 	same as for a Request.
 
-	Anyone outside Dev Team/Projects Manager can call this too, but doesn't get a Task straight
-	onto the board - only Dev Team/Projects Manager are trusted to skip review. Everyone else's
+	Anyone can call this too, but only someone with BOTH Dev Team and Projects Manager (or
+	System Manager) is trusted to skip review and get a Task straight onto the board - see
+	can_create_task_directly. Having just one of the two isn't enough. Everyone else's
 	"add to backlog" becomes a Request instead (as "Chore"), going through the normal review
 	pipeline like anything else they raise. project is deliberately NOT forwarded: a plain
 	user calling this from outside the board has no reason to have Project read access, and
 	create_request would just deny it - a PM attaches the right project during accept_request,
 	same as any other request that came in without one.
 	"""
-	if not set(frappe.get_roles()) & BOARD_ROLES:
+	if not can_create_task_directly():
 		# Lazy import: requests.py imports from this module at load time, so importing it
 		# back here at module load time would be circular.
 		from upande_dev_tools.api.requests import create_request

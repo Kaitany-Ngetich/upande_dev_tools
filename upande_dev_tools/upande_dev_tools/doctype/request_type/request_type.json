@@ -54,6 +54,10 @@
    "write": 1
   },
   {
+   "read": 1,
+   "role": "All"
+  },
+  {
    "create": 1,
    "read": 1,
    "report": 1,

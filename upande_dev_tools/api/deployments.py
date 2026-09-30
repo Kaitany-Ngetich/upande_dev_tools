@@ -7,6 +7,18 @@ from frappe import _
 DEPLOYER_ROLES = {"Dev Team", "System Manager"}
 DEPLOYMENT_VIEWER_ROLES = {"Dev Team", "System Manager", "Projects Manager"}
 DEPLOYMENT_APPROVER_ROLES = {"Projects Manager", "System Manager"}
+DEPLOYMENT_STATE_CHANGE_ROLES = {"Dev Team", "System Manager"}
+
+
+def can_change_deployment_state(user: str | None = None) -> bool:
+	"""Start/Mark Deployed/Mark Failed/Retry need Dev Team AND System Manager together -
+	same dual-gate shape as Dev Portal Settings, not either role alone (DEPLOYER_ROLES,
+	which this deliberately doesn't reuse, is an OR set for a different question - who
+	may raise a request at all). The Workflow's own "allowed" role stays Dev Team, so the
+	transition buttons stay visible to the right audience; this is the real backstop, and
+	DeploymentRequest.validate() enforces it again so the desk form can't drive a state
+	change around it - see that docstring for why a wrapper here alone isn't enough."""
+	return DEPLOYMENT_STATE_CHANGE_ROLES <= set(frappe.get_roles(user))
 
 
 @frappe.whitelist()
@@ -129,6 +141,12 @@ def update_deployment_status(
 	fix_notes: str | None = None,
 ) -> dict:
 	from frappe.model.workflow import apply_workflow
+
+	if not can_change_deployment_state():
+		frappe.throw(
+			_("Changing a deployment's state needs both Dev Team and System Manager."),
+			frappe.PermissionError,
+		)
 
 	doc = frappe.get_doc("Deployment Request", name)
 	if action == "Start Deployment" and doc.requires_approval and doc.approval_status != "Approved":

@@ -288,6 +288,18 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.stages = [];
 		this.total = 0;
 		this.modules = [];
+		// Dev Team AND Projects Manager together (not either alone) - see
+		// can_create_task_directly in api/board.py, which create_task itself re-checks
+		// regardless of what this flag says.
+		this.can_create_task = wrapper.dataset.canCreateTask === "1";
+		// Dev Team OR Projects Manager - matches get_master_data's own gate exactly, so
+		// this never requests something the server is about to refuse anyway (the board
+		// itself is open to "All", broader than master data access).
+		this.can_manage_master_data = wrapper.dataset.canManageMasterData === "1";
+		// Dev Team, Projects Manager or System Manager - matches get_projects's own
+		// BOARD_ROLES gate exactly (the board's own get_board is public and doesn't need
+		// this; the project picker for editing/creating directly does).
+		this.is_board_role = wrapper.dataset.isBoardRole === "1";
 		// Where you left off, and how you had it set up. A board you have to re-filter
 		// and re-arrange every morning is a board people stop arranging at all.
 		const kept = read_prefs();
@@ -332,6 +344,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					this.people = [];
 				});
 		}
+		if (!this.projects && !this.is_board_role) {
+			this.projects = [];
+		}
 		if (!this.projects) {
 			frappe
 				.xcall("upande_dev_tools.api.board.get_projects")
@@ -354,9 +369,14 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					this.work_tags = [];
 				});
 		}
+		if (!this.priority_levels && !this.can_manage_master_data) {
+			this.priority_levels = [];
+		}
 		if (!this.priority_levels) {
 			// Priority Level is Master Data page-editable - the Sheet's edit dropdown needs
-			// the full valid set, not just what's already in use on the board.
+			// the full valid set, not just what's already in use on the board. Gated the
+			// same as get_master_data itself - the board is open to "All", broader than
+			// master data access, so a viewer without it must never even ask.
 			frappe
 				.xcall("upande_dev_tools.api.master_data.get_master_data", {
 					key: "priority_level",
@@ -743,6 +763,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	new_task() {
+		const trusted = this.can_create_task;
 		const projects = (this.projects || []).map((p) => [p.name, p.project_name || p.name]);
 		const priorities = [
 			["", __("No priority")],
@@ -753,26 +774,31 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			...(this.modules || []).filter(Boolean).map((m) => [m, m]),
 		];
 
-		upande_dev_tools.open_modal(
-			__("New task"),
-			[
-				{
-					name: "project",
-					label: __("Project"),
-					type: "select",
-					options: projects,
-					value: this.project || "",
-					required: true,
-				},
-				{ name: "subject", label: __("Title"), type: "text", required: true },
-				{
-					name: "tags",
-					label: __("Tags"),
-					type: "tagpicker",
-					required: true,
-					tags: this.work_tags || [],
-				},
-				{ name: "description", label: __("Description"), type: "textarea" },
+		// Only Dev Team AND Projects Manager together are trusted to skip review (see
+		// can_create_task_directly in api/board.py) - everyone else's submit becomes a
+		// Request instead, which never uses project/priority/module/due date/assignee,
+		// so those fields would be silently ignored if left visible.
+		const fields = [
+			{ name: "subject", label: __("Title"), type: "text", required: true },
+			{
+				name: "tags",
+				label: __("Tags"),
+				type: "tagpicker",
+				required: true,
+				tags: this.work_tags || [],
+			},
+			{ name: "description", label: __("Description"), type: "textarea" },
+		];
+		if (trusted) {
+			fields.splice(0, 0, {
+				name: "project",
+				label: __("Project"),
+				type: "select",
+				options: projects,
+				value: this.project || "",
+				required: true,
+			});
+			fields.push(
 				{ name: "priority", label: __("Priority"), type: "select", options: priorities },
 				{ name: "module", label: __("Module"), type: "select", options: modules },
 				{ name: "complete_by", label: __("Due date"), type: "date" },
@@ -782,13 +808,27 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					type: "userlink",
 					multiple: true,
 					placeholder: __("Leave blank for unassigned"),
-				},
-			],
+				}
+			);
+		} else {
+			fields.push({
+				name: "note",
+				type: "note",
+				text: __("This goes to a reviewer as a request, not straight onto the board."),
+			});
+		}
+
+		upande_dev_tools.open_modal(
+			trusted ? __("New task") : __("Add to backlog"),
+			fields,
 			(values) => {
 				frappe
 					.xcall("upande_dev_tools.api.board.create_task", values)
 					.then(() => {
-						upande_dev_tools.toast(__("Task created."), "green");
+						upande_dev_tools.toast(
+							trusted ? __("Task created.") : __("Sent for review."),
+							"green"
+						);
 						this.load();
 					})
 					.catch((e) => {
