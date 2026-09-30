@@ -8,6 +8,7 @@ from upande_dev_tools.api.master_data import (
 	add_master_data,
 	get_master_data,
 	get_master_data_kinds,
+	has_master_data_access,
 	set_master_data_disabled,
 )
 
@@ -29,6 +30,26 @@ class IntegrationTestMasterDataApi(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.PermissionError):
 				get_master_data_kinds()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_has_master_data_access_matches_what_get_master_data_enforces(self) -> None:
+		"""The backlog board (open to "All") reads this flag to decide whether to even
+		ask for Priority Level - it must never say yes for someone get_master_data is
+		about to refuse, or the board's console fills with a PermissionError again."""
+		outsider = self._make_user("outsider-masterdata-flag@example.test", [])
+		dev = self._make_user("dev-masterdata-flag@example.test", ["Dev Team"])
+		frappe.set_user(outsider)
+		try:
+			self.assertFalse(has_master_data_access())
+			with self.assertRaises(frappe.PermissionError):
+				get_master_data("priority_level")
+		finally:
+			frappe.set_user("Administrator")
+		frappe.set_user(dev)
+		try:
+			self.assertTrue(has_master_data_access())
+			get_master_data("priority_level")
 		finally:
 			frappe.set_user("Administrator")
 

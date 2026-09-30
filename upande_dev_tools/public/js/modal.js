@@ -24,6 +24,9 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 		const esc = modal_esc;
 		const field_html = fields
 			.map((f) => {
+				if (f.type === "note") {
+					return `<p class="rp-form-note">${esc(f.text)}</p>`;
+				}
 				const id = `bb-modal-${f.name}`;
 				let input;
 				if (f.type === "select") {

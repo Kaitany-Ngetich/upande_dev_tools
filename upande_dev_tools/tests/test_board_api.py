@@ -12,6 +12,8 @@ from upande_dev_tools.api.board import (
 	get_editable,
 	get_modules,
 	get_preview,
+	get_projects,
+	is_board_role,
 	bulk_update,
 	set_field,
 	set_stage,
@@ -208,6 +210,35 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
+	def test_is_board_role_matches_what_get_projects_enforces(self) -> None:
+		outsider = self._user("outsider-board-role-flag@example.test", ["Employee"])
+		dev = self._user("dev-board-role-flag@example.test", ["Dev Team"])
+		frappe.set_user(outsider)
+		try:
+			self.assertFalse(is_board_role())
+			with self.assertRaises(frappe.PermissionError):
+				get_projects()
+		finally:
+			frappe.set_user("Administrator")
+		frappe.set_user(dev)
+		try:
+			self.assertTrue(is_board_role())
+			get_projects()
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_board_is_readable_by_any_authenticated_user_without_a_project(self) -> None:
+		"""backlog-board's Dev Portal Page is open to "All" now - the unscoped, cross-project
+		view has to actually be reachable by someone with no board role at all, or the page
+		it backs is just a PermissionError. A specific project still needs real read
+		permission (see test_board_denies_a_project_the_user_cannot_read)."""
+		outsider = self._user("board-no-role@example.test", [])
+		frappe.set_user(outsider)
+		try:
+			get_board()
+		finally:
+			frappe.set_user("Administrator")
+
 	def test_set_stage_moves_a_task(self) -> None:
 		task = self._task(self._project())
 		set_stage("Task", task, "In Progress")
@@ -310,13 +341,54 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		self.assertEqual(doc.owner, outsider)
 		self.assertFalse(doc.project)
 
-	def test_create_task_creates_a_real_task_for_a_board_role(self) -> None:
+	def test_create_task_still_creates_a_request_for_just_one_of_the_two_trusted_roles(self) -> None:
+		"""Dev Team and Projects Manager together are trusted to skip review - either one
+		alone is not, same as having neither."""
 		project = self._project()
 		tag = self._tag()
-		dev = self._user("board-add-dev@example.test", ["Dev Team"])
-		frappe.set_user(dev)
+		for role in ("Dev Team", "Projects Manager"):
+			user = self._user(f"board-add-{role.lower().replace(' ', '-')}@example.test", [role])
+			frappe.set_user(user)
+			try:
+				result = create_task(project=project, subject=f"{role} solo backlog add", tags=[tag])
+			finally:
+				frappe.set_user("Administrator")
+			self.assertFalse(frappe.db.exists("Task", result["name"]), f"{role} alone should not skip review")
+			self.assertTrue(frappe.db.exists("Request", result["name"]))
+
+	def test_create_task_creates_a_real_task_for_both_trusted_roles_together(self) -> None:
+		project = self._project()
+		tag = self._tag()
+		dev_pm = self._user("board-add-dev-pm@example.test", ["Dev Team", "Projects Manager"])
+		frappe.set_user(dev_pm)
 		try:
-			result = create_task(project=project, subject="Dev direct backlog add", tags=[tag])
+			result = create_task(project=project, subject="Dev+PM direct backlog add", tags=[tag])
+		finally:
+			frappe.set_user("Administrator")
+		self.assertTrue(frappe.db.exists("Task", result["name"]))
+
+	def test_create_task_accepts_no_project_at_all_for_an_untrusted_caller(self) -> None:
+		"""The "New task" popup hides the Project field entirely for anyone not trusted to
+		skip review, so the client never sends it - project must be genuinely optional on
+		this end, not just unused, or every one of those submits 500s before the trust
+		check even runs."""
+		tag = self._tag()
+		outsider = self._user("board-add-no-project@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			result = create_task(subject="No project at all", tags=[tag])
+		finally:
+			frappe.set_user("Administrator")
+		self.assertTrue(frappe.db.exists("Request", result["name"]))
+
+	def test_create_task_creates_a_real_task_for_system_manager_alone(self) -> None:
+		"""System Manager is the same admin bypass every other board action already grants."""
+		project = self._project()
+		tag = self._tag()
+		admin = self._user("board-add-sysmgr@example.test", ["System Manager"])
+		frappe.set_user(admin)
+		try:
+			result = create_task(project=project, subject="Sysmgr direct backlog add", tags=[tag])
 		finally:
 			frappe.set_user("Administrator")
 		self.assertTrue(frappe.db.exists("Task", result["name"]))

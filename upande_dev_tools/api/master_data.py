@@ -15,8 +15,12 @@ MASTER_DATA_DOCTYPES: dict[str, tuple[str, str]] = {
 }
 
 
+def has_master_data_access(user: str | None = None) -> bool:
+	return bool(MASTER_DATA_ROLES & set(frappe.get_roles(user)))
+
+
 def _require_access() -> None:
-	if not MASTER_DATA_ROLES & set(frappe.get_roles()):
+	if not has_master_data_access():
 		frappe.throw(_("Not permitted."), frappe.PermissionError)
 
 

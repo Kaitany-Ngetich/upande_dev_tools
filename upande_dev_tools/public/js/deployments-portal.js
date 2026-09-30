@@ -14,11 +14,28 @@ const DP_FILTERS = [
 	["Deployed", "Deployed"],
 	["Failed", "Failed"],
 ];
+// One state's real next steps, matching the Deployment Review workflow's own transitions
+// exactly - action is what update_deployment_status expects, field is the optional detail
+// worth asking for on the way (null skips the prompt and fires immediately).
+const DP_ACTIONS = {
+	Requested: [{ action: "Start Deployment", label: "Start", field: null }],
+	"In Progress": [
+		{ action: "Mark Deployed", label: "Mark deployed", field: "commit_hash" },
+		{ action: "Mark Failed", label: "Mark failed", field: "errors" },
+	],
+	Failed: [{ action: "Retry", label: "Retry", field: "fix_notes" }],
+};
+const DP_FIELD_PROMPT = {
+	commit_hash: { label: "Commit hash", type: "text", placeholder: "e.g. abc1234" },
+	errors: { label: "What went wrong", type: "textarea" },
+	fix_notes: { label: "What was fixed", type: "textarea" },
+};
 
 upande_dev_tools.DeploymentsPortal = class DeploymentsPortal {
 	constructor(wrapper) {
 		this.wrapper = wrapper;
 		this.is_approver = wrapper.dataset.isApprover === "1";
+		this.can_change_state = wrapper.dataset.canChangeState === "1";
 		this.rows = [];
 		this.filter = "all";
 		this.render_shell();
@@ -106,6 +123,37 @@ upande_dev_tools.DeploymentsPortal = class DeploymentsPortal {
 					btn.closest("tr").find("button").prop("disabled", false);
 				});
 		});
+		root.on("click", ".dp-state-action", (e) => {
+			const btn = $(e.currentTarget);
+			const name = btn.closest("[data-name]").data("name");
+			const action = btn.data("action");
+			const field = btn.data("field") || "";
+			const run = (values) => {
+				btn.closest("tr").find("button").prop("disabled", true);
+				frappe
+					.xcall("upande_dev_tools.api.deployments.update_deployment_status", {
+						name,
+						action,
+						...values,
+					})
+					.then(() => {
+						upande_dev_tools.toast(__("{0} done.", [action]), "green");
+						this.load();
+					})
+					.catch((e2) => {
+						upande_dev_tools.toast((e2 && e2.message) || __("That did not go through."), "red");
+						btn.closest("tr").find("button").prop("disabled", false);
+					});
+			};
+			if (!field) return run({});
+			const prompt = DP_FIELD_PROMPT[field];
+			upande_dev_tools.open_modal(
+				action,
+				[{ name: field, label: __(prompt.label), type: prompt.type, placeholder: prompt.placeholder }],
+				(values) => run({ [field]: values[field] || null }),
+				__("Confirm")
+			);
+		});
 		document.addEventListener("keydown", (e) => {
 			if (e.key !== "r" || /^(INPUT|SELECT|TEXTAREA)$/.test((e.target || {}).tagName || "")) return;
 			this.load();
@@ -137,18 +185,18 @@ upande_dev_tools.DeploymentsPortal = class DeploymentsPortal {
 				<table class="dpx-bb-table">
 					<colgroup><col><col style="width:150px"><col style="width:110px"><col style="width:120px"><col style="width:104px"><col style="width:150px">${
 						this.is_approver ? "<col style=\"width:150px\">" : ""
-					}</colgroup>
+					}${this.can_change_state ? "<col style=\"width:220px\">" : ""}</colgroup>
 					<thead><tr><th>App</th><th>Instance</th><th>Branch</th><th>Requested by</th><th>Raised</th><th>State</th>${
 						this.is_approver ? "<th></th>" : ""
-					}</tr></thead>
-					<tbody>${visible.map((r) => dp_row(r, this.is_approver)).join("")}</tbody>
+					}${this.can_change_state ? "<th></th>" : ""}</tr></thead>
+					<tbody>${visible.map((r) => dp_row(r, this.is_approver, this.can_change_state)).join("")}</tbody>
 				</table>
 			</div></div>`
 		);
 	}
 };
 
-function dp_row(r, is_approver) {
+function dp_row(r, is_approver, can_change_state) {
 	const pending = r.requires_approval && r.approval_status === "Pending";
 	const chip = pending
 		? `<span class="dpx-bb-chip st-blocked" title="Raised during peak hours - waiting on a Projects Manager before it can start">Pending approval</span>`
@@ -171,7 +219,22 @@ function dp_row(r, is_approver) {
 					  }</td>`
 					: ""
 			}
+			${can_change_state ? `<td>${dp_state_actions(r, pending)}</td>` : ""}
 		</tr>`;
+}
+
+function dp_state_actions(r, pending) {
+	const actions = DP_ACTIONS[r.workflow_state] || [];
+	if (!actions.length) return "";
+	return actions
+		.map(({ action, label, field }) => {
+			const blocked = action === "Start Deployment" && pending;
+			return `<button class="dpx-bb-btn dp-state-action" type="button"
+				data-action="${dp_esc(action)}" data-field="${dp_esc(field || "")}"${
+				blocked ? ' disabled title="Waiting on a peak-hours approval first"' : ""
+			}>${dp_esc(label)}</button>`;
+		})
+		.join("");
 }
 
 function dp_blank(heading, body) {

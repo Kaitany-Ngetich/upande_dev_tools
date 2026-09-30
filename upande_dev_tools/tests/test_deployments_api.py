@@ -59,7 +59,9 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		)
 
 	def test_create_and_progress_deployment_lifecycle(self) -> None:
-		dev = self._make_user("dev-deploy@example.test", ["Dev Team"])
+		# Changing state needs Dev Team AND System Manager together - creating the request
+		# itself only needs one of DEPLOYER_ROLES, but progressing it needs both.
+		dev = self._make_user("dev-deploy@example.test", ["Dev Team", "System Manager"])
 		app = self._make_app()
 		instance = self._make_instance()
 
@@ -77,7 +79,7 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		self.assertEqual(doc.deployed_by_user, dev)
 
 	def test_failed_deployment_can_be_retried(self) -> None:
-		dev = self._make_user("dev-retry@example.test", ["Dev Team"])
+		dev = self._make_user("dev-retry@example.test", ["Dev Team", "System Manager"])
 		app = self._make_app()
 		instance = self._make_instance()
 
@@ -93,6 +95,28 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		doc = frappe.get_doc("Deployment Request", created["name"])
 		self.assertEqual(doc.workflow_state, "In Progress")
 		self.assertEqual(doc.errors, "migrate failed")
+
+	def test_update_deployment_status_denies_a_solo_role_caller(self) -> None:
+		"""Dev Team and System Manager together, not either alone - see
+		can_change_deployment_state."""
+		app = self._make_app()
+		instance = self._make_instance()
+		dev_only = self._make_user("dev-only-state@example.test", ["Dev Team"])
+		sysmgr_only = self._make_user("sysmgr-only-state@example.test", ["System Manager"])
+
+		frappe.set_user(dev_only)
+		try:
+			created = create_deployment_request(app=app, instance=instance)
+		finally:
+			frappe.set_user("Administrator")
+
+		for solo in (dev_only, sysmgr_only):
+			frappe.set_user(solo)
+			try:
+				with self.assertRaises(frappe.PermissionError):
+					update_deployment_status(created["name"], "Start Deployment")
+			finally:
+				frappe.set_user("Administrator")
 
 	def test_get_deployment_queue_requires_dev_team_or_system_manager(self) -> None:
 		outsider = self._make_user("outsider-deploy@example.test", [])
@@ -216,7 +240,7 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		self.assertEqual(doc.requires_approval, 0)
 
 	def test_start_deployment_blocked_until_pm_approves(self) -> None:
-		dev = self._make_user("dev-peak-block@example.test", ["Dev Team"])
+		dev = self._make_user("dev-peak-block@example.test", ["Dev Team", "System Manager"])
 		pm = self._make_user("pm-peak-approve@example.test", ["Projects Manager"])
 		app = self._make_app()
 		instance = self._make_instance()
@@ -308,7 +332,9 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		hold at the doctype level too, not just in the one API method."""
 		from frappe.model.workflow import apply_workflow
 
-		dev = self._make_user("dev-peak-bypass@example.test", ["Dev Team"])
+		# Both roles, so the only thing this test can be blocked by is the peak-hours check -
+		# see test_workflow_itself_blocks_a_solo_role_state_change_too for the dual-role one.
+		dev = self._make_user("dev-peak-bypass@example.test", ["Dev Team", "System Manager"])
 		app = self._make_app()
 		instance = self._make_instance()
 
@@ -325,6 +351,28 @@ class IntegrationTestDeploymentsApi(IntegrationTestCase):
 		doc = frappe.get_doc("Deployment Request", created["name"])
 		with self.assertRaises(frappe.PermissionError):
 			apply_workflow(doc, "Start Deployment")
+
+	def test_workflow_itself_blocks_a_solo_role_state_change_too(self) -> None:
+		"""Same shape as test_workflow_itself_blocks_start_even_bypassing_the_api, but for the
+		dual-role gate rather than peak hours - a lone Dev Team member driving the workflow
+		straight from the desk form must not be able to route around update_deployment_status
+		either."""
+		from frappe.model.workflow import apply_workflow
+
+		dev = self._make_user("dev-soloista@example.test", ["Dev Team"])
+		app = self._make_app()
+		instance = self._make_instance()
+
+		frappe.set_user(dev)
+		try:
+			created = create_deployment_request(app=app, instance=instance)
+			doc = frappe.get_doc("Deployment Request", created["name"])
+			# Administrator (every role, including both of these) would sail straight
+			# through this check - it has to run as the solo-role user to mean anything.
+			with self.assertRaises(frappe.PermissionError):
+				apply_workflow(doc, "Start Deployment")
+		finally:
+			frappe.set_user("Administrator")
 
 	def test_get_pending_deployment_approvals_lists_only_pending_flagged(self) -> None:
 		dev = self._make_user("dev-peak-pending@example.test", ["Dev Team"])

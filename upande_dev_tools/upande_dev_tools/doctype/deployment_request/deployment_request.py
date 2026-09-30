@@ -7,6 +7,8 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import get_time, now_datetime
 
+from upande_dev_tools.api.deployments import can_change_deployment_state
+
 
 def is_peak_hours(at: datetime.datetime | None = None) -> bool:
 	"""Whether `at` (default: right now) falls inside the peak-hours window configured on
@@ -41,6 +43,22 @@ class DeploymentRequest(Document):
 			self.approval_status = "Pending"
 
 	def validate(self) -> None:
+		# Same reasoning as the peak-hours check right below: update_deployment_status checks
+		# this too (for a friendlier error before the workflow engine gets involved), but Dev
+		# Team can drive this workflow straight from the desk form, a path that never goes
+		# through that API method at all - is_new() excludes the initial "Requested" state a
+		# plain Dev Team/System Manager raiser gets for free, so only an actual transition is
+		# gated.
+		if (
+			not self.is_new()
+			and self.has_value_changed("workflow_state")
+			and not can_change_deployment_state()
+		):
+			frappe.throw(
+				frappe._("Changing a deployment's state needs both Dev Team and System Manager."),
+				frappe.PermissionError,
+			)
+
 		# The real backstop: api.deployments.update_deployment_status also checks this (for a
 		# friendlier error before the workflow engine gets involved), but this doctype is
 		# workflow-governed, and Dev Team can drive that workflow straight from the desk form
