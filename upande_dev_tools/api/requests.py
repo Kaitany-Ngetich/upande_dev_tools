@@ -7,7 +7,14 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
-from upande_dev_tools.api.board import _attach_tags, _date, _set_doc_tags, _validate_tags, normalize_priority
+from upande_dev_tools.api.board import (
+	_attach_tags,
+	_date,
+	_parse_tags,
+	_set_doc_tags,
+	_validate_tags,
+	normalize_priority,
+)
 
 REVIEWER_ROLES = {"Dev Team", "Projects Manager", "System Manager"}
 
@@ -160,9 +167,7 @@ def create_request(
 		product_area = None
 		priority = None
 
-	if isinstance(tags, str):
-		tags = [t.strip() for t in tags.split(",")]
-	tags = [t for t in (tags or []) if t and t.strip()]
+	tags = _parse_tags(tags)
 	if not tags:
 		frappe.throw(_("Add at least one tag before raising this."), frappe.ValidationError)
 	_validate_tags(tags)
@@ -183,6 +188,54 @@ def create_request(
 	)
 	doc.insert(ignore_permissions=True)
 	_set_doc_tags("Request", doc.name, tags)
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def update_request(
+	name: str,
+	title: str | None = None,
+	description: str | None = None,
+	tags: list[str] | str | None = None,
+) -> dict:
+	"""What you asked for, not how it's triaged: title/description/tags are the raiser's
+	own words, so the raiser can still fix them - product_area/priority/project stay a
+	reviewer-only call here too, same as at create_request time.
+
+	The raiser can only do this while their own request is still Under Review - once a
+	reviewer has acted (Approved/Scheduled/Rejected/...), a Task may already exist with
+	its own copy of these fields, and editing the Request out from under that decision
+	would just leave the two disagreeing with each other. A reviewer isn't bound by that -
+	they're the one who'd otherwise have to leave the dashboard to fix a typo on the desk
+	form instead."""
+	doc = frappe.get_doc("Request", name)
+	is_reviewer = bool(set(frappe.get_roles()) & REVIEWER_ROLES)
+	is_owner = doc.owner == frappe.session.user
+
+	if not (is_reviewer or is_owner):
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+	if is_owner and not is_reviewer and doc.workflow_state != "Under Review":
+		frappe.throw(
+			_("This request has already been reviewed and can no longer be edited here."),
+			frappe.PermissionError,
+		)
+
+	if title is not None:
+		doc.title = title
+	if description is not None:
+		doc.description = description
+	if tags is not None:
+		tags = _parse_tags(tags)
+		if not tags:
+			frappe.throw(_("Add at least one tag before saving this."), frappe.ValidationError)
+		_validate_tags(tags)
+
+	doc.save(ignore_permissions=True)
+	# After save, not before: _set_doc_tags writes _user_tags straight to the database,
+	# and doc.save() would otherwise overwrite that with the value it loaded before this
+	# call ever touched it - the same order create_request already gets right.
+	if tags is not None:
+		_set_doc_tags("Request", doc.name, tags)
 	return doc.as_dict()
 
 
@@ -241,6 +294,7 @@ def get_my_requests(status: str | None = None) -> list[dict]:
 		fields=[
 			"name",
 			"title",
+			"description",
 			"request_type",
 			"workflow_state",
 			"priority",
@@ -252,6 +306,7 @@ def get_my_requests(status: str | None = None) -> list[dict]:
 		order_by="creation desc",
 		ignore_permissions=True,
 	)
+	_attach_tags("Request", requests)
 
 	requester_names = _resolve_user_display_names({r["owner"] for r in requests if r.get("owner")})
 	linked_task_names = [r["linked_task"] for r in requests if r.get("linked_task")]

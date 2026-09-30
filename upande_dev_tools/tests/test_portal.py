@@ -459,27 +459,29 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.sort_order, 50)
 		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager"})
 
-	def test_master_data_permits_dev_team_and_projects_manager_and_denies_others(self) -> None:
+	def test_master_data_requires_all_three_crud_roles_and_denies_others(self) -> None:
+		"""Full CRUD (rename/delete included) needs Dev Team AND Projects Manager AND
+		System Manager together - the page itself is gated the same way now, not just the
+		individual write endpoints, so nobody lands on a page where nothing works."""
 		dev = self._make_user("master-data-dev@example.test", ["Dev Team"])
 		pm = self._make_user("master-data-pm@example.test", ["Projects Manager"])
+		dev_and_pm = self._make_user("master-data-dev-pm@example.test", ["Dev Team", "Projects Manager"])
+		all_three = self._make_user(
+			"master-data-all-three@example.test", ["Dev Team", "Projects Manager", "System Manager"]
+		)
 		other = self._make_user("master-data-other@example.test", [])
 
-		frappe.set_user(dev)
+		for solo in (dev, pm, dev_and_pm, other):
+			frappe.set_user(solo)
+			try:
+				with self.assertRaises(frappe.Redirect):
+					master_data_get_context({})
+			finally:
+				frappe.set_user("Administrator")
+
+		frappe.set_user(all_three)
 		try:
 			master_data_get_context({})  # must not raise
-		finally:
-			frappe.set_user("Administrator")
-
-		frappe.set_user(pm)
-		try:
-			master_data_get_context({})  # must not raise
-		finally:
-			frappe.set_user("Administrator")
-
-		frappe.set_user(other)
-		try:
-			with self.assertRaises(frappe.Redirect):
-				master_data_get_context({})
 			self.assertEqual(frappe.local.flags.redirect_location, "/requests-portal")
 		finally:
 			frappe.set_user("Administrator")
@@ -491,7 +493,10 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertEqual(doc.icon, "database")
 		self.assertEqual(doc.nav_group, "Admin")
 		self.assertEqual(doc.sort_order, 90)
-		self.assertEqual({row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager"})
+		self.assertTrue(doc.require_all_roles)
+		self.assertEqual(
+			{row.role for row in doc.allowed_roles}, {"Dev Team", "Projects Manager", "System Manager"}
+		)
 
 	def test_code_snapshots_permits_dev_team_and_denies_others(self) -> None:
 		dev = self._make_user("code-snapshots-dev@example.test", ["Dev Team"])

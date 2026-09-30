@@ -7,6 +7,7 @@ from frappe.utils import add_days, today
 from upande_dev_tools.api.board import (
 	BULK_LIMIT,
 	STAGES,
+	_parse_tags,
 	create_task,
 	get_board,
 	get_editable,
@@ -366,6 +367,26 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 		self.assertTrue(frappe.db.exists("Task", result["name"]))
+
+	def test_parse_tags_reads_a_real_list(self) -> None:
+		self.assertEqual(_parse_tags(["Bug", "Feature"]), ["Bug", "Feature"])
+
+	def test_parse_tags_reads_a_human_typed_comma_string(self) -> None:
+		self.assertEqual(_parse_tags("Bug, Feature"), ["Bug", "Feature"])
+
+	def test_parse_tags_reads_a_json_encoded_array_string(self) -> None:
+		"""frappe.call JSON-encodes a non-string argument for transport - tags: list[str] |
+		str | None means Frappe's own type validation sees the "| str" member is already
+		satisfied and leaves a real list argument as this literal, still-encoded string
+		instead of decoding it. Mistaking that for a human-typed comma list would produce
+		one mangled tag whose name is the JSON text itself, e.g. '["Feature"]'."""
+		self.assertEqual(_parse_tags('["Feature"]'), ["Feature"])
+		self.assertEqual(_parse_tags('["Bug", "Feature"]'), ["Bug", "Feature"])
+
+	def test_parse_tags_handles_nothing_to_parse(self) -> None:
+		self.assertEqual(_parse_tags(None), [])
+		self.assertEqual(_parse_tags(""), [])
+		self.assertEqual(_parse_tags([]), [])
 
 	def test_create_task_accepts_no_project_at_all_for_an_untrusted_caller(self) -> None:
 		"""The "New task" popup hides the Project field entirely for anyone not trusted to

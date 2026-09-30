@@ -72,6 +72,25 @@ def normalize_priority(doctype: str, fieldname: str, value: str | None) -> str |
 	return None
 
 
+def _parse_tags(tags: list[str] | str | None) -> list[str]:
+	"""tags is typed list[str] | str | None so a caller can pass either a real list or a
+	human-typed comma-separated string - but that same union is exactly why a genuine
+	list argument sometimes arrives here as a string instead: frappe.call JSON-encodes a
+	non-string argument for transport, and Frappe's own argument-type validation, seeing
+	"| str" is one of the allowed types, accepts the still-encoded string as-is rather
+	than decoding it back into a list. Trying json.loads first (only really matters when
+	tags came in as an actual list before transport) means that never mangles into one
+	tag whose name is literally the JSON text, e.g. '["Feature"]' - see create_request's
+	non-reviewer path, which is exactly how this was found."""
+	if isinstance(tags, str):
+		try:
+			decoded = json.loads(tags)
+		except ValueError:
+			decoded = None
+		tags = decoded if isinstance(decoded, list) else tags.split(",")
+	return [str(t).strip() for t in (tags or []) if t and str(t).strip()]
+
+
 def _validate_tags(tags: list[str]) -> None:
 	"""Tags are Master Data page-editable (Work Tag), the same as Priority Level/Product
 	Area/Request Type - so the vocabulary lives in one place a PM can extend, and a stray
@@ -496,9 +515,7 @@ def create_task(
 	if not (project and subject):
 		frappe.throw(_("Set a project and a title before creating a task."), frappe.ValidationError)
 
-	if isinstance(tags, str):
-		tags = [t.strip() for t in tags.split(",")]
-	tags = [t for t in (tags or []) if t and t.strip()]
+	tags = _parse_tags(tags)
 	if not tags:
 		frappe.throw(_("Add at least one tag before creating this task."), frappe.ValidationError)
 	_validate_tags(tags)
@@ -721,10 +738,7 @@ def update_work(doctype: str, name: str, values: dict | str) -> dict:
 	_save(doc)
 
 	if "tags" in values:
-		tags = values["tags"]
-		if isinstance(tags, str):
-			tags = tags.split(",")
-		tags = [t.strip() for t in (tags or []) if t and t.strip()]
+		tags = _parse_tags(values["tags"])
 		_validate_tags(tags)
 		_set_doc_tags(doctype, name, tags)
 

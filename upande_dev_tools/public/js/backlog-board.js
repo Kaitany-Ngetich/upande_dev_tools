@@ -292,10 +292,6 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		// can_create_task_directly in api/board.py, which create_task itself re-checks
 		// regardless of what this flag says.
 		this.can_create_task = wrapper.dataset.canCreateTask === "1";
-		// Dev Team OR Projects Manager - matches get_master_data's own gate exactly, so
-		// this never requests something the server is about to refuse anyway (the board
-		// itself is open to "All", broader than master data access).
-		this.can_manage_master_data = wrapper.dataset.canManageMasterData === "1";
 		// Dev Team, Projects Manager or System Manager - matches get_projects's own
 		// BOARD_ROLES gate exactly (the board's own get_board is public and doesn't need
 		// this; the project picker for editing/creating directly does).
@@ -369,14 +365,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					this.work_tags = [];
 				});
 		}
-		if (!this.priority_levels && !this.can_manage_master_data) {
-			this.priority_levels = [];
-		}
 		if (!this.priority_levels) {
-			// Priority Level is Master Data page-editable - the Sheet's edit dropdown needs
-			// the full valid set, not just what's already in use on the board. Gated the
-			// same as get_master_data itself - the board is open to "All", broader than
-			// master data access, so a viewer without it must never even ask.
+			// Priority Level is Master Data page-editable - the Sheet's edit dropdown and
+			// the "group by priority" view both need the full, live set, not a hardcoded
+			// copy. get_master_data is public read (see its own docstring), same as this
+			// board's own get_board, so every viewer can ask for it.
 			frappe
 				.xcall("upande_dev_tools.api.master_data.get_master_data", {
 					key: "priority_level",
@@ -1167,7 +1160,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			]);
 		}
 		if (this.group_by === "priority") {
-			return ["Urgent", "High", "Medium", "Low", "None"].map((p) => [
+			// Priority Level is Master Data page-editable - a hardcoded list here would
+			// silently drift the moment a level gets renamed, added or disabled there.
+			return [...(this.priority_levels || []), "None"].map((p) => [
 				p,
 				rows.filter((item) => (item.priority || "None") === p),
 			]);
