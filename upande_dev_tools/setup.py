@@ -268,6 +268,17 @@ def register_dev_portal_page(
 	).insert(ignore_permissions=True)
 
 
+def fix_requests_page_nav_group() -> None:
+	"""The Requests page shipped in its own one-item 'Requests' nav group and titled
+	'My Requests' from when it was personal, not public. register_dev_portal_page only
+	creates a row once, so an already-registered site needs this to actually move."""
+	if not frappe.db.exists("Dev Portal Page", "requests-portal"):
+		return
+	frappe.db.set_value(
+		"Dev Portal Page", "requests-portal", {"title": "Requests", "nav_group": "Management", "sort_order": 30}
+	)
+
+
 def rename_my_day_to_my_backlog() -> None:
 	"""My Day became My Backlog - one list of everything open, sorted by deadline, instead of
 	a today/later split. Drop the old route record so register_dev_portal_page below creates
@@ -359,11 +370,19 @@ def register_dev_portal_pages() -> None:
 		roles=["Projects Manager"],
 	)
 	register_dev_portal_page(
+		route="deployments",
+		title="Deployments",
+		icon="upload-cloud",
+		nav_group="Management",
+		sort_order=25,
+		roles=["Dev Team", "Projects Manager", "System Manager"],
+	)
+	register_dev_portal_page(
 		route="requests-portal",
-		title="My Requests",
+		title="Requests",
 		icon="inbox",
-		nav_group="Requests",
-		sort_order=10,
+		nav_group="Management",
+		sort_order=30,
 		roles=["All"],
 	)
 	register_dev_portal_page(
@@ -564,6 +583,7 @@ def run_setup() -> None:
 	fix_product_area_typo()
 	rename_my_day_to_my_backlog()
 	register_dev_portal_pages()
+	fix_requests_page_nav_group()
 	register_installed_apps_as_deployment_apps()
 	# Before the resync, or the shipped JSON inserts a second Workspace beside the old one.
 	rename_legacy_workspace()

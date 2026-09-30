@@ -14,13 +14,15 @@
 <div class="dpx-card">
 	<div class="dpx-card-hd"><div class="ttl">Activity</div></div>
 	<div class="dpx-card-body">
-		<input type="text" id="activity-search" placeholder="Search by title…" style="margin-right:10px;padding:8px 12px;border-radius:999px;border:1px solid var(--hairline);width:240px;">
-		<select id="activity-status" style="padding:8px 12px;border-radius:999px;border:1px solid var(--hairline);"></select>
-		<table id="activity-table" style="margin-top:12px;">
+		<div class="dpx-filters">
+			<input type="text" id="activity-search" class="dpx-bb-field" placeholder="Search by title…" style="min-width:240px">
+			<select id="activity-status" class="dpx-bb-field"></select>
+		</div>
+		<table id="activity-table" class="dpx-list-table">
 			<thead><tr><th>Time</th><th>Type</th><th>Title</th><th>Status</th><th>Source</th></tr></thead>
 			<tbody></tbody>
 		</table>
-		<button id="activity-load-more" class="pill" style="margin-top:12px;cursor:pointer;border:1px solid var(--hairline);background:none;">Load more</button>
+		<button id="activity-load-more" class="dpx-bb-btn" type="button" style="margin-top:12px;">Load more</button>
 	</div>
 </div>
 <script>

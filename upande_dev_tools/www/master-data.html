@@ -15,15 +15,13 @@
 <div class="dpx-card">
 	<div class="dpx-card-hd"><div class="ttl" id="md-active-label"></div></div>
 	<div class="dpx-card-body">
-		<form id="md-add-form" style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center;">
-			<input type="text" id="md-add-value" placeholder="New value"
-				style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);min-width:220px;">
-			<input type="number" id="md-add-sort" placeholder="Sort order" hidden
-				style="padding:8px 12px;border-radius:8px;border:1px solid var(--hairline);width:110px;">
-			<button type="submit" class="pill" style="cursor:pointer;border:1px solid var(--hairline);background:none;">Add</button>
-			<span id="md-add-error" style="color:#c4302b;"></span>
+		<form id="md-add-form" class="dpx-filters" style="align-items:center">
+			<input type="text" id="md-add-value" class="dpx-bb-field" placeholder="New value" style="min-width:220px">
+			<input type="number" id="md-add-sort" class="dpx-bb-field" placeholder="Sort order" hidden style="width:110px">
+			<button type="submit" class="dpx-bb-btn primary">Add</button>
+			<span id="md-add-error" style="color:var(--bb-late);font:500 11px var(--ui)"></span>
 		</form>
-		<table id="md-table">
+		<table id="md-table" class="dpx-list-table">
 			<thead><tr><th>Value</th><th>Disabled</th></tr></thead>
 			<tbody></tbody>
 		</table>

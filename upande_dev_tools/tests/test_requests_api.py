@@ -15,6 +15,7 @@ from upande_dev_tools.api.requests import (
 	get_assignable_users,
 	get_backlog_board,
 	get_customer_workload,
+	get_my_backlog,
 	get_my_requests,
 	get_review_queue,
 	get_upcoming_meetings,
@@ -52,9 +53,9 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_get_my_requests_scopes_to_caller(self) -> None:
-		# A plain user (no Dev Team/PM role) only sees their own - broader visibility for those
-		# roles is covered by the Review Queue/Backlog Board tests instead.
+	def test_get_my_requests_is_public(self) -> None:
+		# Requests are public: a plain user (no Dev Team/PM role) sees every request, not just
+		# their own - the name is legacy, kept so existing callers don't need to change.
 		dev = self._make_user("dev-scope@example.test", [])
 		other = self._make_user("other-scope@example.test", [])
 
@@ -62,13 +63,53 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 			frappe.set_user(dev)
 			created = create_request(title="My own request", request_type="Bug", tags=["Bug"])
 			frappe.set_user(other)
-			create_request(title="Someone else's request", request_type="Bug", tags=["Bug"])
+			created_other = create_request(title="Someone else's request", request_type="Bug", tags=["Bug"])
 
 			frappe.set_user(dev)
-			mine = get_my_requests()
+			visible = get_my_requests()
 		finally:
 			frappe.set_user("Administrator")
-		self.assertEqual([r["name"] for r in mine], [created["name"]])
+		visible_names = {r["name"] for r in visible}
+		self.assertIn(created["name"], visible_names)
+		self.assertIn(created_other["name"], visible_names)
+
+	def test_create_request_ignores_priority_and_module_from_non_reviewer(self) -> None:
+		"""Module/Priority are triage classification, the reviewer's call to make - a plain
+		user's create form hides both fields entirely, and even a direct call can't set them."""
+		outsider = self._make_user("priority-hide-outsider@example.test", [])
+		frappe.set_user(outsider)
+		try:
+			created = create_request(
+				title="Trying to set priority anyway",
+				request_type="Bug",
+				tags=["Bug"],
+				priority="Urgent",
+				product_area="HR",
+			)
+		finally:
+			frappe.set_user("Administrator")
+		doc = frappe.get_doc("Request", created["name"])
+		self.assertIsNone(doc.priority)
+		self.assertIsNone(doc.product_area)
+
+	def test_create_request_honors_priority_and_module_from_reviewer(self) -> None:
+		dev = self._make_user("priority-honor-dev@example.test", ["Dev Team"])
+		if not frappe.db.exists("Product Area", "HR"):
+			frappe.get_doc({"doctype": "Product Area", "area_name": "HR"}).insert(ignore_permissions=True)
+		frappe.set_user(dev)
+		try:
+			created = create_request(
+				title="Dev sets priority upfront",
+				request_type="Bug",
+				tags=["Bug"],
+				priority="Urgent",
+				product_area="HR",
+			)
+		finally:
+			frappe.set_user("Administrator")
+		doc = frappe.get_doc("Request", created["name"])
+		self.assertEqual(doc.priority, "Urgent")
+		self.assertEqual(doc.product_area, "HR")
 
 	def test_get_review_queue_requires_reviewer_role(self) -> None:
 		outsider = self._make_user("outsider-queue@example.test", [])
@@ -205,6 +246,38 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 
 		meetings = get_upcoming_meetings(project=project)
 		self.assertIn(event.name, [m["name"] for m in meetings])
+
+	def test_get_my_backlog_includes_own_requests_regardless_of_status(self) -> None:
+		"""A developer's own asks, waiting on a decision or not - not just what's assigned
+		to them as tasks. This is "mine" in a way the public request list can't answer without
+		asking someone to hunt through everyone else's requests to find their own."""
+		dev = self._make_user("backlog-own-requests@example.test", [])
+		frappe.set_user(dev)
+		try:
+			created = create_request(title="Still waiting on a decision", request_type="Bug", tags=["Bug"])
+			data = get_my_backlog()
+		finally:
+			frappe.set_user("Administrator")
+		names = {r["name"] for r in data["requests"]}
+		self.assertIn(created["name"], names)
+		row = next(r for r in data["requests"] if r["name"] == created["name"])
+		self.assertEqual(row["workflow_state"], "Under Review")
+
+	def test_get_my_backlog_reports_completion_trend(self) -> None:
+		dev = self._make_user("backlog-progress@example.test", [])
+		task = frappe.get_doc({"doctype": "Task", "subject": "Completed for trend test", "status": "Completed"})
+		task.flags.ignore_recursion_check = True
+		task.insert(ignore_permissions=True)
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [dev]})
+		frappe.db.set_value("Task", task.name, "completed_on", frappe.utils.add_days(frappe.utils.today(), -2))
+
+		frappe.set_user(dev)
+		try:
+			data = get_my_backlog()
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(data["progress"]["completed_this_week"], 1)
+		self.assertEqual(data["progress"]["completed_prev_week"], 0)
 
 	def test_get_customer_workload_permits_a_requester_of_that_project(self) -> None:
 		dev = self._make_user("dev-customer-workload@example.test", ["Dev Team", "Projects User"])

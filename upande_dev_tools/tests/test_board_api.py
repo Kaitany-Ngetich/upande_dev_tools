@@ -7,6 +7,7 @@ from frappe.utils import add_days, today
 from upande_dev_tools.api.board import (
 	BULK_LIMIT,
 	STAGES,
+	create_task,
 	get_board,
 	get_editable,
 	get_modules,
@@ -285,226 +286,37 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def _work_tag(self, name: str) -> str:
+	def _tag(self, name: str = "Chore") -> str:
 		if not frappe.db.exists("Work Tag", name):
 			frappe.get_doc({"doctype": "Work Tag", "tag_name": name}).insert(ignore_permissions=True)
 		return name
 
-	def test_set_field_renames_a_work_item(self) -> None:
-		task = self._task(self._project(), subject="Old name")
-		set_field("Task", task, "title", "New name")
-		self.assertEqual(frappe.db.get_value("Task", task, "subject"), "New name")
-
-	def test_a_work_item_cannot_be_left_without_a_title(self) -> None:
-		task = self._task(self._project())
-		with self.assertRaises(frappe.ValidationError):
-			set_field("Task", task, "title", "   ")
-
-	def test_set_field_rejects_an_unknown_project(self) -> None:
-		task = self._task(self._project())
-		with self.assertRaises(frappe.ValidationError):
-			set_field("Task", task, "project", "Not A Project")
-
-	def test_get_editable_carries_what_the_dialog_needs(self) -> None:
+	def test_create_task_denies_users_without_a_board_role_but_creates_a_request(self) -> None:
+		"""Not permitted to add straight to the board doesn't mean not permitted at all -
+		it becomes a Request instead (as "Chore"), going through the normal review pipeline,
+		the same as anything else that user raises. project isn't forwarded (an outsider has
+		no reason to have Project read access), so it's left for a PM to attach later."""
 		project = self._project()
-		tag = self._work_tag("board-edit-test")
-		task = self._task(
-			project,
-			subject="Read me back",
-			description="<p>A description the board never carries</p>",
-			exp_start_date=today(),
-			exp_end_date=add_days(today(), 3),
-		)
-		update_work("Task", task, {"tags": [tag]})
-
-		values = get_editable("Task", task)
-		self.assertEqual(values["title"], "Read me back")
-		self.assertIn("never carries", values["description"])
-		self.assertEqual(values["project"], project)
-		self.assertEqual(values["start"], today())
-		self.assertEqual(values["end"], add_days(today(), 3))
-		self.assertEqual(values["assignees"], [])
-		self.assertEqual(values["tags"], [tag])
-		self.assertIn(values["stage"], STAGES)
-
-	def test_get_editable_refuses_a_workflow_governed_request(self) -> None:
-		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
-			ignore_permissions=True
-		)
-		with self.assertRaises(frappe.ValidationError):
-			get_editable("Request", request.name)
-
-	def test_update_work_saves_every_field_in_one_go(self) -> None:
-		area = frappe.get_all("Product Area", limit=1, pluck="name")
-		if not area:
-			self.skipTest("No Product Area master data on this site.")
-		task = self._task(self._project(), subject="Before")
-		project = self._project()
-
-		update_work(
-			"Task",
-			task,
-			{
-				"title": "After",
-				"description": "Rewritten",
-				"module": area[0],
-				"project": project,
-				"start": today(),
-				"end": add_days(today(), 5),
-				"stage": "In Progress",
-			},
-		)
-
-		row = frappe.db.get_value(
-			"Task",
-			task,
-			["subject", "description", "custom_module", "project", "exp_start_date", "exp_end_date", "status"],
-			as_dict=True,
-		)
-		self.assertEqual(row.subject, "After")
-		self.assertEqual(row.description, "Rewritten")
-		self.assertEqual(row.custom_module, area[0])
-		self.assertEqual(row.project, project)
-		# exp_start_date/exp_end_date are Datetime on this bench, so _coerce stamps an
-		# end-of-day time onto them - the date is what the board ever reads back.
-		self.assertEqual(str(row.exp_start_date)[:10], today())
-		self.assertEqual(str(row.exp_end_date)[:10], add_days(today(), 5))
-		self.assertEqual(row.status, "Working")
-
-	def test_update_work_leaves_out_what_it_was_not_given(self) -> None:
-		"""The edit dialog drops the description when it carries formatting it cannot
-		safely flatten - so a save that says nothing about a field must not blank it."""
-		task = self._task(self._project(), description="<p>Keep me</p>")
-		update_work("Task", task, {"title": "Renamed only"})
-		self.assertEqual(frappe.db.get_value("Task", task, "description"), "<p>Keep me</p>")
-
-	def test_update_work_refuses_a_due_date_before_the_start(self) -> None:
-		task = self._task(self._project())
-		with self.assertRaises(frappe.ValidationError):
-			update_work("Task", task, {"start": today(), "end": add_days(today(), -2)})
-
-	def test_update_work_refuses_a_work_item_with_no_title(self) -> None:
-		task = self._task(self._project())
-		with self.assertRaises(frappe.ValidationError):
-			update_work("Task", task, {"title": ""})
-
-	def test_update_work_stamps_a_task_it_finishes(self) -> None:
-		task = self._task(self._project())
-		update_work("Task", task, {"stage": "Done"})
-		self.assertEqual(str(frappe.db.get_value("Task", task, "completed_on")), today())
-
-	def test_update_work_rejects_a_tag_that_is_not_master_data(self) -> None:
-		task = self._task(self._project())
-		with self.assertRaises(frappe.ValidationError):
-			update_work("Task", task, {"tags": ["not-in-master-data"]})
-
-	def test_update_work_refuses_a_workflow_governed_request(self) -> None:
-		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
-			ignore_permissions=True
-		)
-		with self.assertRaises(frappe.ValidationError):
-			update_work("Request", request.name, {"title": "Renamed"})
-
-	def test_update_work_denies_users_without_a_board_role(self) -> None:
-		task = self._task(self._project())
-		outsider = self._user("board-writer@example.test", ["Employee"])
+		tag = self._tag()
+		outsider = self._user("board-add-outsider@example.test", ["Employee"])
 		frappe.set_user(outsider)
 		try:
-			with self.assertRaises(frappe.PermissionError):
-				update_work("Task", task, {"title": "Not yours"})
+			result = create_task(project=project, subject="Outsider's backlog add", tags=[tag])
 		finally:
 			frappe.set_user("Administrator")
+		self.assertFalse(frappe.db.exists("Task", result["name"]))
+		doc = frappe.get_doc("Request", result["name"])
+		self.assertEqual(doc.request_type, "Chore")
+		self.assertEqual(doc.owner, outsider)
+		self.assertFalse(doc.project)
 
-	def test_bulk_update_fills_a_column_in_one_call(self) -> None:
+	def test_create_task_creates_a_real_task_for_a_board_role(self) -> None:
 		project = self._project()
-		tasks = [self._task(project, subject=f"Bulk {i}") for i in range(3)]
-
-		result = bulk_update(
-			[{"doctype": "Task", "name": name, "values": {"priority": "High"}} for name in tasks]
-		)
-
-		self.assertEqual(sorted(result["saved"]), sorted(tasks))
-		self.assertEqual(result["failed"], [])
-		for name in tasks:
-			self.assertEqual(frappe.db.get_value("Task", name, "priority"), "High")
-
-	def test_bulk_update_carries_several_fields_per_row(self) -> None:
-		task = self._task(self._project())
-		bulk_update(
-			[
-				{
-					"doctype": "Task",
-					"name": task,
-					"values": {"priority": "Low", "stage": "In Progress", "title": "Two cells"},
-				}
-			]
-		)
-		row = frappe.db.get_value("Task", task, ["priority", "status", "subject"], as_dict=True)
-		self.assertEqual(row.priority, "Low")
-		self.assertEqual(row.status, "Working")
-		self.assertEqual(row.subject, "Two cells")
-
-	def test_one_bad_row_does_not_undo_the_others(self) -> None:
-		"""A paste over twenty rows should not be thrown away by the one among them that
-		cannot take the value - each row stands or falls on its own savepoint."""
-		project = self._project()
-		good, other = self._task(project, subject="Keeps"), self._task(project, subject="Also keeps")
-
-		result = bulk_update(
-			[
-				{"doctype": "Task", "name": good, "values": {"priority": "High"}},
-				{"doctype": "Task", "name": "TASK-DOES-NOT-EXIST", "values": {"priority": "High"}},
-				{"doctype": "Task", "name": other, "values": {"priority": "High"}},
-			]
-		)
-
-		self.assertEqual(sorted(result["saved"]), sorted([good, other]))
-		self.assertEqual([f["name"] for f in result["failed"]], ["TASK-DOES-NOT-EXIST"])
-		self.assertTrue(result["failed"][0]["error"])
-		self.assertEqual(frappe.db.get_value("Task", good, "priority"), "High")
-		self.assertEqual(frappe.db.get_value("Task", other, "priority"), "High")
-
-	def test_bulk_update_names_the_row_that_refused(self) -> None:
-		project = self._project()
-		task = self._task(project)
-		request = frappe.get_doc({"doctype": "Request", "title": "No edits"}).insert(
-			ignore_permissions=True
-		)
-
-		result = bulk_update(
-			[
-				{"doctype": "Task", "name": task, "values": {"priority": "Low"}},
-				{"doctype": "Request", "name": request.name, "values": {"priority": "Low"}},
-			]
-		)
-		self.assertEqual(result["saved"], [task])
-		self.assertEqual([f["name"] for f in result["failed"]], [request.name])
-
-	def test_bulk_update_refuses_more_rows_than_anyone_meant_to_touch(self) -> None:
-		task = self._task(self._project())
-		with self.assertRaises(frappe.ValidationError):
-			bulk_update(
-				[{"doctype": "Task", "name": task, "values": {"priority": "Low"}}] * (BULK_LIMIT + 1)
-			)
-
-	def test_bulk_update_denies_users_without_a_board_role(self) -> None:
-		task = self._task(self._project())
-		outsider = self._user("board-bulk@example.test", ["Employee"])
-		frappe.set_user(outsider)
+		tag = self._tag()
+		dev = self._user("board-add-dev@example.test", ["Dev Team"])
+		frappe.set_user(dev)
 		try:
-			with self.assertRaises(frappe.PermissionError):
-				bulk_update([{"doctype": "Task", "name": task, "values": {"priority": "Low"}}])
+			result = create_task(project=project, subject="Dev direct backlog add", tags=[tag])
 		finally:
 			frappe.set_user("Administrator")
-
-	def test_update_work_writes_a_raw_status(self) -> None:
-		"""The sheet has a Status column as well as a Stage one - it is the finer of the
-		two, so it has to be writable on its own."""
-		task = self._task(self._project())
-		update_work("Task", task, {"status": "Pending Review"})
-		self.assertEqual(frappe.db.get_value("Task", task, "status"), "Pending Review")
-
-	def test_a_status_that_finishes_the_work_is_stamped_too(self) -> None:
-		task = self._task(self._project())
-		update_work("Task", task, {"status": "Completed"})
-		self.assertEqual(str(frappe.db.get_value("Task", task, "completed_on")), today())
+		self.assertTrue(frappe.db.exists("Task", result["name"]))

@@ -7,22 +7,30 @@ upande_dev_tools_portal.mount_hooks_explorer = function (root) {
 	let current_data = null;
 
 	$(root).html(`
-		<div class="frappe-card" style="padding: 20px;">
-			<div style="display:flex; gap:15px; margin-bottom:15px; flex-wrap:wrap;">
-				<div>
-					<label><b>Select App</b></label>
-					<select id="app-selector" class="form-control" style="min-width:300px;"></select>
+		<div class="dpx-board">
+			<div class="dpx-bb-tb">
+				<div class="dpx-bb-tb-hd">
+					<div class="dpx-bb-tb-title">
+						<div class="dpx-bb-tb-row">
+							<span class="dpx-bb-mark">${hx_ico("search", 14)}</span>
+							<h2>Hooks Explorer</h2>
+						</div>
+						<div class="dpx-bb-tb-sub">Browse and search every installed app's hooks.py</div>
+					</div>
 				</div>
-
-				<div>
-					<label><b>Search Hooks</b></label>
-					<input id="hook-search" class="form-control" style="min-width:300px;"
-						placeholder="Search e.g. Sales Invoice, on_submit, scheduler..." />
+				<div class="dpx-bb-tb-cmd">
+					<div class="dpx-bb-grp">
+						<span class="dpx-bb-grp-lbl">App</span>
+						<select id="app-selector" class="dpx-bb-field"></select>
+					</div>
+					<span class="dpx-bb-sep"></span>
+					<div class="dpx-bb-grp hx-search-grp">
+						<input id="hook-search" class="dpx-bb-field hx-search" type="text"
+							placeholder="Search e.g. Sales Invoice, on_submit, scheduler...">
+					</div>
 				</div>
 			</div>
-
-			<h4>Hooks Output</h4>
-			<div id="hooks-output">Select an app to view hooks.</div>
+			<div class="bb-stage"><div id="hooks-output"></div></div>
 		</div>
 	`);
 
@@ -57,23 +65,19 @@ upande_dev_tools_portal.mount_hooks_explorer = function (root) {
 	});
 
 	function load_hooks(app_name) {
-		$("#hooks-output").html(`<p>Loading hooks for <b>${app_name}</b>...</p>`);
+		$("#hooks-output").html(hx_blank(`Loading hooks for ${app_name}…`, ""));
 
 		frappe.call({
 			method: "upande_dev_tools.api.hooks_explorer.get_app_hooks",
 			args: { app_name },
 			callback(r) {
 				if (!r.message) {
-					$("#hooks-output").html(`<p>No response received.</p>`);
+					$("#hooks-output").html(hx_blank("No response received", ""));
 					return;
 				}
 
 				if (r.message.error) {
-					$("#hooks-output").html(`
-						<div class="alert alert-danger">
-							<b>Error:</b> ${r.message.error}
-						</div>
-					`);
+					$("#hooks-output").html(hx_blank("Could not read this app's hooks", r.message.error));
 					return;
 				}
 
@@ -89,47 +93,58 @@ upande_dev_tools_portal.mount_hooks_explorer = function (root) {
 		const hooks = data.hooks || {};
 		const query = (search_text || "").toLowerCase();
 
-		let html = `
-			<h5>App: ${data.app_name}</h5>
-			<hr>
-		`;
-
 		if (!Object.keys(hooks).length) {
-			html += `<p>No hooks found for this app.</p>`;
-			$("#hooks-output").html(html);
+			$("#hooks-output").html(hx_blank("No hooks found for this app", ""));
 			return;
 		}
 
-		let match_count = 0;
+		const sections = [];
 
 		Object.keys(hooks).forEach((hook_type) => {
 			const hook_json = JSON.stringify(hooks[hook_type], null, 2);
 			const searchable_text = `${hook_type} ${hook_json}`.toLowerCase();
 
-			if (query && !searchable_text.includes(query)) {
-				return;
-			}
+			if (query && !searchable_text.includes(query)) return;
 
-			match_count++;
-
-			html += `
-				<div style="margin-bottom:20px;">
-					<h5>${escape_html(hook_type)}</h5>
-					<pre style="background:#f7f7f7;padding:12px;border-radius:6px;max-height:300px;overflow:auto;">${escape_html(
-						hook_json
-					)}</pre>
-				</div>
-			`;
+			sections.push(`
+				<div class="dpx-card hx-section">
+					<div class="dpx-card-hd"><div class="ttl">${hx_esc(hook_type)}</div></div>
+					<div class="dpx-card-body" style="padding-top:0">
+						<pre class="hx-pre">${hx_esc(hook_json)}</pre>
+					</div>
+				</div>`);
 		});
 
-		if (query && match_count === 0) {
-			html += `<p>No matching hooks found for <b>${escape_html(search_text)}</b>.</p>`;
+		if (!sections.length) {
+			$("#hooks-output").html(
+				query
+					? hx_blank("No matching hooks", `Nothing in ${hx_esc(data.app_name)} matches "${hx_esc(search_text)}".`)
+					: hx_blank("No hooks found for this app", "")
+			);
+			return;
 		}
 
-		$("#hooks-output").html(html);
+		$("#hooks-output").html(sections.join(""));
 	}
 
-	function escape_html(text) {
-		return $("<div>").text(text).html();
+	function hx_blank(heading, body) {
+		return `<div class="dpx-card"><div class="dpx-bb-blank">
+			<h3>${hx_esc(heading)}</h3>${body ? `<p>${hx_esc(body)}</p>` : ""}</div></div>`;
 	}
 };
+
+const HX_ICONS = {
+	search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+};
+
+function hx_ico(name, size) {
+	const s = size || 15;
+	return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor"
+		stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+			HX_ICONS[name] || ""
+		}</svg>`;
+}
+
+function hx_esc(value) {
+	return frappe.utils.escape_html(value == null ? "" : String(value));
+}

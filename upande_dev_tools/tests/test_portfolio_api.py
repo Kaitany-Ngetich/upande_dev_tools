@@ -1,10 +1,11 @@
 # Copyright (c) 2026, Upande Limited
 
 import frappe
+from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests import IntegrationTestCase
-from frappe.utils import add_days, today
+from frappe.utils import add_days, getdate, today
 
-from upande_dev_tools.api.portfolio import _median, get_portfolio
+from upande_dev_tools.api.portfolio import _forecast, _median, get_portfolio
 
 
 class IntegrationTestPortfolioApi(IntegrationTestCase):
@@ -102,11 +103,15 @@ class IntegrationTestPortfolioApi(IntegrationTestCase):
 		self.assertFalse(any(w["subject"] == "No project at all" for w in board["wins"]))
 
 	def test_risks_lead_with_whatever_has_been_wrong_longest(self) -> None:
-		# far enough back to outrank whatever else is overdue on this site
+		# Scoped to this test's own project - this shared bench already has a real task
+		# hundreds of days overdue, which would otherwise outrank these fixtures on a
+		# portfolio-wide query and make the ordering assertion depend on live data.
+		from upande_dev_tools.api.portfolio import _risks
+
 		self._task(subject="Slipped a year", exp_end_date=add_days(today(), -400))
 		self._task(subject="Slipped most of a year", exp_end_date=add_days(today(), -380))
 
-		risks = get_portfolio(days=30)["risks"]
+		risks = _risks({"project": self.project}, getdate(today()))
 		self.assertEqual(risks, sorted(risks, key=lambda r: -r["days"]), "worst first")
 		self.assertEqual(risks[0]["title"], "Slipped a year")
 
@@ -136,3 +141,79 @@ class IntegrationTestPortfolioApi(IntegrationTestCase):
 		self.assertEqual(_median([5]), 5)
 		self.assertEqual(_median([1, 3, 5]), 3)
 		self.assertEqual(_median([1, 2, 3, 4]), 3)
+
+	def test_due_soon_only_counts_open_work_due_within_a_week_and_not_yet_late(self) -> None:
+		self._task(subject="Due in 3 days", exp_end_date=add_days(today(), 3))
+		self._task(subject="Due in 20 days", exp_end_date=add_days(today(), 20))
+		self._task(subject="Already overdue", exp_end_date=add_days(today(), -1))
+		self._task(subject="No due date")
+
+		# Scoped to this test's own project, not the wider Dev Tools portfolio - this
+		# shared bench already has real tasks due today that would otherwise crowd a
+		# shared 10-row cap and hide the fixtures being asserted on here.
+		from upande_dev_tools.api.portfolio import _due_soon
+
+		due_soon = _due_soon({"project": self.project}, getdate(today()))
+		titles = {row["subject"] for row in due_soon["items"]}
+		self.assertIn("Due in 3 days", titles)
+		self.assertNotIn("Due in 20 days", titles)
+		self.assertNotIn("Already overdue", titles)
+		self.assertNotIn("No due date", titles)
+		self.assertEqual(due_soon["total"], 1)
+
+	def test_a_person_whose_open_queue_is_mostly_late_is_flagged_over_capacity(self) -> None:
+		email = "portfolio-drowning@example.test"
+		if not frappe.db.exists("User", email):
+			frappe.get_doc(
+				{"doctype": "User", "email": email, "first_name": "Drowning", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+
+		for index in range(5):
+			task = self._task(subject=f"Late {index}", exp_end_date=add_days(today(), -1))
+			add_assignment({"doctype": "Task", "name": task, "assign_to": [email]})
+
+		people = {p["user"]: p for p in get_portfolio(days=30)["people"]}
+		self.assertIn(email, people)
+		self.assertTrue(people[email]["over_capacity"])
+		self.assertIn(people[email]["overload_reason"], ("lateness", "both"))
+		self.assertEqual(people[email]["overdue"], 5)
+
+	def test_forecast_history_counts_only_what_was_actually_open_at_each_past_week(self) -> None:
+		# well before the 12-week (84-day) history window, so it predates every checkpoint
+		old_task = self._task(subject="Old, still open", exp_end_date=add_days(today(), 30))
+		frappe.db.set_value("Task", old_task, "creation", add_days(today(), -100), update_modified=False)
+		self._task(subject="Finished this week", status="Completed", completed_on=add_days(today(), -1))
+
+		board = _forecast({"project": self.project}, open_total=1, end=getdate(today()))
+		self.assertEqual(len(board["history"]), 12)
+		# the task created 50 days ago and still open should count as open at every
+		# checkpoint in the 12-week history, including the earliest one
+		self.assertGreaterEqual(board["history"][0]["open"], 1)
+		self.assertGreaterEqual(board["history"][-1]["open"], 1)
+		self.assertEqual(board["history"][-1]["completed"], 1)
+
+	def test_forecast_reports_insufficient_data_when_nothing_has_ever_been_completed(self) -> None:
+		self._task(subject="Still open, nothing finished ever")
+		board = _forecast({"project": self.project}, open_total=1, end=getdate(today()))
+		self.assertTrue(board["insufficient"])
+		self.assertIn("note", board)
+
+	def test_forecast_is_done_immediately_when_nothing_is_open(self) -> None:
+		board = _forecast({"project": self.project}, open_total=0, end=getdate(today()))
+		self.assertTrue(board["done"])
+		self.assertEqual(board["p50_weeks"], 0)
+
+	def test_forecast_resamples_real_throughput_rather_than_averaging_it(self) -> None:
+		# a steady 5/week for the whole history window - with 25 open, a resampling
+		# forecast built on this should land close to 5 weeks at the median
+		for week in range(12):
+			for i in range(5):
+				self._task(
+					subject=f"Done wk{week}-{i}",
+					status="Completed",
+					completed_on=add_days(today(), -7 * week),
+				)
+		board = _forecast({"project": self.project}, open_total=25, end=getdate(today()))
+		self.assertFalse(board["insufficient"])
+		self.assertAlmostEqual(board["p50_weeks"], 5, delta=2)
+		self.assertGreaterEqual(board["p85_weeks"], board["p50_weeks"])

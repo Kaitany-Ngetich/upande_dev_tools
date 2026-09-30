@@ -19,10 +19,15 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 		this.requests = [];
 		this.types = [];
 		this.areas = [];
+		this.priorities = [];
 		this.filter = "";
 		this.raised_by = "";
 		this.assignee = "";
 		this.sort_by = "newest";
+		// Module/Priority/Tags are triage classification for Dev Team/Projects Manager to set
+		// - everyone else gets the plain form and a reviewer fills these in at accept time.
+		this.is_reviewer = wrapper.dataset.isReviewer === "1";
+		this.can_raise_note = wrapper.dataset.canRaiseNote === "1";
 		this.render_shell();
 		this.load();
 	}
@@ -40,10 +45,13 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			frappe.xcall("upande_dev_tools.api.requests.get_employees"),
 			frappe.xcall("upande_dev_tools.api.requests.get_assignable_users"),
 			frappe.xcall("upande_dev_tools.api.board.get_work_tags"),
+			this.is_reviewer
+				? frappe.xcall("frappe.client.get_list", { doctype: "Priority Level", limit_page_length: 0 })
+				: Promise.resolve([]),
 		])
-			.then(([requests, types, areas, employees, people, work_tags]) => {
+			.then(([requests, types, areas, employees, people, work_tags, priorities]) => {
 				this.requests = requests || [];
-				this.types = (types || []).map((t) => t.name);
+				this.types = (types || []).map((t) => t.name).filter((t) => this.can_raise_note || t !== "Note");
 				this.areas = areas || [];
 				this.employees = employees || [];
 				// A <datalist> is drawn by the browser and cannot be styled, so "Raised for"
@@ -57,6 +65,7 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				this.people = people || [];
 				upande_dev_tools.seed_users(this.people);
 				this.work_tags = work_tags || [];
+				this.priorities = (priorities || []).map((p) => p.name);
 				this.stage().removeAttr("aria-busy");
 				this.render();
 				icon.removeClass("spin");
@@ -84,9 +93,9 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 						<div class="dpx-bb-tb-title">
 							<div class="dpx-bb-tb-row">
 								<span class="dpx-bb-mark">${rp_ico("inbox", 14)}</span>
-								<h2>My requests</h2>
+								<h2>Requests</h2>
 							</div>
-							<div class="dpx-bb-tb-sub">What you have asked the dev team for, and where each one stands</div>
+							<div class="dpx-bb-tb-sub">Everything anyone has asked the dev team for, and where each one stands</div>
 						</div>
 						<div class="dpx-bb-tb-act">
 							<button class="dpx-bb-ico rp-reload" type="button" title="Refresh">${rp_ico("refresh")}</button>
@@ -261,7 +270,7 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			);
 		}
 
-		this.stage().html(`<div class="rp-list">${rows.map((r) => rp_card(r)).join("")}</div>`);
+		this.stage().html(`<div class="rp-list">${rows.map((r) => rp_card(r, frappe.session.user)).join("")}</div>`);
 	}
 
 	open_form() {
@@ -281,8 +290,12 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 					<label>Kind<select class="dpx-bb-field" name="request_type" required>${opts(
 						this.types
 					)}</select></label>
-					<label>Module<select class="dpx-bb-field" name="product_area">
-						<option value="">Not sure</option>${opts(this.areas)}</select></label>
+					${
+						this.is_reviewer
+							? `<label>Module<select class="dpx-bb-field" name="product_area">
+									<option value="">Not sure</option>${opts(this.areas)}</select></label>`
+							: ""
+					}
 				</div>
 				<div class="rp-two">
 					<label>Raised for
@@ -297,8 +310,16 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 							placeholder: "No preference",
 						})}</label>
 				</div>
-				<label>Tags <span class="rp-required">*</span>
-					${upande_dev_tools.tag_picker_html({ name: "tags", tags: this.work_tags || [] })}</label>
+				${
+					this.is_reviewer
+						? `<div class="rp-two">
+								<label>Priority<select class="dpx-bb-field" name="priority">
+									<option value="">Not set</option>${opts(this.priorities)}</select></label>
+							</div>
+							<label>Tags <span class="rp-required">*</span>
+								${upande_dev_tools.tag_picker_html({ name: "tags", tags: this.work_tags || [] })}</label>`
+						: `<p class="rp-form-note">A reviewer sets the module, priority and tags when they take this on.</p>`
+				}
 				<label>Anything else we should know?
 					<textarea class="dpx-bb-field" name="description" rows="4"
 						placeholder="What you are trying to do, and what happens instead."></textarea></label>
@@ -323,7 +344,12 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 		const file = fd.get("attachment");
 		const data = Object.fromEntries(fd.entries());
 		if (!data.title.trim()) return;
-		if (!data.tags) {
+		// Non-reviewers never see the Tags field at all - the request's own Kind is the tag,
+		// same convention the backlog board's "add to backlog" bridge already uses.
+		const tags = this.is_reviewer
+			? (data.tags || "").split(",").map((t) => t.trim()).filter(Boolean)
+			: [data.request_type];
+		if (this.is_reviewer && !data.tags) {
 			upande_dev_tools.toast(__("Pick at least one tag."), "orange");
 			return;
 		}
@@ -334,13 +360,11 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 				title: data.title.trim(),
 				request_type: data.request_type,
 				product_area: data.product_area || null,
+				priority: data.priority || null,
 				description: data.description || null,
 				raised_by_employee: data.raised_by_employee || null,
 				requested_assignee: data.requested_assignee || null,
-				tags: (data.tags || "")
-					.split(",")
-					.map((t) => t.trim())
-					.filter(Boolean),
+				tags: tags,
 				source: "Web Portal",
 			})
 			.then((created) => {
@@ -383,11 +407,15 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 
 const RP_WITHDRAWABLE = ["Under Review", "Approved", "Deferred", "Scheduled", "In Progress"];
 
-function rp_card(r) {
+function rp_card(r, current_user) {
 	const [tone, label] = RP_STAGE[r.workflow_state || ""] || ["st-triage", r.workflow_state];
 	const raised = String(r.creation || "").slice(0, 10);
-	const can_withdraw = RP_WITHDRAWABLE.includes(r.workflow_state);
-	const can_confirm = r.workflow_state === "Completed";
+	// Requests are visible to everyone now, but withdrawing/confirming is still only for
+	// whoever raised it (the backend enforces this too) - showing the button on someone
+	// else's request would just be a guaranteed-to-fail click.
+	const is_mine = r.owner === current_user;
+	const can_withdraw = is_mine && RP_WITHDRAWABLE.includes(r.workflow_state);
+	const can_confirm = is_mine && r.workflow_state === "Completed";
 	return `
 		<div class="rp-card" data-name="${rp_esc(r.name)}">
 			<a href="/app/request/${encodeURIComponent(r.name)}" style="display:block">
