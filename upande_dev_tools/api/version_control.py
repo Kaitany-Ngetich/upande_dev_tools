@@ -69,9 +69,33 @@ def get_current_branch(repo_path):
 	return f"DETACHED-{commit}"
 
 
-def get_repo_url(repo_path):
+def get_primary_remote(repo_path, branch):
+	""""origin" is not a safe assumption - most of this bench's own apps track a remote
+	named "upstream" instead (this is exactly why the dashboard's "copy repo URL" button
+	used to disappear for almost every app: get_repo_url used to hardcode "origin", which
+	only one app on this bench actually uses). The branch's own configured tracking remote
+	is the real source of truth; falling back to whatever remotes exist at all covers a
+	detached HEAD or a branch checked out without --track."""
+	if not branch.startswith("DETACHED-"):
+		try:
+			remote = run_git_command(repo_path, ["config", f"branch.{branch}.remote"], timeout=10)
+			if remote:
+				return remote
+		except GitCommandError:
+			pass
 	try:
-		url = run_git_command(repo_path, ["remote", "get-url", "origin"], timeout=10)
+		remotes = run_git_command(repo_path, ["remote"], timeout=10).splitlines()
+		return remotes[0] if remotes else None
+	except GitCommandError:
+		return None
+
+
+def get_repo_url(repo_path, branch):
+	remote = get_primary_remote(repo_path, branch)
+	if not remote:
+		return None
+	try:
+		url = run_git_command(repo_path, ["remote", "get-url", remote], timeout=10)
 	except GitCommandError:
 		return None
 	# Normalise an SSH remote (git@github.com:org/repo.git) to the browsable https form -
@@ -223,7 +247,12 @@ def scan_bench(fetch: int = 0) -> dict:
 		doc.module_name = app_name
 		doc.app_folder = app_name
 		doc.environment = "Local Machine"
-		doc.repository_url = result.get("repo_url")
+		# Never let a blank result here erase a URL a previous scan already found - a
+		# repo's remote essentially never changes, so a blank one this time is far more
+		# likely one flaky git command than a real change. Overwriting with it is exactly
+		# what made the "copy repo URL" button disappear after having worked before.
+		if result.get("repo_url"):
+			doc.repository_url = result.get("repo_url")
 		doc.current_branch = result.get("branch")
 		doc.upstream_branch = result.get("upstream")
 		doc.commits_ahead = result.get("ahead") or 0
@@ -256,7 +285,7 @@ def _analyse(app_name: str, fetch: bool) -> dict:
 	branch = get_current_branch(repo_path)
 	upstream = get_upstream_branch(repo_path)
 	dirty = bool(get_working_tree_status(repo_path))
-	repo_url = get_repo_url(repo_path)
+	repo_url = get_repo_url(repo_path, branch)
 
 	if not upstream:
 		return {

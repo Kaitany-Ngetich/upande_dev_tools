@@ -305,8 +305,14 @@ def set_field_if_exists(doc, fieldname: str, value) -> None:
 
 def update_check_doc(doc, result: dict) -> None:
 	set_field_if_exists(doc, "environment", result.get("environment"))
-	set_field_if_exists(doc, "repository_url", result.get("repository_url"))
-	set_field_if_exists(doc, "repository_name", result.get("repository_name"))
+	# Never let a blank result here erase a URL a previous scan already found. A repo's
+	# remote essentially never changes; a blank one is far more likely a single flaky git
+	# command in this scan than a real change - overwriting with it would make the "Copy
+	# repo URL" button disappear for an app that had it working moments before, then only
+	# come back on whichever later scan happens not to hit that flake.
+	if result.get("repository_url"):
+		set_field_if_exists(doc, "repository_url", result.get("repository_url"))
+		set_field_if_exists(doc, "repository_name", result.get("repository_name"))
 	set_field_if_exists(doc, "current_branch", result.get("current_branch"))
 	set_field_if_exists(doc, "upstream_branch", result.get("upstream_branch"))
 	set_field_if_exists(doc, "current_commit", result.get("current_commit"))
@@ -403,8 +409,12 @@ def scan_installed_apps() -> dict:
 
 			try:
 				repository_url = get_repository_url(app)
-				set_field_if_exists(doc, "repository_url", repository_url)
-				set_field_if_exists(doc, "repository_name", repository_url)
+				# Same reasoning as update_check_doc: a blank result (no exception, just
+				# no remote found this time - see get_primary_remote's own quiet fallback)
+				# must never erase a URL a previous scan already captured.
+				if repository_url:
+					set_field_if_exists(doc, "repository_url", repository_url)
+					set_field_if_exists(doc, "repository_name", repository_url)
 			except Exception as repo_error:
 				set_field_if_exists(doc, "status", "Error")
 				set_field_if_exists(doc, "status_message", str(repo_error))
