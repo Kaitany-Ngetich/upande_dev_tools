@@ -127,13 +127,19 @@ STAGE_SETTERS = {"Task": (TASK_STATUS, "status"), "Issue": (ISSUE_STATUS, "statu
 
 EDITABLE = {
 	"Task": {
+		"title": "subject",
+		"description": "description",
 		"priority": "priority",
+		"project": "project",
 		"start": "exp_start_date",
 		"end": "exp_end_date",
 		"module": "custom_module",
 	},
 	"Issue": {
+		"title": "subject",
+		"description": "description",
 		"priority": "priority",
+		"project": "project",
 		"start": "opening_date",
 		"end": "sla_resolution_by",
 		"module": "custom_module",
@@ -162,8 +168,10 @@ def get_board(project: str | None = None, limit: int = BOARD_LIMIT, tag: str | N
 	_resolve_people(items)
 
 	if tag:
-		tagged_names = set(_names_with_tag("Task", tag)) | set(_names_with_tag("Issue", tag)) | set(
-			_names_with_tag("Request", tag)
+		tagged_names = (
+			set(_names_with_tag("Task", tag))
+			| set(_names_with_tag("Issue", tag))
+			| set(_names_with_tag("Request", tag))
 		)
 		items = [i for i in items if i["name"] in tagged_names]
 
@@ -238,7 +246,7 @@ def _issues(filters: dict) -> list[dict]:
 		],
 		ignore_permissions=True,
 	)
-	return [
+	items = [
 		{
 			"doctype": "Issue",
 			"name": row.name,
@@ -256,6 +264,10 @@ def _issues(filters: dict) -> list[dict]:
 		}
 		for row in rows
 	]
+	# Tasks and Requests already carry theirs. An Issue that could be tagged from the
+	# sheet but never showed the tag back was the odd one out.
+	_attach_tags("Issue", items)
+	return items
 
 
 def _requests(filters: dict) -> list[dict]:
@@ -315,9 +327,7 @@ def _attach_tags(doctype: str, items: list[dict]) -> None:
 
 
 def _names_with_tag(doctype: str, tag: str) -> list[str]:
-	return frappe.get_all(
-		"Tag Link", filters={"document_type": doctype, "tag": tag}, pluck="document_name"
-	)
+	return frappe.get_all("Tag Link", filters={"document_type": doctype, "tag": tag}, pluck="document_name")
 
 
 @frappe.whitelist()
@@ -327,9 +337,7 @@ def get_used_tags(doctype: str) -> list[str]:
 	if doctype not in ("Task", "Issue", "Request"):
 		frappe.throw(_("Unknown work item."), frappe.ValidationError)
 
-	return sorted(
-		set(frappe.get_all("Tag Link", filters={"document_type": doctype}, pluck="tag"))
-	)
+	return sorted(set(frappe.get_all("Tag Link", filters={"document_type": doctype}, pluck="tag")))
 
 
 @frappe.whitelist()
@@ -353,7 +361,13 @@ def _set_doc_tags(doctype: str, name: str, tags: list[str]) -> None:
 		if not frappe.db.exists("Tag", tag):
 			frappe.get_doc({"doctype": "Tag", "name": tag}).insert(ignore_permissions=True)
 		frappe.get_doc(
-			{"doctype": "Tag Link", "document_type": doctype, "document_name": name, "tag": tag, "title": name}
+			{
+				"doctype": "Tag Link",
+				"document_type": doctype,
+				"document_name": name,
+				"tag": tag,
+				"title": name,
+			}
 		).insert(ignore_permissions=True)
 
 
@@ -404,7 +418,10 @@ def delete_task(name: str) -> None:
 	request_name = frappe.db.get_value("Request", {"linked_task": name}, "name")
 	if request_name:
 		frappe.db.set_value(
-			"Request", request_name, {"linked_task": None, "workflow_state": "Approved"}, update_modified=False
+			"Request",
+			request_name,
+			{"linked_task": None, "workflow_state": "Approved"},
+			update_modified=False,
 		)
 
 	frappe.delete_doc("Task", name, ignore_permissions=True)
@@ -419,7 +436,7 @@ def create_task(
 	priority: str | None = None,
 	module: str | None = None,
 	complete_by: str | None = None,
-	assign_to: str | None = None,
+	assign_to: str | list[str] | None = None,
 ) -> dict:
 	"""Ad-hoc work that never started life as a Request - internal cleanup, a chore, anything
 	a PM or dev just needs to log directly. Every other Task on this board comes from
@@ -475,20 +492,26 @@ def create_task(
 
 	if assign_to:
 		# Lazy import: requests.py imports normalize_priority from this module, so importing
-		# _assign back at module load time here would be circular.
-		from upande_dev_tools.api.requests import _assign
+		# these back at module load time here would be circular.
+		from upande_dev_tools.api.requests import _assign_many, parse_users
 
-		_assign("Task", task.name, assign_to, date=complete_by, priority=priority)
+		_assign_many("Task", task.name, parse_users(assign_to), date=complete_by, priority=priority)
 
 	return {"name": task.name}
 
 
 def _resolve_people(items: list[dict]) -> None:
+	"""Carries both halves of an assignment: `assignees` are the display names every view
+	renders, `assignee_ids` the emails those names resolve from. Full names are not unique on
+	this bench (two Brians, two Beatrice Temburs), so anything that writes an assignment back
+	has to round-trip the email - matching a person by their displayed name picks whichever
+	duplicate happens to sort first."""
 	emails: set[str] = set()
 	for item in items:
 		assigned = item.pop("_assign", None)
-		item["assignees"] = json.loads(assigned) if assigned else []
-		emails.update(item["assignees"])
+		item["assignee_ids"] = json.loads(assigned) if assigned else []
+		item["assignees"] = list(item["assignee_ids"])
+		emails.update(item["assignee_ids"])
 
 	if not emails:
 		return
@@ -496,7 +519,55 @@ def _resolve_people(items: list[dict]) -> None:
 	rows = frappe.get_all("User", filters={"name": ["in", list(emails)]}, fields=["name", "full_name"])
 	names = {row.name: row.full_name or row.name for row in rows}
 	for item in items:
-		item["assignees"] = [names.get(email, email) for email in item["assignees"]]
+		item["assignees"] = [names.get(email, email) for email in item["assignee_ids"]]
+
+
+def _apply_status(doc, status: str) -> str:
+	"""Puts a doc on a status without saving it. The sheet's Status column writes one of
+	these directly; a stage is just a status this board has a friendlier name for."""
+	if doc.doctype not in STAGE_SETTERS:
+		frappe.throw(_("{0} is moved through its own workflow, not the board.").format(_(doc.doctype)))
+
+	_, fieldname = STAGE_SETTERS[doc.doctype]
+	if status not in frappe.get_meta(doc.doctype).get_field(fieldname).options.split("\n"):
+		frappe.throw(_("{0} has no status {1}.").format(_(doc.doctype), status), frappe.ValidationError)
+
+	doc.set(fieldname, status)
+
+	# Stamp when the work actually finished. Nothing recorded this before, so no
+	# measure of delivery or cycle time could ever be computed from it.
+	stage_map = TASK_STAGE if doc.doctype == "Task" else ISSUE_STAGE
+	if doc.doctype == "Task" and doc.meta.has_field("completed_on"):
+		if stage_map.get(status) == "Done":
+			doc.completed_on = doc.completed_on or nowdate()
+			if doc.meta.has_field("completed_by"):
+				doc.completed_by = doc.completed_by or frappe.session.user
+		else:
+			doc.completed_on = None
+
+	return status
+
+
+def _apply_stage(doc, stage: str) -> str:
+	"""Puts a doc on a stage without saving it, so a stage change can ride along with the
+	rest of an edit in one save instead of needing its own round trip."""
+	if doc.doctype not in STAGE_SETTERS:
+		frappe.throw(_("{0} is moved through its own workflow, not the board.").format(_(doc.doctype)))
+
+	if stage not in STAGES:
+		frappe.throw(_("Unknown stage {0}.").format(stage), frappe.ValidationError)
+
+	status_map, _fieldname = STAGE_SETTERS[doc.doctype]
+	return _apply_status(doc, status_map[stage])
+
+
+def _save(doc) -> None:
+	if doc.doctype == "Task":
+		# Same pypika/recursive-CTE incompatibility already worked around in
+		# Request.on_update() - Task.on_update() always runs check_recursion() on save,
+		# and this bench's pypika can't run the query it needs.
+		doc.flags.ignore_recursion_check = True
+	doc.save(ignore_permissions=True)
 
 
 @frappe.whitelist()
@@ -507,34 +578,32 @@ def set_stage(doctype: str, name: str, stage: str) -> dict:
 	if doctype not in STAGE_SETTERS:
 		frappe.throw(_("{0} is moved through its own workflow, not the board.").format(_(doctype)))
 
-	if stage not in STAGES:
-		frappe.throw(_("Unknown stage {0}.").format(stage), frappe.ValidationError)
-
-	status_map, fieldname = STAGE_SETTERS[doctype]
-	status = status_map[stage]
-	if status not in frappe.get_meta(doctype).get_field(fieldname).options.split("\n"):
-		frappe.throw(_("{0} has no status {1}.").format(_(doctype), status), frappe.ValidationError)
-
 	doc = frappe.get_doc(doctype, name)
-	doc.set(fieldname, status)
-
-	# Stamp when the work actually finished. Nothing recorded this before, so no
-	# measure of delivery or cycle time could ever be computed from it.
-	if doctype == "Task" and doc.meta.has_field("completed_on"):
-		if stage == "Done":
-			doc.completed_on = doc.completed_on or nowdate()
-			if doc.meta.has_field("completed_by"):
-				doc.completed_by = doc.completed_by or frappe.session.user
-		else:
-			doc.completed_on = None
-
-	if doctype == "Task":
-		# Same pypika/recursive-CTE incompatibility already worked around in
-		# Request.on_update() - Task.on_update() always runs check_recursion() on save,
-		# and this bench's pypika can't run the query it needs.
-		doc.flags.ignore_recursion_check = True
-	doc.save(ignore_permissions=True)
+	status = _apply_stage(doc, stage)
+	_save(doc)
 	return {"name": name, "status": status, "stage": stage}
+
+
+def _editable_value(doctype: str, field: str, fieldname: str, value):
+	"""Validates and coerces one board-editable field. Shared by the single-cell path the
+	sheet and the timeline use and the whole-form path the edit dialog uses, so a value the
+	sheet refuses is not one the dialog quietly writes."""
+	if field == "title" and not (value or "").strip():
+		frappe.throw(_("A work item needs a title."), frappe.ValidationError)
+
+	if field == "priority" and value and value not in _priority_rank():
+		frappe.throw(_("Unknown priority {0}.").format(value), frappe.ValidationError)
+
+	if field == "module" and value and not frappe.db.exists("Product Area", value):
+		frappe.throw(_("Unknown module {0}.").format(value), frappe.ValidationError)
+
+	if field == "project" and value and not frappe.db.exists("Project", value):
+		frappe.throw(_("Unknown project {0}.").format(value), frappe.ValidationError)
+
+	coerced = _coerce(frappe.get_meta(doctype).get_field(fieldname).fieldtype, value)
+	if field == "priority":
+		coerced = normalize_priority(doctype, fieldname, coerced)
+	return coerced
 
 
 @frappe.whitelist()
@@ -546,22 +615,143 @@ def set_field(doctype: str, name: str, field: str, value: str | None = None) -> 
 	if not fields or field not in fields:
 		frappe.throw(_("{0} cannot be edited from the board.").format(field), frappe.ValidationError)
 
-	if field == "priority" and value and value not in _priority_rank():
-		frappe.throw(_("Unknown priority {0}.").format(value), frappe.ValidationError)
-
-	if field == "module" and value and not frappe.db.exists("Product Area", value):
-		frappe.throw(_("Unknown module {0}.").format(value), frappe.ValidationError)
-
 	fieldname = fields[field]
 	doc = frappe.get_doc(doctype, name)
-	coerced = _coerce(doc.meta.get_field(fieldname).fieldtype, value)
-	if field == "priority":
-		coerced = normalize_priority(doctype, fieldname, coerced)
-	doc.set(fieldname, coerced)
-	if doctype == "Task":
-		doc.flags.ignore_recursion_check = True
-	doc.save(ignore_permissions=True)
+	doc.set(fieldname, _editable_value(doctype, field, fieldname, value))
+	_save(doc)
 	return {"name": name, "field": field, "value": value or ""}
+
+
+@frappe.whitelist()
+def get_editable(doctype: str, name: str) -> dict:
+	"""What the edit dialog opens on. The board payload deliberately carries no descriptions
+	- there are thousands of rows in it and no view renders one - so the single item about to
+	be edited fetches its own, rather than every item paying for the one."""
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	fields = EDITABLE.get(doctype)
+	if not fields:
+		frappe.throw(
+			_("{0} is moved through its own workflow, not the board.").format(_(doctype)),
+			frappe.ValidationError,
+		)
+
+	doc = frappe.get_doc(doctype, name)
+	values = {field: doc.get(fieldname) for field, fieldname in fields.items()}
+	values["start"] = _date(values.get("start"))
+	values["end"] = _date(values.get("end"))
+	values["status"] = doc.get("status")
+	stage_map = TASK_STAGE if doctype == "Task" else ISSUE_STAGE
+	values["stage"] = stage_map.get(doc.get("status"), "Todo")
+	values["tags"] = sorted(
+		frappe.get_all(
+			"Tag Link", filters={"document_type": doctype, "document_name": name}, pluck="tag"
+		)
+	)
+	values["assignees"] = json.loads(doc.get("_assign") or "[]")
+	return values
+
+
+@frappe.whitelist()
+def update_work(doctype: str, name: str, values: dict | str) -> dict:
+	"""The edit dialog's save. Every plain field lands in one doc.save() rather than a field's
+	worth of round trips, so a half-applied edit is not a state this board can end up in.
+	Stage, tags and assignment are not plain fields and still go through the paths that own
+	them - assignment in particular is reviewer-only, which a Dev Team member editing anything
+	else about a task must not be able to route around."""
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	fields = EDITABLE.get(doctype)
+	if not fields:
+		frappe.throw(
+			_("{0} is moved through its own workflow, not the board.").format(_(doctype)),
+			frappe.ValidationError,
+		)
+
+	if isinstance(values, str):
+		values = json.loads(values)
+
+	doc = frappe.get_doc(doctype, name)
+	for field, fieldname in fields.items():
+		if field in values:
+			doc.set(fieldname, _editable_value(doctype, field, fieldname, values[field]))
+
+	if not doc.get(fields["title"]):
+		frappe.throw(_("A work item needs a title."), frappe.ValidationError)
+
+	start, end = doc.get(fields["start"]), doc.get(fields["end"])
+	if start and end and getdate(end) < getdate(start):
+		frappe.throw(_("The due date cannot fall before the start date."), frappe.ValidationError)
+
+	if values.get("stage"):
+		_apply_stage(doc, values["stage"])
+	# The sheet's Status column is more specific than a stage, so it wins if both arrive.
+	if values.get("status"):
+		_apply_status(doc, values["status"])
+	_save(doc)
+
+	if "tags" in values:
+		tags = values["tags"]
+		if isinstance(tags, str):
+			tags = tags.split(",")
+		tags = [t.strip() for t in (tags or []) if t and t.strip()]
+		_validate_tags(tags)
+		_set_doc_tags(doctype, name, tags)
+
+	# Lazy import: requests.py imports from this module, so importing it back at module
+	# load time here would be circular.
+	from upande_dev_tools.api.requests import parse_users, reassign_task
+
+	if doctype == "Task" and values.get("assign_to") is not None:
+		people = parse_users(values["assign_to"])
+		if people and people != json.loads(doc.get("_assign") or "[]"):
+			reassign_task(name, people)
+
+	return {"name": name}
+
+
+# A fill dragged down a long column, or a paste out of a real spreadsheet, can name more
+# rows than anyone meant to touch. Past this the sheet is told to make a smaller selection
+# rather than the server quietly working through thousands of saves.
+BULK_LIMIT = 200
+
+
+@frappe.whitelist()
+def bulk_update(changes: list | str) -> dict:
+	"""Every cell a fill or a paste touched, in one request. Rows are independent: one that
+	fails is rolled back to its own savepoint and reported by name, and the rest still save
+	- a paste over twenty rows should not be undone by the one Request hiding among them."""
+	if not set(frappe.get_roles()) & BOARD_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	if isinstance(changes, str):
+		changes = json.loads(changes)
+	changes = changes or []
+
+	if len(changes) > BULK_LIMIT:
+		frappe.throw(
+			_("That is {0} rows at once. Select up to {1} and try again.").format(
+				len(changes), BULK_LIMIT
+			),
+			frappe.ValidationError,
+		)
+
+	saved: list[str] = []
+	failed: list[dict] = []
+	for i, change in enumerate(changes):
+		doctype, name = change.get("doctype"), change.get("name")
+		point = f"udt_bulk_{i}"
+		frappe.db.savepoint(point)
+		try:
+			update_work(doctype, name, change.get("values") or {})
+			saved.append(name)
+		except Exception as e:
+			frappe.db.rollback(save_point=point)
+			failed.append({"name": name, "error": str(e) or _("Could not save that row.")})
+
+	return {"saved": saved, "failed": failed}
 
 
 def _coerce(fieldtype: str, value: str | None):

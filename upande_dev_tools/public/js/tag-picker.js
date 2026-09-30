@@ -22,7 +22,8 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 			.join("");
 		return `<div class="dpx-tagpick" data-name="${esc(name)}">
 			<div class="dpx-tagpick-opts">${
-				chips || `<span class="dpx-tagpick-empty">No tags set up yet - add one in Master Data.</span>`
+				chips ||
+				`<span class="dpx-tagpick-empty">No tags set up yet - add one in Master Data.</span>`
 			}</div>
 			<input type="hidden" name="${esc(name)}" value="${esc([...selected].join(","))}">
 		</div>`;
@@ -39,7 +40,9 @@ window.upande_dev_tools = window.upande_dev_tools || {};
 		const on = !btn.classList.contains("on");
 		btn.classList.toggle("on", on);
 		btn.setAttribute("aria-pressed", String(on));
-		const chosen = [...wrap.querySelectorAll(".dpx-tagpick-opt.on")].map((el) => el.dataset.tag);
+		const chosen = [...wrap.querySelectorAll(".dpx-tagpick-opt.on")].map(
+			(el) => el.dataset.tag
+		);
 		const hidden = wrap.querySelector('input[type="hidden"]');
 		if (hidden) hidden.value = chosen.join(",");
 	});

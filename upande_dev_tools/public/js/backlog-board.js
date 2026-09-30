@@ -39,9 +39,33 @@ const MONTHS_LONG = [
 	"November",
 	"December",
 ];
-const ZOOM = { days: 34, weeks: 15, months: 5 };
+// A schedule with three widths is unreadable at both ends: a quarter of work at a
+// day per 34px is a kilometre of scrolling, and a one-day task at a month is a
+// sliver nobody can grab. Ctrl+wheel walks this ladder a rung at a time.
+const ZOOMS = [
+	{ key: "closeup", label: "Close-up", w: 110 },
+	{ key: "days", label: "Days", w: 34 },
+	{ key: "wide", label: "Wide weeks", w: 22 },
+	{ key: "weeks", label: "Weeks", w: 15 },
+	{ key: "fortnights", label: "Fortnights", w: 9 },
+	{ key: "months", label: "Months", w: 5 },
+	{ key: "quarters", label: "Quarters", w: 3 },
+];
+const ZOOM = {};
+ZOOMS.forEach((z) => (ZOOM[z.key] = z.w));
+// Coarse to fine, which is the direction a wheel pushed away from you should travel.
+const ZOOM_KEYS = ZOOMS.map((z) => z.key).reverse();
+// Below this a bar cannot be grabbed at all, and below EDGE_BAR there is no room
+// for two edge handles and a middle - so the whole bar moves and the dialog or the
+// sheet is where one end gets changed on its own.
+const MIN_BAR = 14;
+const EDGE_BAR = 30;
+const EDGE = 7;
+const WHEEL_STEP = 40;
 const PAGE = 60;
 const PREFS = "dpx-backlog";
+const VIEWS = ["board", "list", "timeline", "sheet"];
+const BLANK_FILTERS = { q: "", source: "", assignee: "", module: "", priority: "", tag: "" };
 
 function read_prefs() {
 	try {
@@ -52,7 +76,18 @@ function read_prefs() {
 }
 const COLUMN_CAP = 25;
 const VIEW_KEYS = { 1: "board", 2: "list", 3: "timeline", 4: "sheet" };
-const SHEET_FIELDS = { 2: "stage", 3: "priority", 4: "assignee", 5: "module", 6: "end", 7: "start", 8: "status" };
+const SHEET_FIELDS = {
+	1: "title",
+	2: "stage",
+	3: "priority",
+	4: "assignee",
+	5: "module",
+	6: "tags",
+	7: "end",
+	8: "start",
+	9: "status",
+	10: "project",
+};
 const LIB = "/assets/upande_dev_tools/lib/jspreadsheet";
 // Each of these mirrors the real markup of its view, so the switch from
 // skeleton to content does not move anything on the page.
@@ -134,10 +169,10 @@ const SKELETON = {
 };
 
 const HINTS = {
-	board: "Drag a card between stages to move it",
-	list: "Click a group to collapse it",
-	timeline: "Bars run from start to due date",
-	sheet: "Editable: Stage · Priority · Start · Due",
+	board: "Drag a card between stages · hover one to edit it",
+	list: "Click a group to collapse it · hover a row to edit it",
+	timeline: "Drag a bar to move it · Ctrl + scroll to zoom",
+	sheet: "Click a cell to edit it · funnel in a header to filter",
 };
 const ICONS = {
 	board: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
@@ -151,97 +186,9 @@ const ICONS = {
 	trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 	more: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+	chevron: '<path d="m6 9 6 6 6-6"/>',
+	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
 };
-
-// A plain HTML form in an overlay, reusing the .rp-sheet/.rp-form styling that already
-// ships with this app - frappe.prompt's Dialog needs frappe.ui.form.make_control to render
-// its fields, and that isn't loaded on these portal pages at all (only the full desk
-// bundle has it), so every field-collecting dialog on this board is built this way instead.
-function open_modal(title, fields, onSubmit, submitLabel) {
-	const field_html = fields
-		.map((f) => {
-			const id = `bb-modal-${f.name}`;
-			let input;
-			if (f.type === "select") {
-				input = `<select class="dpx-bb-field" id="${id}" name="${f.name}">${(f.options || [])
-					.map(
-						([v, l]) =>
-							`<option value="${esc(v)}"${v === f.value ? " selected" : ""}>${esc(l)}</option>`
-					)
-					.join("")}</select>`;
-			} else if (f.type === "textarea") {
-				input = `<textarea class="dpx-bb-field" id="${id}" name="${f.name}" rows="3">${esc(
-					f.value || ""
-				)}</textarea>`;
-			} else if (f.type === "tagpicker") {
-				input = upande_dev_tools.tag_picker_html({
-					name: f.name,
-					tags: f.tags || [],
-					selected: f.selected || [],
-				});
-			} else {
-				const listAttr = f.datalist ? ` list="${id}-list"` : "";
-				const datalist = f.datalist
-					? `<datalist id="${id}-list">${f.datalist.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`
-					: "";
-				input = `<input class="dpx-bb-field" id="${id}" name="${f.name}" type="${f.type || "text"}"
-					value="${esc(f.value || "")}"${f.required ? " required" : ""}${listAttr}
-					${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ""}>${datalist}`;
-			}
-			return `<label for="${id}">${esc(f.label)}${input}</label>`;
-		})
-		.join("");
-
-	const overlay = document.createElement("div");
-	overlay.className = "rp-sheet";
-	overlay.innerHTML = `
-		<div class="rp-scrim"></div>
-		<form class="rp-form" role="dialog" aria-label="${esc(title)}">
-			<div class="rp-form-hd"><h3>${esc(title)}</h3>
-				<button type="button" class="dpx-bb-ico bb-modal-close" aria-label="Close">${ico("x", 14)}</button></div>
-			${field_html}
-			<div class="rp-form-ft">
-				<button type="button" class="dpx-bb-btn bb-modal-close">${__("Cancel")}</button>
-				<button type="submit" class="dpx-bb-btn primary">${esc(submitLabel || __("Save"))}</button>
-			</div>
-		</form>`;
-	// Mounted inside .dpx, not document.body: every .rp-sheet/.rp-form/.dpx-bb-field style is
-	// deliberately scoped under .dpx (see dev-portal.css) so this portal's CSS never leaks
-	// onto the rest of the site - appending straight to body would render completely
-	// unstyled, since .dpx is fixed/full-viewport and doesn't use transform, so a
-	// position:fixed child still positions against the real viewport either way.
-	(document.querySelector(".dpx") || document.body).appendChild(overlay);
-
-	const close = () => {
-		overlay.remove();
-		document.removeEventListener("keydown", on_key);
-	};
-	function on_key(e) {
-		if (e.key === "Escape") close();
-	}
-	document.addEventListener("keydown", on_key);
-	overlay.querySelectorAll(".bb-modal-close").forEach((b) => b.addEventListener("click", close));
-	overlay.querySelector(".rp-scrim").addEventListener("click", close);
-	overlay.querySelector("form").addEventListener("submit", (e) => {
-		e.preventDefault();
-		// A hidden input's own `required` attribute is a no-op in every browser (an element
-		// that isn't rendered is exempt from constraint validation) - so a tagpicker's
-		// required-ness has to be checked by hand here instead.
-		for (const f of fields) {
-			if (f.type !== "tagpicker" || !f.required) continue;
-			const hidden = overlay.querySelector(`input[name="${f.name}"]`);
-			if (!hidden || !hidden.value) {
-				upande_dev_tools.toast(__("Pick at least one {0}.", [f.label]), "orange");
-				return;
-			}
-		}
-		const data = Object.fromEntries(new FormData(e.target).entries());
-		close();
-		onSubmit(data);
-	});
-	const first = overlay.querySelector("input,select,textarea");
-	if (first) first.focus();
-}
 
 function load_jspreadsheet() {
 	if (window.jspreadsheet) return Promise.resolve();
@@ -300,12 +247,18 @@ function paint_cell(cell, x, item) {
 			: '<span class="cellwrap" style="color:var(--ink-faint)">Unassigned</span>';
 	} else if (x === 5) {
 		cell.classList.add("bb-quiet");
-	} else if (x === 6 || x === 7) {
+	} else if (x === 6) {
+		cell.innerHTML = (item.tags || []).length
+			? `<span class="cellwrap">${(item.tags || [])
+					.map((t) => `<span class="dpx-bb-chip">${esc(t)}</span>`)
+					.join(" ")}</span>`
+			: "";
+	} else if (x === 7 || x === 8) {
 		cell.classList.add("bb-mono");
-		if (x === 6 && item.late) cell.classList.add("bb-late");
-	} else if (x === 8 || x === 9) {
+		if (x === 7 && item.late) cell.classList.add("bb-late");
+	} else if (x === 9 || x === 10) {
 		cell.classList.add("bb-quiet");
-	} else if (x === 10) {
+	} else if (x === 11) {
 		cell.classList.add("bb-mono");
 	}
 }
@@ -318,7 +271,14 @@ function ico(name, size) {
 		}</svg>`;
 }
 const RANK = { Low: 1, Medium: 2, High: 3, Urgent: 4 };
-const TASK_QUICK_STATUSES = ["Open", "Working", "Pending Review", "Overdue", "Completed", "Cancelled"];
+const TASK_QUICK_STATUSES = [
+	"Open",
+	"Working",
+	"Pending Review",
+	"Overdue",
+	"Completed",
+	"Cancelled",
+];
 
 upande_dev_tools.BacklogBoard = class BacklogBoard {
 	constructor(wrapper, project) {
@@ -328,15 +288,18 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		this.stages = [];
 		this.total = 0;
 		this.modules = [];
+		// Where you left off, and how you had it set up. A board you have to re-filter
+		// and re-arrange every morning is a board people stop arranging at all.
 		const kept = read_prefs();
-		this.view = kept.view || "board";
+		this.view = VIEWS.includes(kept.view) ? kept.view : "board";
 		this.group_by = kept.group_by || "stage";
-		this.zoom = kept.zoom || "weeks";
-		this.shut = new Set();
+		this.zoom = ZOOM[kept.zoom] ? kept.zoom : "weeks";
+		this.shut = new Set(kept.shut || []);
 		this.caps = {};
-		this.hide_done = false;
+		this.hide_done = !!kept.hide_done;
 		this.limit = PAGE;
-		this.filters = { q: "", source: "", assignee: "", module: "", priority: "", tag: "" };
+		this.filters = { ...BLANK_FILTERS, ...(kept.filters || {}) };
+		this.tl_scroll = kept.tl_scroll || null;
 		this.render_shell();
 		this.load();
 	}
@@ -348,7 +311,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		frappe
 			.xcall("upande_dev_tools.api.board.get_modules")
 			.then((m) => {
-				this.modules = ["", ...(m || [])];
+				this.modules = ["", ...(Array.isArray(m) ? m : [])];
 				if (this.items.length) this.render();
 			})
 			.catch(() => {});
@@ -356,7 +319,14 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			frappe
 				.xcall("upande_dev_tools.api.requests.get_assignable_users")
 				.then((people) => {
-					this.people = people || [];
+					this.people = Array.isArray(people) ? people : [];
+					// Guarded: this .then has a .catch that blanks the list, so an undefined
+					// helper here would silently cost the board every assignee it knows.
+					if (upande_dev_tools.seed_users) upande_dev_tools.seed_users(this.people);
+					// Same re-render the modules fetch does: the sheet's assignee dropdown is
+					// built from this list, so arriving after the first paint would otherwise
+					// leave that column with nothing to pick from until the next render.
+					if (this.items.length) this.render();
 				})
 				.catch(() => {
 					this.people = [];
@@ -366,7 +336,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			frappe
 				.xcall("upande_dev_tools.api.board.get_projects")
 				.then((projects) => {
-					this.projects = projects || [];
+					this.projects = Array.isArray(projects) ? projects : [];
 				})
 				.catch(() => {
 					this.projects = [];
@@ -378,7 +348,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			frappe
 				.xcall("upande_dev_tools.api.board.get_work_tags")
 				.then((tags) => {
-					this.work_tags = tags || [];
+					this.work_tags = Array.isArray(tags) ? tags : [];
 				})
 				.catch(() => {
 					this.work_tags = [];
@@ -388,9 +358,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			// Priority Level is Master Data page-editable - the Sheet's edit dropdown needs
 			// the full valid set, not just what's already in use on the board.
 			frappe
-				.xcall("upande_dev_tools.api.master_data.get_master_data", { key: "priority_level" })
+				.xcall("upande_dev_tools.api.master_data.get_master_data", {
+					key: "priority_level",
+				})
 				.then((levels) => {
-					this.priority_levels = (levels || []).filter((p) => !p.disabled).map((p) => p.name);
+					this.priority_levels = (Array.isArray(levels) ? levels : [])
+						.filter((p) => !p.disabled)
+						.map((p) => p.name);
 				})
 				.catch(() => {
 					this.priority_levels = [];
@@ -419,7 +393,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		try {
 			localStorage.setItem(
 				PREFS,
-				JSON.stringify({ view: this.view, group_by: this.group_by, zoom: this.zoom })
+				JSON.stringify({
+					view: this.view,
+					group_by: this.group_by,
+					zoom: this.zoom,
+					filters: this.filters,
+					hide_done: this.hide_done,
+					shut: [...this.shut],
+					tl_scroll: this.tl_scroll,
+				})
 			);
 		} catch (e) {}
 	}
@@ -522,6 +504,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 							<select class="dpx-bb-field" data-f="tag" aria-label="Tag">
 								<option value="">Any tag</option>
 							</select>
+							<button type="button" class="dpx-bb-btn bb-clear" hidden>Clear</button>
 						</div>
 						<span class="dpx-bb-sep"></span>
 						<div class="dpx-bb-grp">
@@ -537,9 +520,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						<div class="dpx-bb-grp bb-zoom-grp" hidden>
 							<span class="dpx-bb-grp-lbl">Zoom</span>
 							<select class="dpx-bb-field bb-zoom" aria-label="Zoom">
-								<option value="days">Days</option>
-								<option value="weeks">Weeks</option>
-								<option value="months">Months</option>
+								${ZOOMS.map(
+									(z) => `<option value="${z.key}">${z.label}</option>`
+								).join("")}
 							</select>
 						</div>
 						<span class="dpx-bb-sep bb-tools-sep" hidden></span>
@@ -573,8 +556,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			this.filters[el.data("f")] = el.val();
 			this.limit = PAGE;
 			this.caps = {};
+			this.save_prefs();
 			clearTimeout(this.typing);
 			this.typing = setTimeout(() => this.render(), e.type === "input" ? 180 : 0);
+		});
+		root.on("click", ".bb-clear", () => {
+			this.filters = { ...BLANK_FILTERS };
+			this.limit = PAGE;
+			this.caps = {};
+			this.save_prefs();
+			this.render();
 		});
 		root.on("change", ".bb-extra", (e) => {
 			this.group_by = $(e.currentTarget).val();
@@ -589,6 +580,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.on("click", ".dpx-bb-ghd button", (e) => {
 			const key = $(e.currentTarget).data("group");
 			this.shut.has(key) ? this.shut.delete(key) : this.shut.add(key);
+			this.save_prefs();
 			this.render();
 		});
 		root.on("click", ".dpx-bb-more", () => {
@@ -599,10 +591,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.on("click", ".bb-tool", (e) => this.tool($(e.currentTarget).data("tool")));
 		root.on("click", ".bb-delete", (e) => this.delete_item($(e.currentTarget)));
 		root.on("click", ".bb-reassign", (e) => this.reassign_item($(e.currentTarget)));
-		root.on("click", ".bb-card-quick", (e) => {
+		// One dialog, reachable from every view - a card, a list row, a bar on the
+		// timeline. Editing work should not depend on which way you happen to be
+		// looking at it.
+		root.on("click", ".bb-edit", (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.quick_actions($(e.currentTarget));
+			this.edit_item($(e.currentTarget));
 		});
 
 		if (upande_dev_tools.attach_preview) upande_dev_tools.attach_preview(root[0]);
@@ -653,11 +648,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	render() {
-		const rows = this.visible();
 		this.render_assignees();
 		this.render_priorities();
 		this.render_tags();
+		// render_extra drops a stored filter whose option no longer exists, so it has
+		// to run before the rows are worked out rather than after - otherwise the first
+		// paint is still filtered by a choice the toolbar has already given up on.
 		this.render_extra();
+
+		const rows = this.visible();
 		this.render_tools();
 		this.render_count(rows);
 
@@ -679,7 +678,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				if (i.priority) rank[i.priority] = i.rank;
 			});
 			const names = Object.keys(rank).sort((a, b) => rank[b] - rank[a]);
-			field.append(names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join(""));
+			field.append(
+				names.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")
+			);
 		}
 	}
 
@@ -689,7 +690,9 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		if (field.children().length <= 1) {
 			const names = [...new Set(this.items.flatMap((item) => item.tags || []))].sort();
 			field.html(
-				['<option value="">Any tag</option>'].concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)).join("")
+				['<option value="">Any tag</option>']
+					.concat(names.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`))
+					.join("")
 			);
 		}
 	}
@@ -741,14 +744,26 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 
 	new_task() {
 		const projects = (this.projects || []).map((p) => [p.name, p.project_name || p.name]);
-		const people = [["", __("Unassigned")], ...(this.people || []).map((p) => [p.name, p.full_name || p.name])];
-		const priorities = [["", __("No priority")], ...(this.priority_levels || []).map((p) => [p, p])];
-		const modules = [["", __("No module")], ...(this.modules || []).filter(Boolean).map((m) => [m, m])];
+		const priorities = [
+			["", __("No priority")],
+			...(this.priority_levels || []).map((p) => [p, p]),
+		];
+		const modules = [
+			["", __("No module")],
+			...(this.modules || []).filter(Boolean).map((m) => [m, m]),
+		];
 
-		open_modal(
+		upande_dev_tools.open_modal(
 			__("New task"),
 			[
-				{ name: "project", label: __("Project"), type: "select", options: projects, value: this.project || "", required: true },
+				{
+					name: "project",
+					label: __("Project"),
+					type: "select",
+					options: projects,
+					value: this.project || "",
+					required: true,
+				},
 				{ name: "subject", label: __("Title"), type: "text", required: true },
 				{
 					name: "tags",
@@ -761,7 +776,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				{ name: "priority", label: __("Priority"), type: "select", options: priorities },
 				{ name: "module", label: __("Module"), type: "select", options: modules },
 				{ name: "complete_by", label: __("Due date"), type: "date" },
-				{ name: "assign_to", label: __("Assign to"), type: "select", options: people },
+				{
+					name: "assign_to",
+					label: __("Assign to"),
+					type: "userlink",
+					multiple: true,
+					placeholder: __("Leave blank for unassigned"),
+				},
 			],
 			(values) => {
 				frappe
@@ -771,79 +792,147 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
-						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not create that task."), "red");
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not create that task."),
+							"red"
+						);
 					});
 			},
 			__("Create")
 		);
 	}
 
-	quick_actions(btn) {
-		const card_el = btn.closest("[data-doctype]");
-		const name = card_el.data("name");
-		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
+	edit_item(btn) {
+		const row = btn.closest("[data-doctype]");
+		const doctype = row.data("doctype");
+		const name = row.data("name");
+		const item = this.items.find((i) => i.doctype === doctype && i.name === name);
 		if (!item) return;
 
-		const people = [
-			["", __("Keep current assignee(s)")],
-			...(this.people || []).map((p) => [p.name, p.full_name || p.name]),
-		];
+		// The board carries no descriptions - thousands of rows of rich text that no
+		// view renders - so the one item being edited fetches its own current values.
+		btn.addClass("spin");
+		frappe
+			.xcall("upande_dev_tools.api.board.get_editable", { doctype, name })
+			.then((values) => {
+				btn.removeClass("spin");
+				this.edit_form(item, values || {});
+			})
+			.catch((e) => {
+				btn.removeClass("spin");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not open that one."),
+					"red"
+				);
+			});
+	}
 
-		open_modal(
-			__("Quick actions - {0}", [item.title]),
-			[
-				{
-					name: "status",
-					label: __("Status"),
-					type: "select",
-					options: TASK_QUICK_STATUSES.map((s) => [s, s]),
-					value: item.status,
-				},
-				{ name: "assign_to", label: __("Reassign to"), type: "select", options: people },
-				{ name: "complete_by", label: __("Due date"), type: "date", value: item.end || "" },
-			],
-			(values) => {
-				if (values.complete_by && item.start && values.complete_by < item.start) {
-					upande_dev_tools.toast(__("Due date can't be before the start date ({0}).", [item.start]), "orange");
+	edit_form(item, values) {
+		const pairs = (list) => (list || []).map((v) => [v, v]);
+		const desc = plain_description(values.description);
+		const fields = [
+			{
+				name: "title",
+				label: __("Title"),
+				type: "text",
+				value: values.title || item.title,
+				required: true,
+			},
+			{
+				name: "description",
+				label: desc.rich
+					? __("Description — has formatting, edit it on the item itself")
+					: __("Description"),
+				type: "textarea",
+				value: desc.text,
+				readonly: desc.rich,
+			},
+			{
+				name: "stage",
+				label: __("Stage"),
+				type: "select",
+				options: pairs(this.stages),
+				value: values.stage || item.stage,
+			},
+			{
+				name: "priority",
+				label: __("Priority"),
+				type: "select",
+				options: [["", __("No priority")], ...pairs(this.priority_levels)],
+				value: values.priority || "",
+			},
+			{
+				name: "module",
+				label: __("Module"),
+				type: "select",
+				options: [["", __("No module")], ...pairs((this.modules || []).filter(Boolean))],
+				value: values.module || "",
+			},
+			{
+				name: "project",
+				label: __("Project"),
+				type: "select",
+				options: [
+					["", __("No project")],
+					...(this.projects || []).map((p) => [p.name, p.project_name || p.name]),
+				],
+				value: values.project || "",
+			},
+			{ name: "start", label: __("Start"), type: "date", value: values.start || "" },
+			{ name: "end", label: __("Due date"), type: "date", value: values.end || "" },
+			{
+				name: "tags",
+				label: __("Tags"),
+				type: "tagpicker",
+				tags: this.work_tags || [],
+				selected: values.tags || [],
+			},
+		];
+		if (item.doctype === "Task") {
+			fields.push({
+				name: "assign_to",
+				label: __("Assigned to"),
+				type: "userlink",
+				multiple: true,
+				value: (values.assignees || []).join(","),
+				placeholder: __("Nobody yet"),
+			});
+		}
+
+		upande_dev_tools.open_modal(
+			__("Edit {0}", [item.name]),
+			fields,
+			(v) => {
+				if (v.start && v.end && v.end < v.start) {
+					upande_dev_tools.toast(
+						__("Due date can't be before the start date."),
+						"orange"
+					);
 					return;
 				}
+				// Leaving the key out entirely is what tells the server to keep what is
+				// already there - sending the flattened text back would drop the markup.
+				if (desc.rich) delete v.description;
+				else v.description = rich_description(v.description);
 
-				const calls = [];
-				if (values.status && values.status !== item.status)
-					calls.push(
-						frappe.xcall("upande_dev_tools.api.requests.update_task_status", {
-							name,
-							status: values.status,
-						})
-					);
-				if (values.assign_to)
-					calls.push(
-						frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
-							name,
-							assign_to: values.assign_to,
-							complete_by: values.complete_by || null,
-						})
-					);
-				else if (values.complete_by && values.complete_by !== item.end)
-					calls.push(
-						frappe.xcall("upande_dev_tools.api.board.set_field", {
-							doctype: "Task",
-							name,
-							field: "end",
-							value: values.complete_by,
-						})
-					);
-
-				Promise.all(calls)
+				frappe
+					.xcall("upande_dev_tools.api.board.update_work", {
+						doctype: item.doctype,
+						name: item.name,
+						values: v,
+					})
 					.then(() => {
-						upande_dev_tools.toast(__("Updated."), "green");
+						upande_dev_tools.toast(__("Saved."), "green");
 						this.load();
 					})
 					.catch((e) => {
-						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not update that."), "red");
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not save that."),
+							"red"
+						);
 					});
 			},
-			__("Save")
+			__("Save changes")
 		);
 	}
 
@@ -853,10 +942,13 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const name = row.data("name");
 		const item = this.items.find((i) => i.doctype === doctype && i.name === name);
 
-		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name]))) return;
+		if (!window.confirm(__("Delete {0}? This can't be undone.", [item ? item.title : name])))
+			return;
 
 		const method =
-			doctype === "Task" ? "upande_dev_tools.api.board.delete_task" : "upande_dev_tools.api.requests.delete_request";
+			doctype === "Task"
+				? "upande_dev_tools.api.board.delete_task"
+				: "upande_dev_tools.api.requests.delete_request";
 		frappe
 			.xcall(method, { name })
 			.then(() => {
@@ -865,7 +957,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				upande_dev_tools.toast(__("Deleted."), "green");
 			})
 			.catch((e) => {
-				upande_dev_tools.toast(String((e && e.message) || e) || __("Could not delete that."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not delete that."),
+					"red"
+				);
 			});
 	}
 
@@ -873,12 +968,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const row = btn.closest("[data-doctype]");
 		const name = row.data("name");
 		const item = this.items.find((i) => i.doctype === "Task" && i.name === name);
-		const people = (this.people || []).map((p) => [p.name, p.full_name || p.name]);
-
-		open_modal(
+		upande_dev_tools.open_modal(
 			__("Reassign {0}", [item ? item.title : name]),
 			[
-				{ name: "assign_to", label: __("Assign to"), type: "select", options: people, required: true },
+				{
+					name: "assign_to",
+					label: __("Assign to"),
+					type: "userlink",
+					multiple: true,
+					required: true,
+				},
 				{ name: "complete_by", label: __("Complete by"), type: "date" },
 				{ name: "comment", label: __("Comment"), type: "text" },
 			],
@@ -890,7 +989,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 						this.load();
 					})
 					.catch((e) => {
-						upande_dev_tools.toast(String((e && e.message) || e) || __("Could not reassign that."), "red");
+						upande_dev_tools.toast(
+							String((e && e.message) || e) || __("Could not reassign that."),
+							"red"
+						);
 					});
 			},
 			__("Reassign")
@@ -900,14 +1002,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	tool(name) {
 		if (name === "collapse") {
 			this.group(this.visible()).forEach(([key]) => this.shut.add(key));
+			this.save_prefs();
 			return this.render();
 		}
 		if (name === "expand") {
 			this.shut.clear();
+			this.save_prefs();
 			return this.render();
 		}
 		if (name === "done") {
 			this.hide_done = !this.hide_done;
+			this.save_prefs();
 			return this.render();
 		}
 		if (name === "today") {
@@ -975,6 +1080,25 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		root.find(".bb-extra").val(this.group_by);
 		root.find(".bb-zoom").val(this.zoom);
 		root.find(".bb-zoom-grp").prop("hidden", this.view !== "timeline");
+
+		// Filters come back from storage, so the controls have to show what is actually
+		// being applied - a board quietly hiding half its rows is a bug report. A stored
+		// choice whose option no longer exists (the last task on someone left the board)
+		// drops itself rather than filtering to nothing invisibly.
+		let on = 0;
+		Object.keys(BLANK_FILTERS).forEach((key) => {
+			const el = root.find(`[data-f="${key}"]`);
+			if (!el.length) return;
+			const held = this.filters[key];
+			if (held && el.is("select") && ![...el[0].options].some((o) => o.value === held)) {
+				this.filters[key] = "";
+			}
+			if (this.filters[key]) on++;
+			if (!el.is(":focus") && el.val() !== this.filters[key]) el.val(this.filters[key]);
+		});
+		root.find(".bb-clear")
+			.prop("hidden", !on)
+			.text(on === 1 ? __("Clear filter") : __("Clear {0} filters", [on]));
 	}
 
 	render_count(rows) {
@@ -1181,6 +1305,11 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 	}
 
 	mount_sheet(host, rows) {
+		if (this.drop_range) {
+			this.drop_range();
+			this.drop_range = null;
+			this.range_chip = null;
+		}
 		if (this.sheet) {
 			try {
 				this.sheet.destroy();
@@ -1198,8 +1327,10 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			item.title,
 			item.stage,
 			item.priority || "",
-			item.assignees.join(", "),
+			// jspreadsheet joins a multi-dropdown's values with ";" - see the Assignee column.
+			(item.assignee_ids || []).join(";"),
 			item.module || "",
+			(item.tags || []).join(";"),
 			item.end || "",
 			item.start || "",
 			item.status,
@@ -1212,7 +1343,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			data,
 			columns: [
 				{ type: "hidden", title: "id" },
-				{ type: "text", title: "Work item", width: 372, ...locked },
+				{ type: "text", title: "Work item", width: 372 },
 				{ type: "dropdown", title: "Stage", width: 124, source: this.stages },
 				{
 					type: "dropdown",
@@ -1224,9 +1355,29 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					type: "dropdown",
 					title: "Assignee",
 					width: 142,
-					source: (this.people || []).map((p) => p.full_name || p.name),
+					// {id, name} pairs, not bare labels: the cell stores the email and shows the
+					// person's name, so the two Brians on this bench never collapse into one. Typing
+					// filters the list, which a 440-name dropdown is unusable without.
+					autocomplete: true,
+					// A Task can be on more than one person, same as the Reassign dialog. The cell
+					// value is then a ";"-joined list of emails, which is jspreadsheet's own format.
+					multiple: true,
+					source: (this.people || []).map((p) => ({
+						id: p.name,
+						name: p.full_name || p.name,
+					})),
 				},
 				{ type: "dropdown", title: "Module", width: 130, source: this.modules },
+				{
+					type: "dropdown",
+					title: "Tags",
+					width: 150,
+					autocomplete: true,
+					multiple: true,
+					// Work Tag is the whole vocabulary, not just what is already in use -
+					// the same list the New task and Edit dialogs pick from.
+					source: this.work_tags || [],
+				},
 				{ type: "calendar", title: "Due", width: 100, options: { format: "YYYY-MM-DD" } },
 				{
 					type: "calendar",
@@ -1235,7 +1386,16 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					options: { format: "YYYY-MM-DD" },
 				},
 				{ type: "dropdown", title: "Status", width: 104, source: TASK_QUICK_STATUSES },
-				{ type: "text", title: "Project", width: 102, ...locked },
+				{
+					type: "dropdown",
+					title: "Project",
+					width: 140,
+					autocomplete: true,
+					source: (this.projects || []).map((p) => ({
+						id: p.name,
+						name: p.project_name || p.name,
+					})),
+				},
 				{ type: "text", title: "ID", width: 118, ...locked },
 			],
 			defaultColAlign: "left",
@@ -1263,6 +1423,94 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		document.body.classList.add("dpx-menu-skin");
 		this.label_filters(host);
 		this.watch_clicks(host);
+		this.watch_range(host);
+	}
+
+	// Selecting rows and setting them all at once is the thing people actually want from
+	// a grid, and nothing on screen said it was possible. Drag down a column and a chip
+	// appears on the selection naming the column and the count; one click opens the same
+	// picker a single cell uses, and the choice lands on every row.
+	watch_range(host) {
+		const chip = document.createElement("button");
+		chip.type = "button";
+		chip.className = "dpx-bb-range";
+		chip.hidden = true;
+		// Inside .dpx-board, not .dpx: the colour tokens are declared on .dpx-board, so a
+		// chip mounted one level above it renders with no background at all.
+		const home = $(this.wrapper).find(".dpx-board")[0] || document.querySelector(".dpx");
+		(home || document.body).appendChild(chip);
+		this.range_chip = chip;
+
+		// The chip sits outside the grid, so a press on it would reach jspreadsheet's own
+		// document handler and throw the selection away before the picker could open on
+		// it. Swallow the press; act on the click.
+		["pointerdown", "mousedown"].forEach((type) =>
+			chip.addEventListener(type, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+			})
+		);
+
+		chip.addEventListener("click", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const at = this.range_span();
+			if (!at) return;
+			this.bulk = { x: at.x, from: at.from, to: at.to };
+			setTimeout(() => {
+				const cell = this.sheet.getCellFromCoords(at.x, at.from);
+				if (cell) this.sheet.openEditor(cell);
+			}, 0);
+		});
+
+		const refresh = () => this.show_range();
+		host.addEventListener("pointerup", () => setTimeout(refresh, 0));
+		host.addEventListener("keyup", () => setTimeout(refresh, 0));
+		const scroller = host.querySelector(".jexcel_content") || host;
+		scroller.addEventListener("scroll", refresh, { passive: true });
+		this.drop_range = () => {
+			chip.remove();
+			scroller.removeEventListener("scroll", refresh);
+		};
+	}
+
+	// The selection, but only when it is something this board can set in one go: one
+	// column, more than one row, and a column that takes an edit at all.
+	range_span() {
+		const at = this.sheet && this.sheet.selectedCell;
+		if (!at) return null;
+		const x = Number(at[0]);
+		if (Number(at[2]) !== x || !SHEET_FIELDS[x]) return null;
+		const from = Math.min(Number(at[1]), Number(at[3]));
+		const to = Math.max(Number(at[1]), Number(at[3]));
+		return to > from ? { x, from, to } : null;
+	}
+
+	show_range() {
+		const chip = this.range_chip;
+		if (!chip) return;
+		const at = this.range_span();
+		if (!at) return this.clear_range();
+
+		// A row scrolled out of the virtualised range has no cell at all, which is the
+		// case worth hiding for - a rendered one always has a box.
+		const last = this.sheet.getCellFromCoords(at.x, at.to);
+		const box = last && last.getBoundingClientRect();
+		if (!box) return this.clear_range();
+
+		const rows = at.to - at.from + 1;
+		const title = (this.sheet.options.columns[at.x] || {}).title || "";
+		chip.innerHTML = `<b>${rows}</b> ${__("rows")} <span>·</span> ${__("Set")} ${esc(
+			title.toLowerCase()
+		)}${ico("chevron", 11)}`;
+		chip.hidden = false;
+		chip.style.top = `${Math.round(box.bottom + 6)}px`;
+		chip.style.left = `${Math.round(box.left)}px`;
+	}
+
+	clear_range() {
+		this.bulk = null;
+		if (this.range_chip) this.range_chip.hidden = true;
 	}
 
 	// Google Sheets opens a picker on one click; jspreadsheet waits for a second.
@@ -1337,124 +1585,290 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		return this.sheet_rows[y];
 	}
 
+	// Opening a picker on one click is what makes this feel like Sheets, but it was
+	// also eating every gesture that starts with a press on a cell: dragging across a
+	// range, and the fill handle. So the editor now opens only on a click that stayed
+	// still, carried no modifier, and left exactly one cell selected.
 	watch_clicks(host) {
+		host.addEventListener(
+			"pointerdown",
+			(e) => {
+				this.press = {
+					x: e.clientX,
+					y: e.clientY,
+					held: e.shiftKey || e.ctrlKey || e.metaKey,
+					corner: !!e.target.closest(".jexcel_corner"),
+				};
+			},
+			true
+		);
+
 		host.addEventListener("click", (e) => {
+			const press = this.press;
+			this.press = null;
+			if (!press || press.held || press.corner) return;
+			// A drag, not a click. 4px is about the wobble of a real finger or mouse.
+			if (Math.abs(e.clientX - press.x) > 4 || Math.abs(e.clientY - press.y) > 4) return;
+
 			const td = e.target.closest("td[data-x]");
 			if (!td || td.classList.contains("editor")) return;
 
 			const x = Number(td.getAttribute("data-x"));
 			const y = Number(td.getAttribute("data-y"));
-			if (!SHEET_FIELDS[x]) return;
+			// The title is a plain text cell and also the thing you click to read a row,
+			// so it keeps the normal double-click. The pickers open on one.
+			if (!SHEET_FIELDS[x] || x === 1) return;
+			if (this.spans_a_range()) return;
 
 			const item = this.row_item(y);
 			if (!item || !item.movable) return;
 
 			clearTimeout(this.opening);
 			this.opening = setTimeout(() => {
+				if (this.spans_a_range()) return;
 				const cell = this.sheet.getCellFromCoords(x, y);
 				if (cell && !cell.classList.contains("editor")) this.sheet.openEditor(cell);
 			}, 0);
 		});
 	}
 
+	spans_a_range() {
+		const at = this.sheet && this.sheet.selectedCell;
+		if (!at) return false;
+		return Number(at[0]) !== Number(at[2]) || Number(at[1]) !== Number(at[3]);
+	}
+
 	guard_cell(y, value) {
 		const item = this.row_item(y);
 		if (item && !item.movable) {
-			upande_dev_tools.toast(__("Requests move through their own workflow, not the board."), "orange");
+			upande_dev_tools.toast(
+				__("Requests move through their own workflow, not the board."),
+				"orange"
+			);
 			return false;
 		}
 		return value;
 	}
 
+	// One cell arriving from the grid. A picked value that was meant for a whole
+	// selection is expanded here, before anything is queued.
 	sheet_changed(x, y, value) {
+		if (this.applying) return;
+
+		// jsuites' calendar hands back "YYYY-MM-DD HH:MM:SS" whatever format it was
+		// given, and a date column here only ever means a day. Left as-is, re-picking
+		// the same date never matched what the row already held and saved every time.
+		const field = SHEET_FIELDS[x];
+		if ((field === "start" || field === "end") && value) value = String(value).slice(0, 10);
+
+		const range = this.bulk;
+		if (range && range.x === x && y >= range.from && y <= range.to) {
+			this.bulk = null;
+			return this.apply_to_range(x, range.from, range.to, value);
+		}
+		this.change_cell(x, y, value);
+	}
+
+	// Pick once, and every row in the selection takes it. Rows that cannot - a Request,
+	// or an unchanged value - are counted and said out loud rather than skipped quietly.
+	apply_to_range(x, from, to, value) {
+		let changed = 0;
+		let locked = 0;
+		this.applying = true;
+		try {
+			for (let y = from; y <= to; y++) {
+				const item = this.row_item(y);
+				if (!item) continue;
+				if (!item.movable) {
+					locked += 1;
+					continue;
+				}
+				// The grid has to show it too, or only the row that was clicked would
+				// look changed until the board reloads.
+				this.sheet.setValueFromCoords(x, y, value, true);
+				if (this.change_cell(x, y, value)) changed += 1;
+			}
+		} finally {
+			this.applying = false;
+		}
+
+		this.clear_range();
+		if (!changed && !locked) return;
+		upande_dev_tools.toast(
+			locked
+				? __("{0} rows changed. {1} left alone - requests move through their own workflow.", [
+						changed,
+						locked,
+				  ])
+				: __("{0} rows changed.", [changed]),
+			locked ? "orange" : "green"
+		);
+	}
+
+	change_cell(x, y, value) {
 		const item = this.row_item(y);
-		if (!item || !item.movable) return;
+		if (!item || !item.movable) return false;
 
 		const field = SHEET_FIELDS[x];
-		if (!field) return;
+		if (!field) return false;
 
 		if ((field === "assignee" || field === "status") && item.doctype !== "Task") {
 			this.render();
-			upande_dev_tools.toast(__("Only tasks can have their {0} changed here.", [field]), "orange");
-			return;
+			upande_dev_tools.toast(
+				__("Only tasks can have their {0} changed here.", [field]),
+				"orange"
+			);
+			return false;
 		}
 
-		const current = field === "stage" ? item.stage : item[field] || "";
-		if (String(value || "") === String(current || "")) return;
+		if (field === "title" && !String(value || "").trim()) {
+			this.render();
+			upande_dev_tools.toast(__("A work item needs a title."), "orange");
+			return false;
+		}
+
+		// The assignee cell holds an email, which lives on assignee_ids - not item.assignee,
+		// which has never existed, so this comparison used to never short-circuit.
+		const current =
+			field === "stage"
+				? item.stage
+				: field === "assignee"
+				? (item.assignee_ids || []).join(";")
+				: field === "tags"
+				? (item.tags || []).join(";")
+				: item[field] || "";
+		if (String(value || "") === String(current || "")) return false;
 
 		if (field === "end" && item.start && value && value < item.start) {
 			this.render();
 			upande_dev_tools.toast(__("Due date can't be before the start date."), "orange");
-			return;
+			return false;
 		}
 		if (field === "start" && item.end && value && value > item.end) {
 			this.render();
 			upande_dev_tools.toast(__("Start date can't be after the due date."), "orange");
-			return;
+			return false;
 		}
 
-		this.save_cell(item, field, value || "");
+		this.queue_cell(item, field, value || "");
+		return true;
 	}
 
-	save_cell(item, field, value) {
-		const previous = { ...item };
-		this.set_save_status("saving");
+	// A fill dragged down a column, or a paste, fires onchange once per cell. Saving each
+	// one on its own meant a request and a whole board reload per cell - twenty rows was
+	// twenty reloads, and the last one always won the race. They are collected here and
+	// sent as a single call instead.
+	queue_cell(item, field, value) {
+		this.pending = this.pending || new Map();
+		const key = `${item.doctype}:${item.name}`;
+		const held = this.pending.get(key) || { item, before: { ...item }, values: {} };
 
-		let call;
-		if (field === "stage") {
-			item.stage = value;
-			call = frappe.xcall("upande_dev_tools.api.board.set_stage", {
-				doctype: item.doctype,
-				name: item.name,
-				stage: value,
-			});
-		} else if (field === "status") {
-			item.status = value;
-			call = frappe.xcall("upande_dev_tools.api.requests.update_task_status", { name: item.name, status: value });
-		} else if (field === "assignee") {
-			const person = (this.people || []).find((p) => (p.full_name || p.name) === value);
-			if (!person) {
+		const change = this.apply_locally(item, field, value);
+		if (!change) return;
+
+		Object.assign(held.values, change);
+		this.pending.set(key, held);
+
+		clearTimeout(this.flushing);
+		this.flushing = setTimeout(() => this.flush_cells(), 140);
+	}
+
+	// Moves the board's own copy first so the sheet answers immediately, and returns what
+	// the server needs for that field - or nothing at all if the value cannot be used.
+	apply_locally(item, field, value) {
+		if (field === "assignee") {
+			const emails = String(value || "")
+				.split(";")
+				.map((e) => e.trim())
+				.filter(Boolean);
+			const people = emails.map((email) =>
+				(this.people || []).find((p) => p.name === email)
+			);
+			// An empty cell would mean "take this off everyone", which reassign_task refuses -
+			// clearing an assignment is what the Reassign dialog is for.
+			if (!people.length || people.some((p) => !p)) {
 				this.set_save_status("error");
 				this.render();
-				upande_dev_tools.toast(__("Pick a name from the list."), "orange");
-				return;
+				upande_dev_tools.toast(
+					people.length ? __("Pick names from the list.") : __("Pick at least one name."),
+					"orange"
+				);
+				return null;
 			}
-			item.assignees = [value];
-			call = frappe.xcall("upande_dev_tools.api.requests.reassign_task", {
-				name: item.name,
-				assign_to: person.name,
-			});
-		} else {
-			item[field] = value;
-			if (field === "priority") item.rank = RANK[value] || 0;
-			call = frappe.xcall("upande_dev_tools.api.board.set_field", {
-				doctype: item.doctype,
-				name: item.name,
-				field,
-				value,
-			});
+			item.assignee_ids = people.map((p) => p.name);
+			item.assignees = people.map((p) => p.full_name || p.name);
+			return { assign_to: item.assignee_ids };
 		}
 
-		call
-			.then(() => {
-				this.set_save_status("saved");
+		if (field === "tags") {
+			item.tags = String(value || "")
+				.split(";")
+				.map((t) => t.trim())
+				.filter(Boolean);
+			return { tags: item.tags };
+		}
+
+		item[field] = value;
+		if (field === "priority") item.rank = RANK[value] || 0;
+		return { [field]: value };
+	}
+
+	flush_cells() {
+		const batch = [...(this.pending || new Map()).values()];
+		this.pending = null;
+		if (!batch.length) return;
+
+		this.set_save_status("saving", batch.length);
+		frappe
+			.xcall("upande_dev_tools.api.board.bulk_update", {
+				changes: batch.map(({ item, values }) => ({
+					doctype: item.doctype,
+					name: item.name,
+					values,
+				})),
+			})
+			.then((result) => {
+				const failed = (result && result.failed) || [];
+				if (failed.length) {
+					// Rows are independent on the server, so the ones that saved stay saved
+					// and only the rest are named.
+					this.set_save_status("error", failed.length);
+					upande_dev_tools.toast(
+						failed.length === 1
+							? failed[0].error
+							: __("{0} of {1} rows could not be saved.", [
+									failed.length,
+									batch.length,
+							  ]),
+						"red"
+					);
+				} else {
+					this.set_save_status("saved", batch.length);
+				}
+				// One reload for the whole batch, not one per cell.
 				this.load();
 			})
-			.catch(() => {
-				Object.assign(item, previous);
-				this.set_save_status("error");
+			.catch((e) => {
+				batch.forEach(({ item, before }) => Object.assign(item, before));
+				this.set_save_status("error", batch.length);
 				this.render();
-				upande_dev_tools.toast(__("Could not save that cell."), "red");
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not save those cells."),
+					"red"
+				);
 			});
 	}
 
-	set_save_status(state) {
+	set_save_status(state, n) {
 		const el = $(this.wrapper).find(".bb-save-status");
 		if (!el.length) return;
 		clearTimeout(this._save_status_timer);
-		if (state === "saving") return el.text(__("Saving…")).attr("data-state", "saving");
-		if (state === "error") return el.text(__("Could not save")).attr("data-state", "error");
-		el.text(__("All changes saved")).attr("data-state", "saved");
+		const rows = n > 1 ? __("{0} changes", [n]) : __("1 change");
+		if (state === "saving")
+			return el.text(__("Saving {0}…", [rows])).attr("data-state", "saving");
+		if (state === "error")
+			return el.text(__("{0} could not be saved", [rows])).attr("data-state", "error");
+		el.text(__("{0} saved", [rows])).attr("data-state", "saved");
 		this._save_status_timer = setTimeout(() => el.text("").removeAttr("data-state"), 2500);
 	}
 
@@ -1483,9 +1897,17 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 		const width = days * day_w;
 		const x = (d) => Math.round(((d - first) / DAY) * day_w);
 
+		// What the header can hold depends on how wide a day is, not on what the zoom
+		// level happens to be called - there are seven rungs on the ladder now, and a
+		// weekly gridline every 21px is noise rather than scale.
+		const per_day = day_w >= 24;
+		const week_step = day_w >= 12 ? 1 : day_w >= 7 ? 2 : 4;
+		const weekends = day_w >= 8;
+
 		const months = [];
 		const ticks = [];
 		const rules = [];
+		let week = 0;
 		for (let i = 0; i <= days; i++) {
 			const d = new Date(first.getTime() + i * DAY);
 			const at = i * day_w;
@@ -1496,7 +1918,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					} ${d.getUTCFullYear()}</div>`
 				);
 				rules.push(`<div class="mo" style="left:${at}px"></div>`);
-			} else if (this.zoom === "days") {
+			} else if (per_day) {
 				rules.push(`<div class="wk" style="left:${at}px"></div>`);
 				ticks.push(
 					`<div class="dpx-bb-tk${d.getUTCDay() % 6 === 0 ? " dim" : ""}" style="left:${
@@ -1504,10 +1926,15 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 					}px">${DOW[d.getUTCDay()]}<b>${d.getUTCDate()}</b></div>`
 				);
 			} else if (d.getUTCDay() === 1) {
-				rules.push(`<div class="wk" style="left:${at}px"></div>`);
-				ticks.push(`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`);
+				if (week % week_step === 0) {
+					rules.push(`<div class="wk" style="left:${at}px"></div>`);
+					ticks.push(
+						`<div class="dpx-bb-tk" style="left:${at}px">${d.getUTCDate()}</div>`
+					);
+				}
+				week++;
 			}
-			if (d.getUTCDay() === 6)
+			if (weekends && d.getUTCDay() === 6)
 				rules.push(`<div class="we" style="left:${at}px;width:${day_w * 2}px"></div>`);
 		}
 
@@ -1552,6 +1979,7 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 				<span><i class="late"></i>Past due</span>
 				<span><i class="done"></i>Done</span>
 				<span><i class="today"></i>Today</span>
+				<span class="sp"><span class="dpx-bb-kbd">Ctrl</span> + scroll to zoom</span>
 				<span class="sp">${spans.length} of ${rows.length} items have dates</span>
 			</div></div>
 		`);
@@ -1566,7 +1994,47 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			}
 			scroll.addEventListener("scroll", () => {
 				this.tl_scroll = { left: scroll.scrollLeft, top: scroll.scrollTop };
+				clearTimeout(this.tl_keep);
+				this.tl_keep = setTimeout(() => this.save_prefs(), 400);
 			});
+
+			// Ctrl + wheel is what every timeline in this category does. The date under
+			// the pointer is what has to stay put while the scale changes underneath it -
+			// zooming that re-anchors on the left edge throws you somewhere else entirely.
+			scroll.addEventListener(
+				"wheel",
+				(e) => {
+					if (!e.ctrlKey && !e.metaKey) return;
+					e.preventDefault();
+
+					// One gesture is one rung. A wheel notch arrives as several events
+					// and a trackpad as dozens, so stepping per event walks the whole
+					// ladder from a single flick.
+					// deltaMode: 0 pixels, 1 lines, 2 pages - a mouse reports one notch
+					// as about 100px, a trackpad as a stream of small ones.
+					const delta =
+						e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+					this.wheel = (this.wheel || 0) + delta;
+					if (Math.abs(this.wheel) < WHEEL_STEP) return;
+					const step = this.wheel < 0 ? 1 : -1;
+					this.wheel = 0;
+
+					const at = ZOOM_KEYS.indexOf(this.zoom);
+					const next = ZOOM_KEYS[Math.min(ZOOM_KEYS.length - 1, Math.max(0, at + step))];
+					if (!next || next === this.zoom) return;
+
+					const cursor = e.clientX - scroll.getBoundingClientRect().left;
+					const day = (scroll.scrollLeft + cursor) / day_w;
+					this.zoom = next;
+					this.tl_scroll = {
+						left: Math.max(0, day * ZOOM[next] - cursor),
+						top: scroll.scrollTop,
+					};
+					this.save_prefs();
+					this.render();
+				},
+				{ passive: false }
+			);
 		}
 
 		if (this.moved) {
@@ -1633,9 +2101,18 @@ upande_dev_tools.BacklogBoard = class BacklogBoard {
 			const item = this.items.find((i) => `${i.doctype}:${i.name}` === $(bar).data("id"));
 			if (!item) return;
 
+			// A narrow bar has no room for two handles and a middle: grabbing anywhere on
+			// it moves the whole thing, and one end gets changed from the sheet or the
+			// edit dialog instead of by a 3px target nobody can hit.
 			const box = bar.getBoundingClientRect();
 			const edge =
-				e.clientX - box.left < 7 ? "start" : box.right - e.clientX < 7 ? "end" : "move";
+				box.width < EDGE_BAR
+					? "move"
+					: e.clientX - box.left < EDGE
+					? "start"
+					: box.right - e.clientX < EDGE
+					? "end"
+					: "move";
 			const readout = document.createElement("div");
 			readout.className = "dpx-bb-readout";
 			bar.parentNode.appendChild(readout);
@@ -1700,11 +2177,9 @@ function card(item) {
 			${item.movable ? 'draggable="true"' : ""}>
 			<div class="hd">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
 				${
-					item.doctype === "Task"
-						? `<button type="button" class="dpx-bb-ico bb-card-quick" title="Quick actions">${ico(
-								"more",
-								13
-						  )}</button>`
+					item.movable
+						? `<button type="button" class="dpx-bb-ico bb-edit" title="Edit"
+							aria-label="Edit ${esc(item.title)}">${ico("edit", 13)}</button>`
 						: ""
 				}</div>
 			<div class="t">${esc(item.title)}</div>
@@ -1727,7 +2202,9 @@ function list_row(item) {
 		<tr class="${cls.join(" ")}" data-id="${esc(item.doctype)}:${esc(item.name)}"
 			data-doctype="${esc(item.doctype)}" data-name="${esc(item.name)}">
 			<td><div class="subj">${pri(item)}<span class="dpx-bb-src">${SOURCES[item.doctype]}</span>
-				<a href="${link(item)}">${esc(item.title)}</a></div>${tags ? `<div class="bb-tags">${tags}</div>` : ""}</td>
+				<a href="${link(item)}">${esc(item.title)}</a></div>${
+		tags ? `<div class="bb-tags">${tags}</div>` : ""
+	}</td>
 			<td><span class="dpx-bb-chip st-${slug(item.stage)}">${esc(item.stage)}</span></td>
 			<td>${
 				item.priority
@@ -1740,15 +2217,33 @@ function list_row(item) {
 			<td class="opt muted">${esc(item.module || "—")}</td>
 			<td class="num${item.late ? " late" : ""}">${esc(item.end || "—")}</td>
 			<td class="bb-row-act">
-				${can_reassign ? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico("assign")}</button>` : ""}
-				${can_delete ? `<button type="button" class="dpx-bb-ico bb-delete" title="Delete">${ico("trash")}</button>` : ""}
+				${
+					item.movable
+						? `<button type="button" class="dpx-bb-ico bb-edit" title="Edit"
+							aria-label="Edit ${esc(item.title)}">${ico("edit")}</button>`
+						: ""
+				}
+				${
+					can_reassign
+						? `<button type="button" class="dpx-bb-ico bb-reassign" title="Reassign">${ico(
+								"assign"
+						  )}</button>`
+						: ""
+				}
+				${
+					can_delete
+						? `<button type="button" class="dpx-bb-ico bb-delete" title="Delete">${ico(
+								"trash"
+						  )}</button>`
+						: ""
+				}
 			</td>
 		</tr>`;
 }
 
 function tl_row({ item, start, end }, x, width) {
 	const left = x(start);
-	const bar_w = Math.max(x(end) - left + 4, 6);
+	const bar_w = Math.max(x(end) - left + 4, MIN_BAR);
 	const done = item.stage === "Done";
 	const cls = done ? "done" : item.late ? "late" : `st-${slug(item.stage)}`;
 	const label = start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
@@ -1760,7 +2255,8 @@ function tl_row({ item, start, end }, x, width) {
 		bar_w > 70 ? "" : `<div class="dpx-bb-span" style="left:${left + bar_w}px">${label}</div>`;
 
 	return `
-		<div class="dpx-bb-tl-row${done ? " done" : ""}">
+		<div class="dpx-bb-tl-row${done ? " done" : ""}"
+			data-doctype="${esc(item.doctype)}" data-name="${esc(item.name)}">
 			<div class="name">
 				<span class="dpx-bb-pri p${item.rank - 1}" title="${esc(item.priority || "No priority")}"></span>
 				<a href="${link(item)}" title="${esc(item.title)}">${esc(item.title)}</a>
@@ -1772,6 +2268,12 @@ function tl_row({ item, start, end }, x, width) {
 						? `<span class="dpx-bb-av" title="${esc(item.assignees.join(", "))}">${esc(
 								initials(item.assignees[0])
 						  )}</span>`
+						: ""
+				}
+				${
+					item.movable
+						? `<button type="button" class="dpx-bb-ico bb-edit" title="Edit"
+							aria-label="Edit ${esc(item.title)}">${ico("edit", 12)}</button>`
 						: ""
 				}
 			</div>
@@ -1876,6 +2378,29 @@ function date_of(value) {
 
 function fmt(date) {
 	return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+// A description is a Text Editor field. Flattening one that carries a screenshot or
+// a table into a textarea and saving it back would quietly destroy it, so only the
+// plain ones are editable here and the rest say where to go instead.
+function plain_description(html) {
+	if (!html) return { text: "", rich: false };
+	const rich = /<(?!\/?(p|br|div|b|i|em|strong|span)\b)[a-z]/i.test(html);
+	const text = String(html)
+		.replace(/<\/(p|div)>/gi, "\n")
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<[^>]*>/g, "")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.trim();
+	return { text, rich };
+}
+
+function rich_description(text) {
+	const body = String(text || "").trim();
+	return body ? esc(body).replace(/\n/g, "<br>") : "";
 }
 
 function esc(value) {

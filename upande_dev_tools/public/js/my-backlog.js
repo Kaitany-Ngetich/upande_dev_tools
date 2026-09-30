@@ -158,7 +158,9 @@ upande_dev_tools.MyBacklog = class MyBacklog {
 		this.stage()
 			.attr("aria-busy", "true")
 			.html(
-				`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">${[1, 2, 3, 4, 5]
+				`<div class="dpx-skel" aria-hidden="true"><div class="dpx-card sk-plain">${[
+					1, 2, 3, 4, 5,
+				]
 					.map(
 						() => `<div class="sk-line"><i class="sk" style="width:52%"></i>
 							<i class="sk w10"></i><i class="sk chip sm right"></i></div>`
@@ -670,7 +672,10 @@ function mb_task(t, today) {
 		<div class="md-task" data-name="${mb_esc(t.name)}" data-id="Task:${mb_esc(t.name)}">
 			<select class="dpx-bb-field mb-status" style="width:132px">
 				${MB_STATUSES.map(
-					(s) => `<option value="${mb_esc(s)}"${s === t.status ? " selected" : ""}>${mb_esc(s)}</option>`
+					(s) =>
+						`<option value="${mb_esc(s)}"${s === t.status ? " selected" : ""}>${mb_esc(
+							s
+						)}</option>`
 				).join("")}
 			</select>
 			<a class="t" href="/app/task/${encodeURIComponent(t.name)}">${mb_esc(t.subject)}</a>
@@ -683,7 +688,9 @@ function mb_task(t, today) {
 			}
 			${
 				t.priority && t.priority !== "Low"
-					? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${mb_esc(t.priority)}</span>`
+					? `<span class="dpx-bb-chip pr-${t.priority.toLowerCase()}">${mb_esc(
+							t.priority
+					  )}</span>`
 					: ""
 			}
 		</div>`;
@@ -721,7 +728,9 @@ function mb_meeting(m) {
 			<span class="body"><span class="t">${mb_esc(m.subject)}</span></span>
 			${
 				m.google_meet_link
-					? `<a class="md-join" href="${mb_esc(m.google_meet_link)}" target="_blank" rel="noopener">Join</a>`
+					? `<a class="md-join" href="${mb_esc(
+							m.google_meet_link
+					  )}" target="_blank" rel="noopener">Join</a>`
 					: ""
 			}
 		</div>`;

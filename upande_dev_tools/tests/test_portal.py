@@ -76,8 +76,10 @@ class IntegrationTestPortal(IntegrationTestCase):
 		other = self._make_user("portal-other@example.test", [])
 		self.assertEqual(resolve_home_route(other), "/requests-portal")
 
-	def test_resolve_home_route_sends_guest_to_login(self) -> None:
-		self.assertEqual(resolve_home_route("Guest"), "/login")
+	def test_resolve_home_route_sends_guest_to_the_desk(self) -> None:
+		"""Not to /login. Frappe asks anyone who is not signed in to sign in anyway, and
+		landing on the desk afterwards beats being handed back into a portal."""
+		self.assertEqual(resolve_home_route("Guest"), "/app")
 
 	def test_enforce_page_access_permits_matching_role(self) -> None:
 		self._make_page("portal-test-permit", ["Dev Team"])
@@ -121,14 +123,14 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
 
-	def test_enforce_page_access_sends_guest_to_login_with_redirect_param(self) -> None:
+	def test_enforce_page_access_sends_guest_to_the_desk(self) -> None:
 		# Guest check runs before page lookup.
 		frappe.set_user("Guest")
 		try:
 			with self.assertRaises(frappe.Redirect):
 				enforce_page_access("portal-test-guest-route")
 			self.assertEqual(
-				frappe.local.flags.redirect_location, "/login?redirect-to=/portal-test-guest-route"
+				frappe.local.flags.redirect_location, "/app"
 			)
 		finally:
 			frappe.set_user("Administrator")
@@ -204,6 +206,34 @@ class IntegrationTestPortal(IntegrationTestCase):
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
 
+	def _with_last_page(self, route: str | None):
+		"""Stands in for the browser cookie dev-portal-shell.js writes on every page."""
+		request = frappe._dict(cookies={} if route is None else {"dpx_last": route})
+		return patch.object(frappe.local, "request", request, create=True)
+
+	def test_home_route_returns_you_to_the_page_you_were_last_on(self) -> None:
+		self._make_page("portal-test-last-page", ["Dev Team"])
+		dev = self._make_user("portal-last@example.test", ["Dev Team"])
+		with self._with_last_page("/portal-test-last-page"):
+			self.assertEqual(resolve_home_route(dev), "/portal-test-last-page")
+
+	def test_home_route_ignores_a_last_page_the_user_may_no_longer_open(self) -> None:
+		self._make_page("portal-test-last-denied", ["Projects Manager"])
+		dev = self._make_user("portal-last-denied@example.test", ["Dev Team"])
+		with self._with_last_page("/portal-test-last-denied"):
+			self.assertEqual(resolve_home_route(dev), "/dev-dashboard")
+
+	def test_home_route_ignores_a_cookie_that_is_not_a_portal_page(self) -> None:
+		"""A path in a cookie is not a route - only a registered Dev Portal Page is."""
+		dev = self._make_user("portal-last-bogus@example.test", ["Dev Team"])
+		for junk in ("/app/user", "https://elsewhere.test/x", "/not-registered-anywhere", "//evil"):
+			with self._with_last_page(junk):
+				self.assertEqual(resolve_home_route(dev), "/dev-dashboard")
+
+	def test_a_last_page_never_lets_a_guest_past_the_desk(self) -> None:
+		with self._with_last_page("/dev-dashboard"):
+			self.assertEqual(resolve_home_route("Guest"), "/app")
+
 	def test_resolve_home_route_skips_role_priority_route_that_denies_user(self) -> None:
 		self._make_page("portal-test-home-route-skip", [])  # registered but denies everyone
 		dev = self._make_user("home-route-skip@example.test", ["Dev Team"])
@@ -228,12 +258,12 @@ class IntegrationTestPortal(IntegrationTestCase):
 		self.assertNotIn("portal-nav-dual", {item["route"] for item in get_nav_items(dev_only)})
 		self.assertIn("portal-nav-dual", {item["route"] for item in get_nav_items(both)})
 
-	def test_dev_tools_entry_redirects_guest_to_login(self) -> None:
+	def test_dev_tools_entry_redirects_guest_to_the_desk(self) -> None:
 		frappe.set_user("Guest")
 		try:
 			with self.assertRaises(frappe.Redirect):
 				get_context({})
-			self.assertEqual(frappe.local.flags.redirect_location, "/login")
+			self.assertEqual(frappe.local.flags.redirect_location, "/app")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
@@ -615,7 +645,7 @@ class IntegrationTestPortal(IntegrationTestCase):
 		try:
 			with self.assertRaises(frappe.Redirect):
 				requests_portal_get_context({})
-			self.assertEqual(frappe.local.flags.redirect_location, "/login?redirect-to=/requests-portal")
+			self.assertEqual(frappe.local.flags.redirect_location, "/app")
 		finally:
 			frappe.set_user("Administrator")
 			frappe.local.flags.redirect_location = None
@@ -641,7 +671,12 @@ class IntegrationTestPortal(IntegrationTestCase):
 		plain = self._make_user("requests-portal-e2e@example.test", [])
 		frappe.set_user(plain)
 		try:
-			create_request(title="Portal E2E test request", request_type="Feature", source="Web Portal")
+			create_request(
+				title="Portal E2E test request",
+				request_type="Feature",
+				source="Web Portal",
+				tags=["Feature"],
+			)
 			my_requests = get_my_requests()
 		finally:
 			frappe.set_user("Administrator")

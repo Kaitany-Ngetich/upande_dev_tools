@@ -14,7 +14,7 @@ the signed-in user's roles resolve to.
   Priority Level, Product Area and tags.
 - `/backlog-board` — Requests grouped by workflow state, plus the Task backlog in
   list, Kanban (drag to set status) or Gantt view.
-- `/my-day` — a single developer's tasks due today.
+- `/my-backlog` — a single developer’s open work, sorted by deadline.
 - `/review-queue` — what is waiting on a reviewer.
 - `/pm-dashboard` — team workload, open vs. closed totals and project health
   across every project at once; `/dev-dashboard` is the per-developer equivalent.

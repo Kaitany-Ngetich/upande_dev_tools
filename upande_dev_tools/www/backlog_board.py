@@ -15,5 +15,8 @@ def get_context(context):
 	context.page_title = "Backlog Board"
 	context.active_route = "backlog-board"
 	context.csrf_token = frappe.sessions.get_csrf_token()
+	# frappe.ui.form.make_control is not in frappe-web.bundle.js; this page renders
+	# Frappe Date controls (see public/js/date-field.js), which need it.
+	context.web_include_js = ["controls.bundle.js"]
 	context.project = frappe.form_dict.get("project")
 	return context

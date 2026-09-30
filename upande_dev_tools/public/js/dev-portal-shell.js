@@ -66,6 +66,16 @@
 		});
 	});
 
+	// /dev-tools resolves its destination on the server, before any script here runs,
+	// so where you were has to be somewhere the server can read. Session-scoped: close
+	// the browser and the portal opens on your role's home again.
+	if (/^\/[a-z0-9-]{1,64}$/.test(location.pathname)) {
+		// Written raw, not percent-encoded: the test above already limits it to
+		// characters a cookie can carry, and werkzeug does not percent-decode values,
+		// so an encoded "/" reaches the server as the literal text "%2F".
+		document.cookie = "dpx_last=" + location.pathname + ";path=/;samesite=lax";
+	}
+
 	window.addEventListener("pageshow", function () {
 		clearInterval(timer);
 		bar.classList.remove("on");
