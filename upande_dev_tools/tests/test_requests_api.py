@@ -23,6 +23,7 @@ from upande_dev_tools.api.requests import (
 	promote_to_task,
 	reassign_task,
 	triage_request,
+	update_request,
 )
 
 
@@ -110,6 +111,118 @@ class IntegrationTestRequestsApi(IntegrationTestCase):
 		doc = frappe.get_doc("Request", created["name"])
 		self.assertEqual(doc.priority, "Urgent")
 		self.assertEqual(doc.product_area, "HR")
+
+	def test_create_request_parses_a_json_encoded_tags_string(self) -> None:
+		"""Reproduces the real bug: the non-reviewer "Raise a request" flow builds tags as
+		a genuine JS array, which frappe.call JSON-encodes for transport - tags's own
+		list[str] | str | None union means Frappe's argument validation leaves that
+		encoding untouched (the "| str" member already matches) instead of decoding it, so
+		create_request used to receive the literal string '["Feature"]' and, treating the
+		whole thing as one comma-split tag, throw trying to validate a tag that was never
+		really being asked for."""
+		if not frappe.db.exists("Work Tag", "Feature"):
+			frappe.get_doc({"doctype": "Work Tag", "tag_name": "Feature"}).insert(ignore_permissions=True)
+		plain = self._make_user("json-tags-plain@example.test", [])
+		frappe.set_user(plain)
+		try:
+			created = create_request(title="JSON-encoded tags", request_type="Feature", tags='["Feature"]')
+		finally:
+			frappe.set_user("Administrator")
+		tags = frappe.get_all(
+			"Tag Link", filters={"document_type": "Request", "document_name": created["name"]}, pluck="tag"
+		)
+		self.assertEqual(tags, ["Feature"])
+
+	def test_update_request_lets_the_owner_edit_their_own_request_under_review(self) -> None:
+		owner = self._make_user("update-request-owner@example.test", [])
+		frappe.set_user(owner)
+		try:
+			created = create_request(title="Original title", request_type="Bug", tags=["Bug"])
+			updated = update_request(
+				name=created["name"], title="Fixed the typo", description="Now with more detail", tags=["Feature"]
+			)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(updated["title"], "Fixed the typo")
+		self.assertEqual(updated["description"], "Now with more detail")
+		tags = frappe.get_all(
+			"Tag Link", filters={"document_type": "Request", "document_name": created["name"]}, pluck="tag"
+		)
+		self.assertEqual(tags, ["Feature"])
+		# _set_doc_tags has to run after doc.save(), not before - save() would otherwise
+		# overwrite this denormalized column with the stale value it loaded the doc with.
+		self.assertEqual(frappe.db.get_value("Request", created["name"], "_user_tags"), "Feature")
+
+	def test_update_request_denies_the_owner_once_it_has_been_reviewed(self) -> None:
+		owner = self._make_user("update-request-owner-reviewed@example.test", [])
+		pm = self._make_user("update-request-pm@example.test", ["Projects Manager"])
+		dev = self._make_user("update-request-dev@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user(owner)
+		try:
+			created = create_request(title="Will be scheduled", request_type="Bug", tags=["Bug"])
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(pm)
+		try:
+			accept_request(
+				name=created["name"],
+				project=project,
+				priority="Medium",
+				complete_by=frappe.utils.add_days(today(), 3),
+				assign_to=[dev],
+			)
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(owner)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				update_request(name=created["name"], title="Too late now")
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_update_request_denies_someone_else_entirely(self) -> None:
+		owner = self._make_user("update-request-owner-2@example.test", [])
+		other = self._make_user("update-request-outsider@example.test", [])
+		frappe.set_user(owner)
+		try:
+			created = create_request(title="Not yours", request_type="Bug", tags=["Bug"])
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(other)
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				update_request(name=created["name"], title="Sneaky edit")
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_update_request_lets_a_reviewer_edit_any_request_any_time(self) -> None:
+		owner = self._make_user("update-request-owner-3@example.test", [])
+		pm = self._make_user("update-request-pm-editor@example.test", ["Projects Manager"])
+		dev = self._make_user("update-request-dev-2@example.test", ["Dev Team"])
+		project = self._make_project()
+		frappe.set_user(owner)
+		try:
+			created = create_request(title="A PM should be able to fix this", request_type="Bug", tags=["Bug"])
+		finally:
+			frappe.set_user("Administrator")
+
+		frappe.set_user(pm)
+		try:
+			accept_request(
+				name=created["name"],
+				project=project,
+				priority="Medium",
+				complete_by=frappe.utils.add_days(today(), 3),
+				assign_to=[dev],
+			)
+			updated = update_request(name=created["name"], title="Fixed by the reviewer")
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(updated["title"], "Fixed by the reviewer")
 
 	def test_get_review_queue_requires_reviewer_role(self) -> None:
 		outsider = self._make_user("outsider-queue@example.test", [])

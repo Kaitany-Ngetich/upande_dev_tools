@@ -22,7 +22,7 @@
 			<span id="md-add-error" style="color:var(--bb-late);font:500 11px var(--ui)"></span>
 		</form>
 		<table id="md-table" class="dpx-list-table">
-			<thead><tr><th>Value</th><th>Disabled</th></tr></thead>
+			<thead><tr><th>Value</th><th>Disabled</th><th></th></tr></thead>
 			<tbody></tbody>
 		</table>
 	</div>
@@ -75,27 +75,134 @@ frappe.ready(function() {
 			var tbody = document.querySelector("#md-table tbody");
 			tbody.innerHTML = "";
 			(r.message || []).forEach(function(row) {
-				var tr = document.createElement("tr");
-				var nameTd = document.createElement("td");
-				nameTd.textContent = row.name;
-				tr.appendChild(nameTd);
-
-				var disabledTd = document.createElement("td");
-				var checkbox = document.createElement("input");
-				checkbox.type = "checkbox";
-				checkbox.checked = !!row.disabled;
-				checkbox.addEventListener("change", function() {
-					frappe.call({
-						method: "upande_dev_tools.api.master_data.set_master_data_disabled",
-						args: {key: active.key, name: row.name, disabled: checkbox.checked ? 1 : 0}
-					});
-				});
-				disabledTd.appendChild(checkbox);
-				tr.appendChild(disabledTd);
-
-				tbody.appendChild(tr);
+				tbody.appendChild(renderRow(row));
 			});
 		});
+	}
+
+	// Read mode by default; Edit swaps the value cell (and, for Priority Level, the sort
+	// order) for real inputs in place, rather than a separate modal - the row is small
+	// enough that a dialog would just be one more click for no real benefit.
+	function renderRow(row) {
+		var tr = document.createElement("tr");
+
+		var nameTd = document.createElement("td");
+		nameTd.textContent = row.name;
+		if (active.has_sort_order) nameTd.textContent += " (sort " + row.sort_order + ")";
+		tr.appendChild(nameTd);
+
+		var disabledTd = document.createElement("td");
+		var checkbox = document.createElement("input");
+		checkbox.type = "checkbox";
+		checkbox.checked = !!row.disabled;
+		checkbox.addEventListener("change", function() {
+			frappe.call({
+				method: "upande_dev_tools.api.master_data.set_master_data_disabled",
+				args: {key: active.key, name: row.name, disabled: checkbox.checked ? 1 : 0}
+			});
+		});
+		disabledTd.appendChild(checkbox);
+		tr.appendChild(disabledTd);
+
+		var actionsTd = document.createElement("td");
+		actionsTd.style.whiteSpace = "nowrap";
+
+		var editBtn = document.createElement("button");
+		editBtn.type = "button";
+		editBtn.className = "dpx-bb-btn";
+		editBtn.textContent = "Edit";
+		editBtn.addEventListener("click", function() {
+			tr.replaceWith(renderEditRow(row));
+		});
+		actionsTd.appendChild(editBtn);
+
+		var deleteBtn = document.createElement("button");
+		deleteBtn.type = "button";
+		deleteBtn.className = "dpx-bb-btn";
+		deleteBtn.style.marginLeft = "6px";
+		deleteBtn.textContent = "Delete";
+		deleteBtn.addEventListener("click", function() {
+			if (!confirm('Delete "' + row.name + '" for good? This can\'t be undone.')) return;
+			frappe.call({
+				method: "upande_dev_tools.api.master_data.delete_master_data",
+				args: {key: active.key, name: row.name}
+			}).then(function() {
+				loadRows();
+			}).catch(function(e) {
+				var msg = (e && e.message) || (e && e._server_messages) || "Couldn't delete that.";
+				alert(msg);
+			});
+		});
+		actionsTd.appendChild(deleteBtn);
+
+		tr.appendChild(actionsTd);
+		return tr;
+	}
+
+	function renderEditRow(row) {
+		var tr = document.createElement("tr");
+
+		var nameTd = document.createElement("td");
+		var valueInput = document.createElement("input");
+		valueInput.type = "text";
+		valueInput.className = "dpx-bb-field";
+		valueInput.value = row.name;
+		nameTd.appendChild(valueInput);
+		var sortInput = null;
+		if (active.has_sort_order) {
+			sortInput = document.createElement("input");
+			sortInput.type = "number";
+			sortInput.className = "dpx-bb-field";
+			sortInput.style.width = "90px";
+			sortInput.style.marginLeft = "6px";
+			sortInput.value = row.sort_order || 0;
+			nameTd.appendChild(sortInput);
+		}
+		tr.appendChild(nameTd);
+
+		// Disabled stays read-only mid-edit - one action at a time keeps this simple.
+		tr.appendChild(document.createElement("td"));
+
+		var actionsTd = document.createElement("td");
+		actionsTd.style.whiteSpace = "nowrap";
+		var errorEl = document.createElement("span");
+		errorEl.style.cssText = "color:var(--bb-late);font:500 11px var(--ui);margin-right:8px";
+
+		var saveBtn = document.createElement("button");
+		saveBtn.type = "button";
+		saveBtn.className = "dpx-bb-btn primary";
+		saveBtn.textContent = "Save";
+		saveBtn.addEventListener("click", function() {
+			errorEl.textContent = "";
+			frappe.call({
+				method: "upande_dev_tools.api.master_data.update_master_data",
+				args: {
+					key: active.key,
+					name: row.name,
+					value: valueInput.value,
+					sort_order: sortInput ? parseInt(sortInput.value, 10) || 0 : 0
+				}
+			}).then(function() {
+				loadRows();
+			}).catch(function() {
+				errorEl.textContent = "Couldn't save that - the new value may already exist.";
+			});
+		});
+
+		var cancelBtn = document.createElement("button");
+		cancelBtn.type = "button";
+		cancelBtn.className = "dpx-bb-btn";
+		cancelBtn.style.marginLeft = "6px";
+		cancelBtn.textContent = "Cancel";
+		cancelBtn.addEventListener("click", function() {
+			tr.replaceWith(renderRow(row));
+		});
+
+		actionsTd.appendChild(errorEl);
+		actionsTd.appendChild(saveBtn);
+		actionsTd.appendChild(cancelBtn);
+		tr.appendChild(actionsTd);
+		return tr;
 	}
 
 	document.querySelector("#md-add-form").addEventListener("submit", function(e) {

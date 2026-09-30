@@ -157,7 +157,15 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 		root.on("click", ".rp-close, .rp-scrim", () => this.close_form());
 		root.on("submit", ".rp-form", (e) => {
 			e.preventDefault();
-			this.submit();
+			if ($(e.target).hasClass("rp-edit-form")) this.submit_edit();
+			else this.submit();
+		});
+		root.on("click", ".rp-edit", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const name = $(e.currentTarget).closest("[data-name]").data("name");
+			const request = this.requests.find((r) => r.name === name);
+			if (request) this.open_edit_form(request);
 		});
 		root.on("click", ".rp-withdraw", (e) => {
 			e.preventDefault();
@@ -270,7 +278,9 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 			);
 		}
 
-		this.stage().html(`<div class="rp-list">${rows.map((r) => rp_card(r, frappe.session.user)).join("")}</div>`);
+		this.stage().html(
+			`<div class="rp-list">${rows.map((r) => rp_card(r, frappe.session.user, this.is_reviewer)).join("")}</div>`
+		);
 	}
 
 	open_form() {
@@ -315,11 +325,11 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 						? `<div class="rp-two">
 								<label>Priority<select class="dpx-bb-field" name="priority">
 									<option value="">Not set</option>${opts(this.priorities)}</select></label>
-							</div>
-							<label>Tags <span class="rp-required">*</span>
-								${upande_dev_tools.tag_picker_html({ name: "tags", tags: this.work_tags || [] })}</label>`
-						: `<p class="rp-form-note">A reviewer sets the module, priority and tags when they take this on.</p>`
+							</div>`
+						: `<p class="rp-form-note">A reviewer sets the module and priority when they take this on.</p>`
 				}
+				<label>Tags <span class="rp-required">*</span>
+					${upande_dev_tools.tag_picker_html({ name: "tags", tags: this.work_tags || [] })}</label>
 				<label>Anything else we should know?
 					<textarea class="dpx-bb-field" name="description" rows="4"
 						placeholder="What you are trying to do, and what happens instead."></textarea></label>
@@ -338,18 +348,81 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 		$(this.wrapper).find(".rp-sheet").prop("hidden", true).empty();
 	}
 
+	// Title/description/tags only - the same fields update_request will actually save.
+	// Product area/priority/project stay a reviewer-only, triage-time decision (see
+	// create_request), not something this reopens for editing here.
+	open_edit_form(r) {
+		$(this.wrapper).find(".rp-sheet").prop("hidden", false).html(`
+			<div class="rp-scrim"></div>
+			<form class="rp-form rp-edit-form" role="dialog" aria-label="Edit request" data-name="${rp_esc(r.name)}">
+				<div class="rp-form-hd">
+					<h3>Edit request</h3>
+					<button class="dpx-bb-ico rp-close" type="button" aria-label="Close">${rp_ico("x")}</button>
+				</div>
+				<label>What do you need?
+					<input class="dpx-bb-field" name="title" required maxlength="140" value="${rp_esc(r.title)}"></label>
+				<label>Tags <span class="rp-required">*</span>
+					${upande_dev_tools.tag_picker_html({
+						name: "tags",
+						tags: this.work_tags || [],
+						selected: r.tags || [],
+					})}</label>
+				<label>Anything else we should know?
+					<textarea class="dpx-bb-field" name="description" rows="4">${rp_esc(r.description || "")}</textarea></label>
+				<div class="rp-form-ft">
+					<button class="dpx-bb-btn rp-close" type="button">Cancel</button>
+					<button class="dpx-bb-btn primary" type="submit">Save</button>
+				</div>
+			</form>
+		`);
+		$(this.wrapper).find('[name="title"]').trigger("focus");
+	}
+
+	submit_edit() {
+		const form = $(this.wrapper).find(".rp-edit-form");
+		const name = form.data("name");
+		const fd = new FormData(form[0]);
+		const data = Object.fromEntries(fd.entries());
+		if (!data.title.trim()) return;
+		const tags = (data.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
+		if (!tags.length) {
+			upande_dev_tools.toast(__("Pick at least one tag."), "orange");
+			return;
+		}
+
+		form.find("button,input,select,textarea").prop("disabled", true);
+		frappe
+			.xcall("upande_dev_tools.api.requests.update_request", {
+				name,
+				title: data.title.trim(),
+				description: data.description || null,
+				tags,
+			})
+			.then(() => {
+				upande_dev_tools.toast(__("Saved."), "green");
+				this.close_form();
+				this.load();
+			})
+			.catch((e) => {
+				upande_dev_tools.toast(
+					String((e && e.message) || e) || __("Could not save that."),
+					"red"
+				);
+				form.find("button,input,select,textarea").prop("disabled", false);
+			});
+	}
+
 	submit() {
 		const form = $(this.wrapper).find(".rp-form");
 		const fd = new FormData(form[0]);
 		const file = fd.get("attachment");
 		const data = Object.fromEntries(fd.entries());
 		if (!data.title.trim()) return;
-		// Non-reviewers never see the Tags field at all - the request's own Kind is the tag,
-		// same convention the backlog board's "add to backlog" bridge already uses.
-		const tags = this.is_reviewer
-			? (data.tags || "").split(",").map((t) => t.trim()).filter(Boolean)
-			: [data.request_type];
-		if (this.is_reviewer && !data.tags) {
+		// Same tag picker, same Work Tag master list, for everyone - matching the "New
+		// task" popup's own untrusted path (see backlog-board.js) rather than guessing a
+		// tag from Kind, which isn't guaranteed to be a real Work Tag at all.
+		const tags = (data.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
+		if (!tags.length) {
 			upande_dev_tools.toast(__("Pick at least one tag."), "orange");
 			return;
 		}
@@ -407,7 +480,7 @@ upande_dev_tools.RequestsPortal = class RequestsPortal {
 
 const RP_WITHDRAWABLE = ["Under Review", "Approved", "Deferred", "Scheduled", "In Progress"];
 
-function rp_card(r, current_user) {
+function rp_card(r, current_user, is_reviewer) {
 	const [tone, label] = RP_STAGE[r.workflow_state || ""] || ["st-triage", r.workflow_state];
 	const raised = String(r.creation || "").slice(0, 10);
 	// Requests are visible to everyone now, but withdrawing/confirming is still only for
@@ -416,6 +489,10 @@ function rp_card(r, current_user) {
 	const is_mine = r.owner === current_user;
 	const can_withdraw = is_mine && RP_WITHDRAWABLE.includes(r.workflow_state);
 	const can_confirm = is_mine && r.workflow_state === "Completed";
+	// Editing your own request is only worth offering while it's still undecided -
+	// update_request itself refuses it past that point too (see its own docstring). A
+	// reviewer isn't bound by that.
+	const can_edit = is_reviewer || (is_mine && r.workflow_state === "Under Review");
 	return `
 		<div class="rp-card" data-name="${rp_esc(r.name)}">
 			<a href="/app/request/${encodeURIComponent(r.name)}" style="display:block">
@@ -432,8 +509,9 @@ function rp_card(r, current_user) {
 				</div>
 			</a>
 			${
-				can_withdraw || can_confirm
+				can_edit || can_withdraw || can_confirm
 					? `<div class="rp-card-act">
+						${can_edit ? `<button type="button" class="dpx-bb-btn rp-edit">Edit</button>` : ""}
 						${can_withdraw ? `<button type="button" class="dpx-bb-btn rp-withdraw">Withdraw</button>` : ""}
 						${
 							can_confirm

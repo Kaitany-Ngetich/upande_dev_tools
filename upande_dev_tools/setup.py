@@ -268,6 +268,23 @@ def register_dev_portal_page(
 	).insert(ignore_permissions=True)
 
 
+def fix_master_data_page_roles() -> None:
+	"""Master Data used to be Dev Team OR Projects Manager, view-only in practice since
+	add/disable already required real CRUD access. Real update/delete landed alongside
+	Dev Team AND Projects Manager AND System Manager together - register_dev_portal_page
+	only creates a row once, so an already-registered site needs this to actually change."""
+	if not frappe.db.exists("Dev Portal Page", "master-data"):
+		return
+	frappe.db.set_value("Dev Portal Page", "master-data", "require_all_roles", 1)
+	page = frappe.get_doc("Dev Portal Page", "master-data")
+	existing = {row.role for row in page.allowed_roles}
+	for role in ("Dev Team", "Projects Manager", "System Manager"):
+		if role not in existing:
+			page.append("allowed_roles", {"role": role})
+	if len(page.allowed_roles) != len(existing):
+		page.save(ignore_permissions=True)
+
+
 def fix_requests_page_nav_group() -> None:
 	"""The Requests page shipped in its own one-item 'Requests' nav group and titled
 	'My Requests' from when it was personal, not public. register_dev_portal_page only
@@ -391,7 +408,8 @@ def register_dev_portal_pages() -> None:
 		icon="database",
 		nav_group="Admin",
 		sort_order=90,
-		roles=["Dev Team", "Projects Manager"],
+		roles=["Dev Team", "Projects Manager", "System Manager"],
+		require_all_roles=True,
 	)
 
 
@@ -584,6 +602,7 @@ def run_setup() -> None:
 	rename_my_day_to_my_backlog()
 	register_dev_portal_pages()
 	fix_requests_page_nav_group()
+	fix_master_data_page_roles()
 	register_installed_apps_as_deployment_apps()
 	# Before the resync, or the shipped JSON inserts a second Workspace beside the old one.
 	rename_legacy_workspace()

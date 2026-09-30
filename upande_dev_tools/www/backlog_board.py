@@ -4,7 +4,6 @@
 import frappe
 
 from upande_dev_tools.api.board import can_create_task_directly, is_board_role
-from upande_dev_tools.api.master_data import has_master_data_access
 from upande_dev_tools.portal import enforce_page_access
 
 no_cache = 1
@@ -23,11 +22,7 @@ def get_context(context):
 	context.project = frappe.form_dict.get("project")
 	# Drives which fields the "New task" popup shows - see can_create_task_directly.
 	context.can_create_task = can_create_task_directly()
-	# The board is now open to "All" (see backlog-board's Dev Portal Page roles), but
-	# Priority Level is master data, gated the same as get_master_data itself - fetching
-	# it for a viewer who'll get PermissionError anyway is exactly what broke this page.
-	context.can_manage_master_data = has_master_data_access()
 	# Drives whether the project picker (get_projects, BOARD_ROLES-only) is even fetched -
-	# same reasoning as can_manage_master_data above, just a different role set.
+	# get_master_data (Priority Level) is public read now, so it needs no flag of its own.
 	context.is_board_role = is_board_role()
 	return context
