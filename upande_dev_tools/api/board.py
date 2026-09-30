@@ -426,9 +426,27 @@ def create_task(
 	Request.on_update() once a Request is scheduled; this is the one place a Task is created
 	with no linked Request at all, and custom_request is deliberately left blank. tags is
 	mandatory - it's the one classification the board can actually filter on, for a Task the
-	same as for a Request."""
+	same as for a Request.
+
+	Anyone outside Dev Team/Projects Manager can call this too, but doesn't get a Task straight
+	onto the board - only Dev Team/Projects Manager are trusted to skip review. Everyone else's
+	"add to backlog" becomes a Request instead (as "Chore"), going through the normal review
+	pipeline like anything else they raise. project is deliberately NOT forwarded: a plain
+	user calling this from outside the board has no reason to have Project read access, and
+	create_request would just deny it - a PM attaches the right project during accept_request,
+	same as any other request that came in without one.
+	"""
 	if not set(frappe.get_roles()) & BOARD_ROLES:
-		frappe.throw(_("Not permitted."), frappe.PermissionError)
+		# Lazy import: requests.py imports from this module at load time, so importing it
+		# back here at module load time would be circular.
+		from upande_dev_tools.api.requests import create_request
+
+		return create_request(
+			title=subject,
+			request_type="Chore",
+			description=description,
+			tags=tags,
+		)
 
 	if not (project and subject):
 		frappe.throw(_("Set a project and a title before creating a task."), frappe.ValidationError)

@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "creation": "2026-09-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "peak_hours_section",
+  "peak_hours_enabled",
+  "column_break_peak",
+  "peak_start_time",
+  "peak_end_time",
+  "peak_hours_help"
+ ],
+ "fields": [
+  {
+   "fieldname": "peak_hours_section",
+   "fieldtype": "Section Break",
+   "label": "Peak Hours"
+  },
+  {
+   "default": "0",
+   "description": "When on, any Deployment Request created inside the window below is flagged and held until a Projects Manager approves it.",
+   "fieldname": "peak_hours_enabled",
+   "fieldtype": "Check",
+   "label": "Flag Deployments During Peak Hours"
+  },
+  {
+   "fieldname": "column_break_peak",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.peak_hours_enabled",
+   "fieldname": "peak_start_time",
+   "fieldtype": "Time",
+   "label": "Peak Start Time"
+  },
+  {
+   "depends_on": "eval:doc.peak_hours_enabled",
+   "fieldname": "peak_end_time",
+   "fieldtype": "Time",
+   "label": "Peak End Time"
+  },
+  {
+   "depends_on": "eval:doc.peak_hours_enabled",
+   "fieldname": "peak_hours_help",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted\">A window that crosses midnight (e.g. 20:00 to 06:00) is handled correctly.</p>"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-30 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "Dev Portal Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Dev Team",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Projects Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

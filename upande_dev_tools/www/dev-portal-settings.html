@@ -11,19 +11,66 @@
 	<div class="ttl">Portal Pages</div>
 	<div class="sub">Choose which roles can see each page. Dev Team + System Manager only.</div>
 </div>
+<div class="dpx-card" style="margin-bottom:14px">
+	<div class="dpx-card-hd"><div class="ttl">Peak Hours</div></div>
+	<div class="dpx-card-body dps-peak">
+		<p class="dps-hint">When on, any Deployment Request created inside this window is held until a Projects Manager approves it.</p>
+		<label class="dps-check">
+			<input type="checkbox" id="ph-enabled">
+			<span>Flag deployments during peak hours</span>
+		</label>
+		<div class="dps-peak-row">
+			<label class="dps-field">Start<input type="time" id="ph-start" class="dpx-bb-field"></label>
+			<label class="dps-field">End<input type="time" id="ph-end" class="dpx-bb-field"></label>
+			<button class="dpx-bb-btn primary" id="ph-save" type="button">Save</button>
+			<span id="ph-status" class="dps-saved" style="display:none;">Saved</span>
+		</div>
+	</div>
+</div>
 <div class="dpx-card">
-	<div class="dpx-card-hd"><div class="ttl">Registered Pages</div></div>
-	<div class="dpx-card-body">
-		<table id="dps-table">
-			<thead>
-				<tr><th>Page</th><th>Nav Group</th><th>Allowed Roles</th><th>Require All</th><th></th></tr>
-			</thead>
-			<tbody></tbody>
-		</table>
+	<div class="dpx-card-hd"><div class="ttl">Registered Pages</div>
+		<span class="dpx-bb-hint">Who can see each page</span></div>
+	<div class="dpx-card-body" style="padding:6px 0">
+		<div id="dps-list" class="dps-list"></div>
 	</div>
 </div>
 <script>
 frappe.ready(function() {
+	var phEnabled = document.getElementById("ph-enabled");
+	var phStart = document.getElementById("ph-start");
+	var phEnd = document.getElementById("ph-end");
+	var phStatus = document.getElementById("ph-status");
+
+	function togglePhInputs() {
+		phStart.disabled = phEnd.disabled = !phEnabled.checked;
+	}
+	phEnabled.addEventListener("change", togglePhInputs);
+
+	frappe.call({method: "upande_dev_tools.api.dev_portal_settings.get_peak_hours_settings"}).then(function(r) {
+		var s = r.message || {};
+		phEnabled.checked = !!s.peak_hours_enabled;
+		if (s.peak_start_time) phStart.value = s.peak_start_time.slice(0, 5);
+		if (s.peak_end_time) phEnd.value = s.peak_end_time.slice(0, 5);
+		togglePhInputs();
+	});
+
+	document.getElementById("ph-save").addEventListener("click", function() {
+		frappe.call({
+			method: "upande_dev_tools.api.dev_portal_settings.update_peak_hours_settings",
+			args: {
+				peak_hours_enabled: phEnabled.checked ? 1 : 0,
+				peak_start_time: phStart.value ? phStart.value + ":00" : null,
+				peak_end_time: phEnd.value ? phEnd.value + ":00" : null,
+			}
+		}).then(function() {
+			phStatus.textContent = "Saved";
+			phStatus.style.display = "inline-block";
+			setTimeout(function() { phStatus.style.display = "none"; }, 2000);
+		}).catch(function(e) {
+			frappe.msgprint((e && e.message) || "Could not save peak hours.");
+		});
+	});
+
 	frappe.call({
 		method: "frappe.client.get_list",
 		args: {doctype: "Role", filters: {disabled: 0}, fields: ["name"], limit_page_length: 0, order_by: "name asc"}
@@ -31,28 +78,34 @@ frappe.ready(function() {
 		var allRoles = (rolesResp.message || []).map(function(row) { return row.name; });
 
 		frappe.call({method: "upande_dev_tools.api.dev_portal_settings.get_registered_pages"}).then(function(r) {
-			var tbody = document.querySelector("#dps-table tbody");
+			var list = document.getElementById("dps-list");
 			(r.message || []).forEach(function(page) {
-				var tr = document.createElement("tr");
+				var row = document.createElement("div");
+				row.className = "dps-row";
 
-				var titleTd = document.createElement("td");
-				titleTd.appendChild(document.createTextNode(page.title + " "));
+				var main = document.createElement("div");
+				main.className = "dps-row-main";
+				var title = document.createElement("span");
+				title.className = "dps-row-title";
+				title.textContent = page.title;
+				main.appendChild(title);
 				var pill = document.createElement("span");
-				pill.className = "pill";
+				pill.className = "dpx-bb-chip";
 				pill.textContent = "/" + page.route;
-				titleTd.appendChild(pill);
-				tr.appendChild(titleTd);
+				main.appendChild(pill);
+				var group = document.createElement("span");
+				group.className = "dps-row-group";
+				group.textContent = page.nav_group;
+				main.appendChild(group);
+				row.appendChild(main);
 
-				var navTd = document.createElement("td");
-				navTd.textContent = page.nav_group;
-				tr.appendChild(navTd);
+				var ctl = document.createElement("div");
+				ctl.className = "dps-row-ctl";
 
-				var rolesTd = document.createElement("td");
 				var rolesSelect = document.createElement("select");
 				rolesSelect.multiple = true;
-				rolesSelect.className = "dps-roles";
-				rolesSelect.size = Math.max(1, Math.min(allRoles.length, 6));
-				rolesSelect.style.minWidth = "220px";
+				rolesSelect.className = "dpx-bb-field dps-roles";
+				rolesSelect.size = Math.max(1, Math.min(allRoles.length, 5));
 				allRoles.forEach(function(roleName) {
 					var opt = document.createElement("option");
 					opt.value = roleName;
@@ -60,36 +113,51 @@ frappe.ready(function() {
 					opt.selected = page.allowed_roles.indexOf(roleName) !== -1;
 					rolesSelect.appendChild(opt);
 				});
-				rolesTd.appendChild(rolesSelect);
-				tr.appendChild(rolesTd);
+				ctl.appendChild(rolesSelect);
 
-				var requireTd = document.createElement("td");
+				var requireLabel = document.createElement("label");
+				requireLabel.className = "dps-check-sm";
 				var requireInput = document.createElement("input");
 				requireInput.type = "checkbox";
-				requireInput.className = "dps-require-all";
 				requireInput.checked = !!page.require_all_roles;
-				requireTd.appendChild(requireInput);
-				tr.appendChild(requireTd);
+				requireLabel.appendChild(requireInput);
+				requireLabel.appendChild(document.createTextNode("Require all"));
+				ctl.appendChild(requireLabel);
 
-				var saveTd = document.createElement("td");
 				var saveBtn = document.createElement("button");
-				saveBtn.className = "dps-save";
+				saveBtn.type = "button";
+				saveBtn.className = "dpx-bb-btn";
 				saveBtn.textContent = "Save";
-				saveTd.appendChild(saveBtn);
-				tr.appendChild(saveTd);
+				ctl.appendChild(saveBtn);
+
+				var saved = document.createElement("span");
+				saved.className = "dps-saved";
+				saved.textContent = "Saved";
+				saved.style.display = "none";
+				ctl.appendChild(saved);
+
+				row.appendChild(ctl);
 
 				saveBtn.addEventListener("click", function() {
 					var roles = Array.prototype.filter
 						.call(rolesSelect.options, function(opt) { return opt.selected; })
 						.map(function(opt) { return opt.value; });
 					var requireAll = requireInput.checked;
+					saveBtn.disabled = true;
 					frappe.call({
 						method: "upande_dev_tools.api.dev_portal_settings.update_page_roles",
 						args: {route: page.route, roles: roles, require_all_roles: requireAll ? 1 : 0}
+					}).then(function() {
+						saveBtn.disabled = false;
+						saved.style.display = "inline-block";
+						setTimeout(function() { saved.style.display = "none"; }, 2000);
+					}).catch(function(e) {
+						saveBtn.disabled = false;
+						frappe.msgprint((e && e.message) || "Could not save.");
 					});
 				});
 
-				tbody.appendChild(tr);
+				list.appendChild(row);
 			});
 		});
 	});

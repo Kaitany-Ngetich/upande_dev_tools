@@ -63,3 +63,42 @@ def update_page_roles(route: str, roles: list[str] | str, require_all_roles: boo
 	doc.require_all_roles = 1 if int(require_all_roles) else 0
 	doc.save(ignore_permissions=True)
 	return doc.as_dict()
+
+
+@frappe.whitelist()
+def get_peak_hours_settings() -> dict:
+	"""Read-only for Dev Team/System Manager (who configure it) and Projects Manager (who
+	should be able to see the window they'll be asked to approve deployments against)."""
+	if not set(frappe.get_roles()) & (set(SETTINGS_ROLES) | {"Projects Manager"}):
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	settings = frappe.get_single("Dev Portal Settings")
+	return {
+		"peak_hours_enabled": bool(settings.peak_hours_enabled),
+		"peak_start_time": str(settings.peak_start_time) if settings.peak_start_time else None,
+		"peak_end_time": str(settings.peak_end_time) if settings.peak_end_time else None,
+	}
+
+
+@frappe.whitelist()
+def update_peak_hours_settings(
+	peak_hours_enabled: bool | int,
+	peak_start_time: str | None = None,
+	peak_end_time: str | None = None,
+) -> dict:
+	_require_dual_role(*SETTINGS_ROLES)
+
+	enabled = bool(int(peak_hours_enabled))
+	if enabled and (not peak_start_time or not peak_end_time):
+		frappe.throw(_("Set both a start and end time before turning this on."), frappe.ValidationError)
+
+	settings = frappe.get_single("Dev Portal Settings")
+	settings.peak_hours_enabled = 1 if enabled else 0
+	settings.peak_start_time = peak_start_time
+	settings.peak_end_time = peak_end_time
+	settings.save(ignore_permissions=True)
+	return {
+		"peak_hours_enabled": bool(settings.peak_hours_enabled),
+		"peak_start_time": str(settings.peak_start_time) if settings.peak_start_time else None,
+		"peak_end_time": str(settings.peak_end_time) if settings.peak_end_time else None,
+	}

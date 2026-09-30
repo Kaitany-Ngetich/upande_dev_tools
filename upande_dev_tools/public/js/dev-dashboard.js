@@ -443,6 +443,12 @@ const DD_DEPLOY_STATE = {
 };
 
 function dd_deploy_row(d) {
+	const pending = d.requires_approval && d.approval_status === "Pending";
+	const chip = pending
+		? `<span class="dpx-bb-chip st-blocked" title="Raised during peak hours - waiting on a Projects Manager before it can start">Pending PM approval</span>`
+		: `<span class="dpx-bb-chip ${DD_DEPLOY_STATE[d.workflow_state] || "st-triage"}">${dd_esc(
+				d.workflow_state
+		  )}</span>`;
 	return `
 		<tr class="dpx-bb-row" data-name="${dd_esc(d.name)}">
 			<td><a href="/app/deployment-request/${encodeURIComponent(d.name)}">${dd_esc(d.app)}</a></td>
@@ -450,9 +456,7 @@ function dd_deploy_row(d) {
 			<td>${dd_esc(d.branch || "—")}</td>
 			<td>${dd_esc((d.requested_by_user || "").split("@")[0])}</td>
 			<td>${dd_esc(String(d.creation || "").slice(0, 10))}</td>
-			<td><span class="dpx-bb-chip ${DD_DEPLOY_STATE[d.workflow_state] || "st-triage"}">${dd_esc(
-				d.workflow_state
-			)}</span></td>
+			<td>${chip}</td>
 			<td><button class="dpx-bb-ico dd-duplicate" type="button" title="Duplicate this request">${dd_ico(
 				"copy",
 				13

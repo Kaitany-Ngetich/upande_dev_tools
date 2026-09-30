@@ -6,6 +6,7 @@ from frappe.utils import add_days, today
 
 from upande_dev_tools.api.board import (
 	STAGES,
+	create_task,
 	get_board,
 	get_modules,
 	get_preview,
@@ -280,3 +281,38 @@ class IntegrationTestBoardApi(IntegrationTestCase):
 				set_stage("Task", task, "Done")
 		finally:
 			frappe.set_user("Administrator")
+
+	def _tag(self, name: str = "Chore") -> str:
+		if not frappe.db.exists("Work Tag", name):
+			frappe.get_doc({"doctype": "Work Tag", "tag_name": name}).insert(ignore_permissions=True)
+		return name
+
+	def test_create_task_denies_users_without_a_board_role_but_creates_a_request(self) -> None:
+		"""Not permitted to add straight to the board doesn't mean not permitted at all -
+		it becomes a Request instead (as "Chore"), going through the normal review pipeline,
+		the same as anything else that user raises. project isn't forwarded (an outsider has
+		no reason to have Project read access), so it's left for a PM to attach later."""
+		project = self._project()
+		tag = self._tag()
+		outsider = self._user("board-add-outsider@example.test", ["Employee"])
+		frappe.set_user(outsider)
+		try:
+			result = create_task(project=project, subject="Outsider's backlog add", tags=[tag])
+		finally:
+			frappe.set_user("Administrator")
+		self.assertFalse(frappe.db.exists("Task", result["name"]))
+		doc = frappe.get_doc("Request", result["name"])
+		self.assertEqual(doc.request_type, "Chore")
+		self.assertEqual(doc.owner, outsider)
+		self.assertFalse(doc.project)
+
+	def test_create_task_creates_a_real_task_for_a_board_role(self) -> None:
+		project = self._project()
+		tag = self._tag()
+		dev = self._user("board-add-dev@example.test", ["Dev Team"])
+		frappe.set_user(dev)
+		try:
+			result = create_task(project=project, subject="Dev direct backlog add", tags=[tag])
+		finally:
+			frappe.set_user("Administrator")
+		self.assertTrue(frappe.db.exists("Task", result["name"]))

@@ -6,6 +6,7 @@ from frappe import _
 
 DEPLOYER_ROLES = {"Dev Team", "System Manager"}
 DEPLOYMENT_VIEWER_ROLES = {"Dev Team", "System Manager", "Projects Manager"}
+DEPLOYMENT_APPROVER_ROLES = {"Projects Manager", "System Manager"}
 
 
 @frappe.whitelist()
@@ -63,7 +64,7 @@ def get_my_deployment_requests(status: str | None = None) -> list[dict]:
 	return frappe.get_all(
 		"Deployment Request",
 		filters=filters,
-		fields=["name", "app", "instance", "branch", "workflow_state", "creation"],
+		fields=["name", "app", "instance", "branch", "workflow_state", "requires_approval", "approval_status", "creation"],
 		order_by="creation desc",
 		ignore_permissions=True,
 	)
@@ -77,7 +78,10 @@ def get_deployment_queue() -> list[dict]:
 	return frappe.get_all(
 		"Deployment Request",
 		filters={"workflow_state": ["in", ["Requested", "In Progress", "Failed"]]},
-		fields=["name", "app", "instance", "branch", "workflow_state", "requested_by_user", "creation"],
+		fields=[
+			"name", "app", "instance", "branch", "workflow_state",
+			"requires_approval", "approval_status", "requested_by_user", "creation",
+		],
 		order_by="creation asc",
 		ignore_permissions=True,
 	)
@@ -101,6 +105,8 @@ def get_recent_deployments(limit: int = 10) -> dict:
 			"commit_hash",
 			"description",
 			"workflow_state",
+			"requires_approval",
+			"approval_status",
 			"requested_by_user",
 			"creation",
 		],
@@ -125,6 +131,14 @@ def update_deployment_status(
 	from frappe.model.workflow import apply_workflow
 
 	doc = frappe.get_doc("Deployment Request", name)
+	if action == "Start Deployment" and doc.requires_approval and doc.approval_status != "Approved":
+		frappe.throw(
+			_(
+				"This deployment was raised during peak hours and needs Projects Manager "
+				"approval before it can start."
+			),
+			frappe.PermissionError,
+		)
 	if commit_hash:
 		doc.commit_hash = commit_hash
 	if errors:
@@ -138,3 +152,63 @@ def update_deployment_status(
 
 	updated = apply_workflow(doc, action)
 	return updated.as_dict()
+
+
+@frappe.whitelist()
+def get_pending_deployment_approvals() -> list[dict]:
+	if not set(frappe.get_roles()) & DEPLOYMENT_APPROVER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	return frappe.get_all(
+		"Deployment Request",
+		filters={"requires_approval": 1, "approval_status": "Pending"},
+		fields=[
+			"name",
+			"app",
+			"instance",
+			"branch",
+			"description",
+			"requested_by_user",
+			"creation",
+		],
+		order_by="creation asc",
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
+def approve_deployment_request(name: str, note: str | None = None) -> dict:
+	if not set(frappe.get_roles()) & DEPLOYMENT_APPROVER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	doc = frappe.get_doc("Deployment Request", name)
+	if not doc.requires_approval:
+		frappe.throw(_("This deployment was never flagged for approval."), frappe.ValidationError)
+	if doc.approval_status == "Approved":
+		return doc.as_dict()
+
+	doc.approval_status = "Approved"
+	doc.approved_by = frappe.session.user
+	doc.approved_on = frappe.utils.now_datetime()
+	if note:
+		doc.approval_note = note
+	doc.save(ignore_permissions=True)
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def reject_deployment_request(name: str, note: str | None = None) -> dict:
+	if not set(frappe.get_roles()) & DEPLOYMENT_APPROVER_ROLES:
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+
+	doc = frappe.get_doc("Deployment Request", name)
+	if not doc.requires_approval:
+		frappe.throw(_("This deployment was never flagged for approval."), frappe.ValidationError)
+
+	doc.approval_status = "Rejected"
+	doc.approved_by = frappe.session.user
+	doc.approved_on = frappe.utils.now_datetime()
+	if note:
+		doc.approval_note = note
+	doc.save(ignore_permissions=True)
+	return doc.as_dict()

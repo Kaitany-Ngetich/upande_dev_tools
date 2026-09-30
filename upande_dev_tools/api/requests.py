@@ -97,6 +97,7 @@ def create_request(
 	request_type: str,
 	description: str | None = None,
 	product_area: str | None = None,
+	priority: str | None = None,
 	project: str | None = None,
 	source: str = "Desk",
 	raised_by_employee: str | None = None,
@@ -110,9 +111,19 @@ def create_request(
 	themselves, or naming who they'd like to handle it) - it never creates a real assignment;
 	the PM's accept_request call is the only place that ever happens. tags is mandatory - every
 	request needs at least one, since that's the one classification carried forward onto the
-	Task it becomes and the only thing the backlog board can filter on across both."""
+	Task it becomes and the only thing the backlog board can filter on across both.
+
+	product_area/priority are Dev Team/Projects Manager conveniences (the create form hides
+	both from everyone else) - triage classification is the reviewer's call to make, not the
+	raiser's, so either is silently dropped from anyone outside those roles rather than trusted
+	as given. Left blank, both get filled in at review time instead (accept_request already
+	requires a priority before it'll schedule anything)."""
 	if project and not frappe.has_permission("Project", "read", project):
 		frappe.throw(_("Not permitted to view this project."), frappe.PermissionError)
+
+	if not (set(frappe.get_roles()) & REVIEWER_ROLES):
+		product_area = None
+		priority = None
 
 	if isinstance(tags, str):
 		tags = [t.strip() for t in tags.split(",")]
@@ -128,6 +139,7 @@ def create_request(
 			"request_type": request_type,
 			"description": description,
 			"product_area": product_area,
+			"priority": normalize_priority("Request", "priority", priority),
 			"project": project,
 			"source": source,
 			"raised_by_employee": raised_by_employee,
@@ -180,12 +192,11 @@ def create_requests_bulk(titles: list[str] | str) -> dict:
 
 @frappe.whitelist()
 def get_my_requests(status: str | None = None) -> list[dict]:
-	"""A plain user sees only what they raised. A PM/Dev Team member sees every request, so
-	they can filter by who raised it or who's working it - the same broader visibility they
-	already have in Review Queue and Backlog Board."""
+	"""Requests are public: every user sees every request and its status, not just their own -
+	raising something shouldn't feel like shouting into a void only you can hear back from.
+	The name is legacy (kept so existing callers don't need to change); it no longer filters
+	by owner for anyone, reviewer or not."""
 	filters: dict[str, str] = {}
-	if not set(frappe.get_roles()) & REVIEWER_ROLES:
-		filters["owner"] = frappe.session.user
 	if status:
 		filters["workflow_state"] = status
 
@@ -588,7 +599,7 @@ def get_my_backlog(user: str | None = None, project: str | None = None) -> dict:
 	tasks = frappe.get_all(
 		"Task",
 		filters=filters,
-		fields=["name", "subject", "status", "priority", "project", "exp_end_date"],
+		fields=["name", "subject", "status", "priority", "project", "custom_module", "exp_end_date", "creation"],
 		ignore_permissions=True,
 	)
 	# get_all returns Date columns as real date objects, not strings - comparing one against
@@ -597,7 +608,52 @@ def get_my_backlog(user: str | None = None, project: str | None = None) -> dict:
 	tasks.sort(key=lambda t: (t.exp_end_date is None, t.exp_end_date))
 
 	meetings = get_upcoming_meetings(for_user=user, within_days=1)
-	return {"tasks": tasks, "meetings": meetings}
+
+	# Everything this person raised themselves, any status - "public" (get_my_requests) means
+	# everyone can see everyone's; this is specifically "mine, including what's still waiting
+	# on a decision" - a raiser has no other way to check on something they asked for besides
+	# hunting for it in the full public list.
+	my_requests = frappe.get_all(
+		"Request",
+		filters={"owner": user},
+		fields=["name", "title", "request_type", "workflow_state", "priority", "project", "linked_task", "creation"],
+		order_by="creation desc",
+		ignore_permissions=True,
+	)
+
+	return {"tasks": tasks, "meetings": meetings, "requests": my_requests, "progress": _completion_trend(user)}
+
+
+def _completion_trend(user: str) -> dict:
+	"""This week's completed-task count against last week's, for a developer's own sense of
+	throughput - completed_on is native to Task (ERPNext sets it when status becomes
+	Completed), so this reads real history rather than anything this app has to maintain."""
+	today = frappe.utils.getdate()
+	week_start = frappe.utils.add_days(today, -6)
+	prev_week_start = frappe.utils.add_days(today, -13)
+	prev_week_end = frappe.utils.add_days(today, -7)
+
+	completed = frappe.get_all(
+		"Task",
+		filters=[
+			["_assign", "like", f"%{user}%"],
+			["status", "=", "Completed"],
+			["completed_on", ">=", prev_week_start],
+		],
+		fields=["completed_on"],
+		ignore_permissions=True,
+	)
+	this_week = 0
+	prev_week = 0
+	for c in completed:
+		completed_date = frappe.utils.getdate(c.completed_on) if c.completed_on else None
+		if not completed_date:
+			continue
+		if completed_date >= week_start:
+			this_week += 1
+		elif prev_week_start <= completed_date <= prev_week_end:
+			prev_week += 1
+	return {"completed_this_week": this_week, "completed_prev_week": prev_week}
 
 
 @frappe.whitelist()

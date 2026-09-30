@@ -118,6 +118,17 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 
 /* ══ CARDS / TABLES ══ */
 .dpx .dpx-card{background:var(--surface-2);border-radius:20px;box-shadow:var(--shadow-card)}
+/* Every card/grid rendered straight into a stage is a sibling <div>, not a flex/grid
+   child of anything that supplies spacing - without this, two cards back to back sit
+   flush against each other (rounded corner touching square edge, shadows bleeding into
+   one another), which reads as "overlapping" even though nothing is technically on top
+   of anything else. One rule here beats remembering a margin on every render function. */
+.dpx .bb-stage > .dpx-card,
+.dpx .bb-stage > .pm-grid,
+.dpx .bb-stage > .mb-due,
+.dpx .bb-stage > .dpx-skel{margin-bottom:14px}
+.dpx .bb-stage > .dpx-card:last-child,
+.dpx .bb-stage > .pm-grid:last-child{margin-bottom:0}
 .dpx .dpx-card-hd{padding:18px 22px 0;margin-bottom:2px}
 .dpx .dpx-card-hd .ttl{font:600 14.5px var(--sans);color:var(--ink);letter-spacing:-.25px}
 .dpx .dpx-card-body{padding:14.5px 22px 20px}
@@ -126,6 +137,38 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx table td{padding:10px 11px;border-bottom:1px solid var(--hairline);color:var(--ink-3)}
 .dpx table tbody tr:hover{background:rgba(10,10,10,0.025)}
 .dpx .pill{border-radius:999px;font:500 10px var(--sans);padding:3px 9px;display:inline-block}
+
+/* settings: peak hours */
+.dpx .dps-hint{font:400 12px/1.5 var(--ui);color:var(--ink-4);margin-bottom:14px;max-width:64ch}
+.dpx .dps-check{display:flex;align-items:center;gap:8px;font:500 12px var(--ui);color:var(--ink-2);margin-bottom:16px;cursor:pointer}
+.dpx .dps-peak-row{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.dpx .dps-field{display:flex;flex-direction:column;gap:6px;font:600 9.5px var(--ui);text-transform:uppercase;letter-spacing:.6px;color:var(--ink-faint)}
+.dpx .dps-field input{margin-top:0}
+.dpx .dps-saved{font:600 10.5px var(--ui);color:var(--bb-green);background:var(--ok-bg);padding:5px 10px;border-radius:6px}
+
+/* settings: registered pages */
+.dpx .dps-list{display:flex;flex-direction:column}
+.dpx .dps-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 22px;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.dpx .dps-row:last-child{border-bottom:0}
+.dpx .dps-row-main{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 220px}
+.dpx .dps-row-title{font:500 12.5px var(--ui);color:var(--ink-2);white-space:nowrap}
+.dpx .dps-row-group{font:600 9px var(--ui);text-transform:uppercase;letter-spacing:.6px;color:var(--ink-faint)}
+.dpx .dps-row-ctl{display:flex;align-items:center;gap:10px;flex:none;flex-wrap:wrap}
+.dpx .dps-roles{min-width:200px}
+.dpx .dps-check-sm{display:flex;align-items:center;gap:6px;font:500 10.5px var(--ui);color:var(--ink-4);white-space:nowrap;cursor:pointer}
+
+/* a plain admin list table (Activity Log, Code Snapshots, Master Data) - auto column
+   widths, unlike dpx-bb-table's fixed layout meant for an explicit colgroup */
+.dpx table.dpx-list-table{width:100%;border-collapse:collapse;font-family:var(--table);margin-top:12px}
+.dpx table.dpx-list-table th{font:600 8.5px var(--ui);text-transform:uppercase;letter-spacing:.9px;color:var(--ink-faint);border-bottom:1px solid var(--rule);padding:8px 10px;text-align:left}
+.dpx table.dpx-list-table td{padding:8px 10px;border-bottom:1px solid var(--rule-soft);color:var(--ink-3);font-size:11.5px}
+.dpx table.dpx-list-table tbody tr:hover{background:#fbfbf8}
+
+/* hooks explorer */
+.dpx .hx-search-grp{flex:1;min-width:220px}
+.dpx .hx-search-grp .hx-search{width:100%}
+.dpx .hx-section{margin-bottom:12px}
+.dpx .hx-pre{background:var(--calm-bg);color:var(--ink-2);font:400 11px/1.6 var(--mono);padding:14px 16px;border-radius:9px;max-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 
 /* ══ FILTER BAR ══ */
 .dpx .dpx-filters{display:flex;flex-wrap:wrap;gap:11px;margin-bottom:18px}
@@ -490,6 +533,7 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .rp-form textarea.dpx-bb-field{resize:vertical;line-height:1.5}
 .dpx .rp-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rp-required{color:#b3261e}
+.dpx .rp-form-note{font:400 11px var(--table);color:var(--ink-faint);margin:-4px 0 0;text-transform:none;letter-spacing:0}
 .dpx .rp-form-ft{display:flex;justify-content:flex-end;gap:8px;margin-top:2px}
 .dpx .rp-form-ft .dpx-bb-btn{padding:7px 14px;font-size:11px}
 @media (max-width:520px){.dpx .rp-two{grid-template-columns:1fr}}
@@ -527,6 +571,39 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .md-meet.soon .at{color:#1a56c4}
 .dpx .md-meet.soon .md-join{border-color:#1a73e8;background:#1a73e8;color:#fff;box-shadow:0 1px 4px rgba(26,115,232,.35)}
 .dpx .md-meet.soon .md-join:hover{background:#1765cc;border-color:#1765cc;color:#fff}
+
+/* the week-ahead mini bar chart on My Backlog's Today tab */
+.dpx .mb-week{display:flex;gap:10px;align-items:flex-end;height:96px}
+.dpx .mb-week .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
+.dpx .mb-week .track{flex:1;width:100%;display:flex;align-items:flex-end}
+.dpx .mb-week .fill{width:100%;background:var(--bb-accent);border-radius:3px 3px 0 0;min-height:2px}
+.dpx .mb-week .col.today .fill{background:var(--bb-solid-red)}
+.dpx .mb-week .n{font:600 10px var(--mono);color:var(--ink-3);min-height:12px}
+.dpx .mb-week .lbl{font:500 9px var(--ui);color:var(--ink-faint)}
+
+/* this-week-vs-last-week completion trend on My Backlog's Progress tab */
+.dpx .mb-trend{display:flex;flex-direction:column;gap:10px}
+.dpx .mb-trend-row{display:flex;align-items:center;gap:10px}
+.dpx .mb-trend-row .l{width:72px;flex:none;font:500 10.5px var(--ui);color:var(--ink-4)}
+.dpx .mb-trend-row .track{flex:1;height:10px;background:var(--rule);border-radius:99px;overflow:hidden}
+.dpx .mb-trend-row .fill{display:block;height:100%;border-radius:99px}
+.dpx .mb-trend-row .fill.now{background:var(--bb-solid-green)}
+.dpx .mb-trend-row .fill.prev{background:#c9c7bd}
+.dpx .mb-trend-row .n{width:22px;text-align:right;font:600 10.5px var(--mono);color:var(--ink-2)}
+
+.dpx .mb-due-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.dpx .mb-due-col{min-width:0}
+.dpx .mb-due-hd{display:flex;align-items:center;gap:7px;font:600 10.5px var(--ui);color:var(--ink-3);padding:8px 0 2px}
+.dpx .mb-due-col .md-task{padding-left:0;padding-right:0}
+.dpx .mb-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;padding-top:2px}
+.dpx .mb-measures4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:900px){
+	.dpx .mb-due-grid{grid-template-columns:1fr}
+	.dpx .mb-overview-grid{grid-template-columns:1fr}
+	.dpx .mb-measures4{grid-template-columns:1fr}
+	.dpx .mb-measures4 .m{border-right:0;border-bottom:1px solid var(--rule-soft)}
+	.dpx .mb-measures4 .m:last-child{border-bottom:0}
+}
 
 .dpx .md-small{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--rule-soft);text-decoration:none}
 .dpx .md-small:last-child{border-bottom:0}
@@ -605,14 +682,16 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .pm-orphans .cta{font:600 9.5px var(--ui);color:var(--bb-accent)}
 
 /* unit chart: one dot per task */
-.dpx .pm-units{display:flex;flex-direction:column;gap:8px}
-.dpx .pm-units .u{display:flex;align-items:center;gap:11px}
-.dpx .pm-units .nm{width:124px;flex:none;font:500 10.5px var(--table);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dpx .pm-units .dots{flex:1;display:flex;flex-wrap:wrap;gap:3px;align-content:center;min-height:9px}
-.dpx .pm-units .dots i{width:9px;height:9px;border-radius:2.5px;background:#d7d5cc}
-.dpx .pm-units .dots i.done{background:var(--bb-solid-green)}
-.dpx .pm-units .dots i.late{background:var(--bb-solid-red)}
-.dpx .pm-units .n{font:500 9.5px var(--mono);color:var(--ink-faint);width:26px;text-align:right}
+.dpx .pm-modbars{display:flex;flex-direction:column;gap:9px}
+.dpx .pm-modbar{display:flex;align-items:center;gap:11px}
+.dpx .pm-modbar .nm{width:150px;flex:none;font:500 10.5px var(--table);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpx .pm-modbar .track{flex:1;height:13px}
+.dpx .pm-modbar .bar{display:flex;height:100%;border-radius:3px;overflow:hidden;background:var(--rule)}
+.dpx .pm-modbar .bar i{display:block;height:100%}
+.dpx .pm-modbar .bar i.done{background:var(--bb-solid-green)}
+.dpx .pm-modbar .bar i.open{background:#d7d5cc}
+.dpx .pm-modbar .bar i.late{background:var(--bb-solid-red)}
+.dpx .pm-modbar .n{font:500 9.5px var(--mono);color:var(--ink-faint);width:28px;text-align:right}
 .dpx .pm-units-key{display:flex;gap:14px;margin-top:13px;padding-top:11px;border-top:1px solid var(--rule-soft);font:500 9px var(--ui);color:var(--ink-faint)}
 .dpx .pm-units-key span{display:inline-flex;align-items:center;gap:5px}
 .dpx .pm-units-key i{width:9px;height:9px;border-radius:2.5px;background:#d7d5cc}
@@ -625,14 +704,18 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .pm-age-bar i.b0{background:var(--bb-solid-green)}
 .dpx .pm-age-bar i.b1{background:#7fbfa2}
 .dpx .pm-age-bar i.b2{background:var(--bb-solid-amber)}
-.dpx .pm-age-bar i.b3{background:var(--bb-solid-red)}
+.dpx .pm-age-bar i.b3{background:#c9660a}
+.dpx .pm-age-bar i.b4{background:var(--bb-solid-red)}
+.dpx .pm-age-bar i.b5{background:#8f1f22}
 .dpx .pm-age-key{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font:500 9.5px var(--ui);color:var(--ink-mute)}
 .dpx .pm-age-key span{display:inline-flex;align-items:center;gap:6px}
 .dpx .pm-age-key i{width:8px;height:8px;border-radius:2px}
 .dpx .pm-age-key i.b0{background:var(--bb-solid-green)}
 .dpx .pm-age-key i.b1{background:#7fbfa2}
 .dpx .pm-age-key i.b2{background:var(--bb-solid-amber)}
-.dpx .pm-age-key i.b3{background:var(--bb-solid-red)}
+.dpx .pm-age-key i.b3{background:#c9660a}
+.dpx .pm-age-key i.b4{background:var(--bb-solid-red)}
+.dpx .pm-age-key i.b5{background:#8f1f22}
 .dpx .pm-age-key b{font-family:var(--mono);font-size:10px;color:var(--ink-2)}
 .dpx .pm-note{margin-top:12px;font:400 10.5px var(--ui);color:var(--ink-4)}
 
@@ -649,6 +732,51 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 .dpx .pm-req .calm .bar i{background:#a8a69c}
 
 .dpx .pm-stall .on{color:var(--bb-amber);font-weight:600}
+
+/* tab nav */
+.dpx .pm-tabs{display:flex;gap:2px;padding:0 13px;border-top:1px solid var(--rule-soft);overflow-x:auto}
+.dpx .pm-tabs button{padding:10px 13px;font:600 11px var(--ui);color:var(--ink-mute);background:transparent;border:0;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .12s,border-color .12s}
+.dpx .pm-tabs button:hover{color:var(--ink-2)}
+.dpx .pm-tabs button.on{color:var(--ink);border-bottom-color:var(--bb-accent)}
+
+/* persistent status line */
+.dpx .pm-statusline{display:flex;gap:18px;flex-wrap:wrap;padding:8px 13px;background:var(--surface-2);border-top:1px solid var(--rule-soft);font:500 10px var(--ui);color:var(--ink-mute)}
+.dpx .pm-statusline b{font-family:var(--mono);color:var(--ink-2);font-weight:600}
+.dpx .pm-statusline b.bad{color:var(--bb-late)}
+.dpx .pm-statusline b.warn{color:var(--bb-amber)}
+
+/* capacity badge on a person row */
+.dpx .pm-person .tag.cap{background:var(--bad-bg);color:var(--bb-late)}
+
+/* donut chart - a hand-rolled SVG ring, same convention as every other hand-rolled
+   bar/dot chart on this page, just the shape that fits a share-of-total question */
+.dpx .pm-donut-wrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.dpx .pm-donut{flex:none}
+.dpx .pm-donut .num{font:700 17px var(--sans);fill:var(--ink)}
+.dpx .pm-donut .sub{font:500 8px var(--ui);fill:var(--ink-faint);text-transform:uppercase;letter-spacing:.5px}
+.dpx .pm-donut-legend{display:flex;flex-direction:column;gap:9px;flex:1;min-width:160px}
+.dpx .pm-donut-legend .row{display:flex;align-items:center;gap:8px;font:500 11.5px var(--ui);color:var(--ink-3)}
+.dpx .pm-donut-legend i{width:9px;height:9px;border-radius:2.5px;flex:none}
+.dpx .pm-donut-legend .l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpx .pm-donut-legend .n{font:600 11px var(--mono);color:var(--ink-2)}
+
+/* burndown / forecast line chart */
+.dpx .pm-tally .key{display:inline-flex;align-items:center;gap:5px}
+.dpx .pm-tally .key i{width:8px;height:8px;border-radius:2px;background:var(--ink-faint)}
+.dpx .pm-tally .key i.hist{background:var(--bb-accent)}
+.dpx .pm-tally .key i.proj{background:#cfcdc4}
+.dpx .pm-tally .key i.due{border-radius:50%;background:var(--bb-solid-amber)}
+.dpx .pm-tally .key i.est{background:#cfcdc4}
+.dpx .pm-tally .key i.act{background:var(--bb-solid-green)}
+.dpx .pm-flow .col.projected{opacity:.5}
+.dpx .pm-burn{width:100%;height:170px;display:block}
+.dpx .pm-burn .grid{stroke:var(--rule-soft);stroke-width:1}
+.dpx .pm-burn .ax{font:500 8px var(--mono);fill:var(--ink-faint)}
+.dpx .pm-burn .line{fill:none;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round}
+.dpx .pm-burn .line.hist{stroke:var(--bb-accent)}
+.dpx .pm-burn .line.proj{stroke:#b8b6ac;stroke-dasharray:5 4}
+.dpx .pm-burn .today{stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:2 3}
+.dpx .pm-burn .due{fill:var(--bb-solid-amber)}
 
 /* by-project progress cell - was entirely unstyled, running the bar/percent/fraction
    together with no gap at all ("0%1/307") */
@@ -680,6 +808,81 @@ body:has(.dpx) .web-page-edit,body:has(.dpx) .published-edit{display:none!import
 	.dpx .pm-measures{grid-template-columns:1fr}
 	.dpx .pm-measures .m{border-right:0;border-bottom:1px solid var(--rule-soft)}
 }
+
+.dpx .pm-measures2{grid-template-columns:repeat(2,1fr)}
+@media (max-width:980px){.dpx .pm-measures2{grid-template-columns:1fr}}
+
+.dpx .pm-measures6{grid-template-columns:repeat(6,1fr)}
+@media (max-width:1200px){.dpx .pm-measures6{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:980px){.dpx .pm-measures6{grid-template-columns:1fr}.dpx .pm-measures6 .m{border-right:0;border-bottom:1px solid var(--rule-soft)}}
+
+.dpx .pm-grid--3{grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){.dpx .pm-grid--3{grid-template-columns:1fr}}
+
+/* Pulse: needs-you action cards */
+.dpx .pm-needs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.dpx .pm-need{display:flex;flex-direction:column;gap:3px;padding:13px 14px;border-radius:11px;background:var(--calm-bg);text-decoration:none;color:inherit;transition:background .12s}
+.dpx .pm-need:hover{background:#e8e6dc}
+.dpx .pm-need .n{font:700 25px var(--sans);color:var(--ink);letter-spacing:-1px}
+.dpx .pm-need .title{font:600 11.5px var(--ui);color:var(--ink-2)}
+.dpx .pm-need .sub{font:400 10px var(--ui);color:var(--ink-mute)}
+
+/* Pulse: generic big-number + progress-track primitives, reused across several cards */
+.dpx .pm-big{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:8px}
+.dpx .pm-big .num{font:700 24px var(--sans);color:var(--ink);letter-spacing:-.6px}
+.dpx .pm-big .num.warn{color:var(--bb-amber)}
+.dpx .pm-track{height:8px;background:var(--rule);border-radius:99px;overflow:hidden;display:flex}
+.dpx .pm-track--md{height:10px}
+.dpx .pm-track--lg{height:13px}
+.dpx .pm-track .fill{display:block;height:100%;background:var(--bb-accent)}
+.dpx .pm-track .fill.warn{background:var(--bb-solid-amber)}
+
+.dpx .pm-off-books{display:flex;flex-direction:column;margin-top:10px;border-top:1px solid var(--rule-soft);padding-top:4px}
+.dpx .pm-off-books .row{display:flex;align-items:center;gap:10px;padding:7px 0;font:500 11px var(--ui);color:var(--ink-3);border-bottom:1px solid var(--rule-soft)}
+.dpx .pm-off-books .row:last-child{border-bottom:0}
+.dpx .pm-off-books .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpx .pm-off-books .mod{font:500 9.5px var(--ui);color:var(--ink-faint);background:var(--calm-bg);padding:1px 6px;border-radius:3px;white-space:nowrap}
+.dpx .pm-off-books .d{font:600 9.5px var(--mono);color:var(--bb-amber);white-space:nowrap}
+
+/* shared label+value+track "meter" row - data trust, demand by area, knowledge concentration */
+.dpx .pm-meter{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.dpx .pm-meter:last-child{margin-bottom:0}
+.dpx .pm-meter .top{display:flex;justify-content:space-between;align-items:center;font:500 11px var(--ui);color:var(--ink-3)}
+.dpx .pm-meter .top .num{font:600 11px var(--mono);color:var(--ink-2)}
+.dpx .pm-meter .top .num.warn{color:var(--bb-amber)}
+
+/* Pipeline: stage-duration bar */
+.dpx .pm-stages{display:flex;gap:2px;height:44px;border-radius:8px;overflow:hidden;margin-bottom:10px}
+.dpx .pm-stage{display:flex;align-items:center;justify-content:center;background:var(--bb-accent);color:#fafaf6;font:600 12px var(--mono);min-width:26px}
+.dpx .pm-stage:nth-child(2n){background:#5a9c90}
+.dpx .pm-stages-labels{display:flex;flex-wrap:wrap;gap:16px}
+.dpx .pm-stages-labels .lbl{display:flex;flex-direction:column;gap:2px;font:600 10.5px var(--ui);color:var(--ink-2);min-width:112px}
+
+/* Pipeline: bug share bars, intake source cards */
+.dpx .pm-bugrow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dpx .pm-bugrow .nm{width:150px;flex:none;font:500 11px var(--table);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpx .pm-bugrow .pm-track{flex:1}
+.dpx .pm-bugrow .num{width:36px;flex:none;text-align:right;font:600 10.5px var(--mono);color:var(--ink-2)}
+.dpx .pm-source{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:var(--calm-bg);border-radius:10px}
+.dpx .pm-source .strong{font:600 12px var(--ui);color:var(--ink-2)}
+.dpx .pm-source .num.big{font:700 19px var(--sans);color:var(--ink);letter-spacing:-.4px}
+.dpx .pm-source .num.big.warn{color:var(--bb-amber)}
+
+/* Releases: deployment frequency heatmap */
+.dpx table.pm-heat{table-layout:auto}
+.dpx table.pm-heat td.pm-cell{text-align:center;font:600 11px var(--mono);border-radius:4px}
+.dpx .pm-cell[data-level="0"]{background:var(--calm-bg);color:var(--ink-faint)}
+.dpx .pm-cell[data-level="1"]{background:#cfe3df;color:var(--ink-2)}
+.dpx .pm-cell[data-level="2"]{background:#8fc2b7;color:#0c2b24}
+.dpx .pm-cell[data-level="3"]{background:var(--bb-solid-green);color:#fff}
+
+/* People: idle chip */
+.dpx .pm-person .tag.grey{background:var(--calm-bg);color:var(--ink-mute)}
+
+/* Forecast: the two projection rays (50%/85%) and the "today" anchor point */
+.dpx .pm-burn .line.proj50{stroke:var(--bb-accent);stroke-width:1.75;stroke-dasharray:6 4}
+.dpx .pm-burn .line.proj85{stroke:#b8b6ac;stroke-width:1.5;stroke-dasharray:3 4}
+.dpx .pm-burn .today-dot{fill:var(--ink)}
 
 /* ── Dashboard ── */
 .dpx .dd-summary{display:flex;align-items:center;gap:7px;font:500 10px var(--ui);color:var(--ink-mute)}
