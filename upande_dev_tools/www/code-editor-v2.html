@@ -1,0 +1,73 @@
+{% extends "templates/web.html" %}
+{% block title %}Code Editor · Dev Tools{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-code-editor.css?v={{ css_v }}">
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Developer</div>
+    <h1 class="ph-head__title">Code Editor</h1>
+    <p class="ph-head__sub" id="sub">Browse, read and edit the source files of the installed apps</p>
+  </div>
+  <div class="ph-head__tools">
+    <button class="ph-btn" id="theme" type="button" aria-label="Switch editor theme">Dark editor</button>
+    <button class="ph-btn ph-btn--primary" id="save" type="button" disabled title="Save (Ctrl/Cmd+S)">Save</button>
+  </div>
+</header>
+
+<div class="ph-filters">
+  <select class="ph-select" id="f-app" aria-label="App"></select>
+  <label class="ph-search"><span class="ce-sr">Search files</span>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" id="f-q" placeholder="Search files in this app…  (Ctrl+P)" aria-label="Search files in this app">
+  </label>
+  <div class="ph-filters__spacer"></div>
+  <button class="ph-btn ce-only-narrow" id="toggle-explorer" type="button" aria-expanded="false">Files</button>
+  <button class="ph-btn" id="toggle-details" type="button" aria-pressed="true">Details</button>
+</div>
+
+<section class="ce" id="ce" data-state="loading">
+  <aside class="ce__explorer" id="explorer" aria-label="Files">
+    <div class="ce__sec"><span>Open files</span><span class="ce__count" id="open-count">0</span></div>
+    <div id="open-editors" class="ce__list"></div>
+    <div class="ce__sec"><span id="tree-title">Files</span></div>
+    <div id="tree" class="ce__tree" role="tree" aria-label="App files"></div>
+  </aside>
+  <div class="ce__sep" id="sep-explorer" role="separator" aria-orientation="vertical" aria-label="Resize file list" tabindex="0"></div>
+
+  <div class="ce__main">
+    <div class="ce__tabs" id="tabs" role="tablist" aria-label="Open files"></div>
+    <div class="ce__crumb" id="crumb">Select a file from the list</div>
+    <div class="ce__editor-wrap">
+      <div id="editor" class="ce__editor"></div>
+      <div class="ce__empty" id="editor-empty"></div>
+    </div>
+    <div class="ce__status" id="status">
+      <span id="st-file">No file</span><span id="st-lang">Plain text</span><span>UTF-8</span>
+      <span id="st-dirty"></span><span class="ce__grow"></span><span id="st-pos">Ln 1, Col 1</span>
+    </div>
+  </div>
+
+  <div class="ce__sep" id="sep-details" role="separator" aria-orientation="vertical" aria-label="Resize details" tabindex="0"></div>
+  <aside class="ce__details" id="details" aria-label="Details">
+    <div class="ce__sec"><span>App</span></div>
+    <dl class="ce__dl" id="d-app"></dl>
+    <div class="ce__sec"><span>Current file</span></div>
+    <dl class="ce__dl" id="d-file"></dl>
+    <div class="ce__sec"><span>Shortcuts</span></div>
+    <dl class="ce__dl">
+      <dt>Save</dt><dd><kbd>Ctrl</kbd>+<kbd>S</kbd></dd>
+      <dt>Find a file</dt><dd><kbd>Ctrl</kbd>+<kbd>P</kbd></dd>
+      <dt>Close tab</dt><dd><kbd>Alt</kbd>+<kbd>W</kbd></dd>
+      <dt>Hide files</dt><dd><kbd>Ctrl</kbd>+<kbd>B</kbd></dd>
+    </dl>
+    <div class="ce__sec"><span>This session</span></div>
+    <ol class="ce__log" id="log"><li>No activity yet</li></ol>
+  </aside>
+</section>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-code-editor.js?v={{ page_v }}"></script>
+{% endblock %}

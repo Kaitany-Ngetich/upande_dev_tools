@@ -371,6 +371,14 @@ def register_dev_portal_pages() -> None:
 		roles=["Dev Team"],
 	)
 	register_dev_portal_page(
+		route="dev-data-seeder",
+		title="Data Seeder",
+		icon="database",
+		nav_group="Developer",
+		sort_order=80,
+		roles=["System Manager"],
+	)
+	register_dev_portal_page(
 		route="pm-dashboard",
 		title="Dashboard",
 		icon="home",

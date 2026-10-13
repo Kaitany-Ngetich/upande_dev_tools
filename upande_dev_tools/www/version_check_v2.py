@@ -1,0 +1,16 @@
+# Copyright (c) 2026, Upande LTD and contributors
+# For license information, please see license.txt
+#
+# Version Check v2 (www/version-check-v2.html). Access follows the Dev Dashboard page.
+
+from upande_dev_tools import portal
+from upande_dev_tools.dev_v2 import page_context
+
+no_cache = 1
+
+
+def get_context(context):
+	context = page_context(context, "version-check", "Version Check")
+	context.page_v = portal.asset_version("js/dev-v2-version-check.js")
+	context.css_v = portal.asset_version("css/dev-v2-version-check.css")
+	return context

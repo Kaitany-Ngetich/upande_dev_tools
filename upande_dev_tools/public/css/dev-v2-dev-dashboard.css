@@ -1,0 +1,9 @@
+.dd-notes{display:grid;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.dd-notes:empty{display:none}
+.dd-notes .ph-notice{margin-bottom:0}
+.dd-dim{color:var(--ink-mute)}
+.dd-desc{white-space:pre-wrap;word-break:break-word;font-size:13px;color:var(--ink-3);margin:0}
+.dd-actions{display:flex;gap:var(--sp-1);justify-content:flex-end}
+.dd-err{font:500 12px var(--sans);color:var(--bad);min-height:16px}
+.dd-form-note{margin:0 0 var(--sp-4)}
+.ph-table td.dd-act{width:1%;white-space:nowrap}

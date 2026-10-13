@@ -1,0 +1,111 @@
+{% extends "templates/web.html" %}
+{% block title %}Requests · Dev Tools{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-requests.css?v={{ css_v }}">
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Requests</div>
+    <h1 class="ph-head__title">Requests</h1>
+    <p class="ph-head__sub" id="sub">Everything anyone has asked the dev team for, and where each one stands</p>
+  </div>
+  <div class="ph-head__tools">
+    <button class="ph-btn ph-btn--primary" id="raise" type="button">Raise a request</button>
+    <button class="ph-btn" id="export" type="button" disabled>Export CSV</button>
+  </div>
+</header>
+
+<div class="ph-filters">
+  <div class="ph-pills" id="f-scope" aria-label="Show">
+    <button data-value="">Everything</button><button data-value="open">Still open</button><button data-value="closed">Finished</button>
+  </div>
+  <select class="ph-select" id="f-status" aria-label="Status"><option value="">Any status</option></select>
+  <select class="ph-select" id="f-type" aria-label="Kind of request"><option value="">All kinds</option></select>
+  <select class="ph-select" id="f-priority" aria-label="Priority"><option value="">Any priority</option></select>
+  <select class="ph-select" id="f-area" aria-label="Module" hidden><option value="">All modules</option></select>
+  <select class="ph-select" id="f-requester" aria-label="Raised by"><option value="">Anyone raised it</option></select>
+  <select class="ph-select" id="f-assignee" aria-label="Assigned to"><option value="">Anyone assigned</option></select>
+  <select class="ph-select" id="f-project" aria-label="Project"><option value="">All projects</option></select>
+  <select class="ph-select" id="f-tag" aria-label="Tag"><option value="">Any tag</option></select>
+  <div class="ph-pills" id="f-mine" aria-label="Whose"><button data-value="">Everyone's</button><button data-value="1">Mine</button></div>
+  <select class="ph-select" id="f-sort" aria-label="Sort the cards">
+    <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="priority">Priority</option><option value="title">Title</option>
+  </select>
+  <label class="ph-search"><span id="s-icon"></span><input type="search" id="f-q" placeholder="Search title or description" aria-label="Search"></label>
+  <div class="ph-filters__spacer"></div>
+  <div class="ph-pills" id="f-preset">
+    <button data-value="30d">30 days</button><button data-value="90d">90 days</button><button data-value="ytd">This year</button><button data-value="all">All time</button>
+  </div>
+  <label class="ph-daterange" title="Date the request was raised">
+    <input type="date" id="f-from" aria-label="Raised from"><span class="ph-daterange__sep">→</span><input type="date" id="f-to" aria-label="Raised to">
+  </label>
+</div>
+
+<section class="ph-kpis" id="kpis"></section>
+<div id="notice"></div>
+
+<nav class="ph-tabs" id="tabs" role="tablist">
+  <button class="ph-tab" data-view="requests" role="tab">Requests <span class="ph-tab__count" id="tc-requests">—</span></button>
+  <button class="ph-tab" data-view="overview" role="tab">Overview</button>
+  <button class="ph-tab" data-view="table" role="tab">Table</button>
+</nav>
+
+<div id="view-requests" hidden>
+  <div class="ph-card__meta ph-mb" id="m-cards">&nbsp;</div>
+  <div id="cards"></div>
+  <div class="rq-more"><button class="ph-btn" id="more" type="button" hidden>Show more</button></div>
+</div>
+
+<div id="view-overview" hidden>
+  <div class="ph-row ph-row--2-1">
+    <section class="ph-card">
+      <div class="ph-card__head"><div><h2 class="ph-card__title">Raised and closed over time</h2><div class="ph-card__meta" id="m-chart">&nbsp;</div></div></div>
+      <div class="ph-chart" id="c-flow"></div>
+    </section>
+    <section class="ph-card ph-card--flush">
+      <div class="ph-card__head"><h2 class="ph-card__title">By status</h2><span class="ph-card__meta">click a row to filter</span></div>
+      <div id="by-status"></div>
+    </section>
+  </div>
+  <div class="ph-row ph-row--2">
+    <section class="ph-card ph-card--flush">
+      <div class="ph-card__head"><h2 class="ph-card__title">By kind</h2><span class="ph-card__meta">kinds with none are listed too</span></div>
+      <div id="by-type"></div>
+    </section>
+    <section class="ph-card ph-card--flush">
+      <div class="ph-card__head"><h2 class="ph-card__title">By priority</h2></div>
+      <div id="by-priority"></div>
+    </section>
+  </div>
+  <div class="ph-row ph-row--2">
+    <section class="ph-card ph-card--flush" id="card-area" hidden>
+      <div class="ph-card__head"><h2 class="ph-card__title">By module</h2></div>
+      <div id="by-area"></div>
+    </section>
+    <section class="ph-card ph-card--flush">
+      <div class="ph-card__head"><h2 class="ph-card__title">Who raised them</h2><span class="ph-card__meta" id="m-req">&nbsp;</span></div>
+      <div id="by-requester"></div>
+    </section>
+  </div>
+  <div class="ph-row">
+    <section class="ph-card ph-card--flush">
+      <div class="ph-card__head"><h2 class="ph-card__title">Same title raised more than once</h2><span class="ph-card__meta">worth a look: may be duplicates</span></div>
+      <div id="dups"></div>
+    </section>
+  </div>
+</div>
+
+<div id="view-table" hidden>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">All requests</h2><div class="ph-card__meta" id="m-list">&nbsp;</div></div>
+    </div>
+    <div id="t-list"></div>
+  </section>
+</div>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-requests.js?v={{ page_v }}"></script>
+{% endblock %}

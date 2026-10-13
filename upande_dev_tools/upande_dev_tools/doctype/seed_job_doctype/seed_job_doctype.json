@@ -1,0 +1,170 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-10-06 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "doctype_name",
+  "status",
+  "column_break_1",
+  "rows_expected",
+  "rows_imported",
+  "rows_per_sec",
+  "section_break_fetch",
+  "filters",
+  "fields",
+  "column_break_2",
+  "include_children",
+  "order_by",
+  "section_break_progress",
+  "current_page",
+  "total_pages",
+  "last_cursor",
+  "column_break_3",
+  "last_page_at",
+  "error_count",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "doctype_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nRunning\nPaused\nCompleted\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rows_expected",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Rows Expected",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rows_imported",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Rows Imported",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rows_per_sec",
+   "fieldtype": "Float",
+   "label": "Rows/sec",
+   "precision": "1",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_fetch",
+   "fieldtype": "Section Break",
+   "label": "Fetch"
+  },
+  {
+   "default": "[]",
+   "description": "Desk FilterGroup-format list, same as a List View filter.",
+   "fieldname": "filters",
+   "fieldtype": "Code",
+   "label": "Filters (JSON)",
+   "options": "JSON"
+  },
+  {
+   "default": "[\"*\"]",
+   "description": "Array of fieldnames, or [\"*\"] for all.",
+   "fieldname": "fields",
+   "fieldtype": "Code",
+   "label": "Fields (JSON)",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Nest this doctype's child tables into the same fetch (e.g. Sales Order + its Items), instead of a separate pass per child.",
+   "fieldname": "include_children",
+   "fieldtype": "Check",
+   "label": "Include Child Tables"
+  },
+  {
+   "default": "name asc",
+   "fieldname": "order_by",
+   "fieldtype": "Data",
+   "label": "Order By"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_progress",
+   "fieldtype": "Section Break",
+   "label": "Progress"
+  },
+  {
+   "fieldname": "current_page",
+   "fieldtype": "Int",
+   "label": "Current Page",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_pages",
+   "fieldtype": "Int",
+   "label": "Total Pages",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_cursor",
+   "fieldtype": "Data",
+   "label": "Last Cursor",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_page_at",
+   "fieldtype": "Datetime",
+   "label": "Last Page At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_count",
+   "fieldtype": "Int",
+   "label": "Error Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "Seed Job DocType",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

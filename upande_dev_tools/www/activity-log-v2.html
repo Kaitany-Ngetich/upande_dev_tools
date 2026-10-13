@@ -1,0 +1,99 @@
+{% extends "templates/web.html" %}
+{% block title %}Activity Log · Dev Tools{% endblock %}
+{% block head_include %}
+{{ super() }}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-activity-log.css?v={{ css_v }}">
+{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Developer</div>
+    <h1 class="ph-head__title">Activity Log</h1>
+    <p class="ph-head__sub" id="sub">What the developer tools recorded, and when</p>
+  </div>
+  <div class="ph-head__tools">
+    <button class="ph-btn" id="export" type="button" disabled>Export CSV</button>
+  </div>
+</header>
+
+<div class="ph-filters">
+  <select class="ph-select al-a" id="f-user" aria-label="Who"><option value="">Everyone</option></select>
+  <select class="ph-select al-a" id="f-type" aria-label="Kind of activity"><option value="">All kinds</option></select>
+  <select class="ph-select al-a" id="f-status" aria-label="Outcome"><option value="">Any outcome</option></select>
+  <select class="ph-select al-a" id="f-source" aria-label="Source"><option value="">All sources</option></select>
+  <select class="ph-select al-d" id="f-issue" aria-label="Kind of difference" hidden><option value="">All kinds of difference</option></select>
+  <select class="ph-select al-d" id="f-dstatus" aria-label="Review status" hidden><option value="">Any review status</option></select>
+  <select class="ph-select al-d" id="f-doctype" aria-label="DocType" hidden><option value="">All doctypes</option></select>
+  <label class="ph-search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="f-search" placeholder="Search title, source, person" aria-label="Search"></label>
+  <div class="ph-filters__spacer"></div>
+  <div class="ph-pills" id="f-preset">
+    <button data-value="today">Today</button><button data-value="7d">7 days</button><button data-value="14d">14 days</button><button data-value="30d">30 days</button><button data-value="mtd">This month</button>
+  </div>
+  <div class="ph-pills" id="f-all"><button data-value="1" title="Every entry ever recorded, as on the current Activity Log page">All time</button></div>
+  <label class="ph-daterange" title="Day the activity was recorded (site time)">
+    <input type="date" id="f-from" aria-label="From"><span class="ph-daterange__sep">→</span><input type="date" id="f-to" aria-label="To">
+  </label>
+</div>
+
+
+<section class="ph-kpis" id="kpis"></section>
+<div class="al-notes" id="notes"></div>
+
+<nav class="ph-tabs" id="tabs" role="tablist">
+  <button class="ph-tab" data-tab="activity" role="tab">Activity <span class="ph-tab__count" id="tc-activity">—</span></button>
+  <button class="ph-tab" data-tab="diffs" role="tab" id="tab-diffs" hidden>Field differences <span class="ph-tab__count" id="tc-diffs">—</span></button>
+</nav>
+
+<div id="view-activity" hidden>
+  <section class="ph-card">
+    <div class="ph-card__head"><h2 class="ph-card__title">Activity per day</h2><span class="ph-card__meta">click a day to see just that day</span></div>
+    <div class="ph-legend"><span><i style="background:var(--good,#1a8a3a)"></i> Entries</span> <span><i style="background:var(--bad,#c4302b)"></i> Errors and warnings</span></div>
+    <div class="ph-chart" id="c-trend"></div>
+  </section>
+  <div class="ph-row ph-row--2">
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By kind</h2><span class="ph-card__meta">click to filter</span></div><div class="al-bars" id="b-type"></div></section>
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By outcome</h2></div><div class="al-bars" id="b-status"></div></section>
+  </div>
+  <div class="ph-row ph-row--2">
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By source</h2><span class="ph-card__meta">the tool that recorded it</span></div><div class="al-bars" id="b-source"></div></section>
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By person</h2><span class="ph-card__meta">Administrator = automatic runs</span></div><div class="al-bars" id="b-user"></div></section>
+  </div>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Log</h2><div class="ph-card__meta" id="log-meta">Click an entry for the full detail</div></div>
+      <div class="ph-card__tools al-sortrow">
+        <select class="ph-select" id="f-sort" aria-label="Order"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="problems">Errors and warnings first</option></select>
+        <a class="ph-btn ph-btn--sm ph-btn--ghost" href="/app/developer-activity-log" target="_blank" rel="noopener">Open in Desk</a>
+      </div>
+    </div>
+    <div id="t-log"></div>
+    <div id="p-log"></div>
+  </section>
+</div>
+
+<div id="view-diffs" hidden>
+  <section class="ph-card">
+    <div class="ph-card__head"><h2 class="ph-card__title">Differences found per day</h2><span class="ph-card__meta">only the latest comparison of each doctype is kept</span></div>
+    <div class="ph-chart" id="c-dtrend"></div>
+  </section>
+  <div class="ph-row ph-row--3">
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By kind</h2></div><div class="al-bars" id="d-issue"></div></section>
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By review status</h2></div><div class="al-bars" id="d-status"></div></section>
+    <section class="ph-card ph-card--flush"><div class="ph-card__head"><h2 class="ph-card__title">By doctype</h2></div><div class="al-bars" id="d-doctype"></div></section>
+  </div>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Field differences</h2><div class="ph-card__meta">Click one to see the before and after values. Secret-looking fields are hidden.</div></div>
+      <div class="ph-card__tools"><a class="ph-btn ph-btn--sm ph-btn--ghost" href="/app/field-difference-log" target="_blank" rel="noopener">Open in Desk</a></div>
+    </div>
+    <div id="t-diff"></div>
+    <div id="p-diff"></div>
+  </section>
+</div>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-activity-log.js?v={{ page_v }}"></script>
+{% endblock %}

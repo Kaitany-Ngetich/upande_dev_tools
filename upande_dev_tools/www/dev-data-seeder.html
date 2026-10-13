@@ -1,0 +1,299 @@
+{% extends "templates/web.html" %}
+{% block head_include %}
+	{{ super() }}
+	{% include "templates/includes/dev_portal_shell_head.html" %}
+{% endblock %}
+{% block page_content %}
+{% from "templates/includes/dev_portal_shell.html" import dpx_shell with context %}
+{% call dpx_shell() %}
+{% raw %}
+<style>
+/* Scoped under .dds -- reuses the shared .dpx design tokens (--ink, --surface-2,
+   --shadow-card, --sans, --mono, --hairline, --grad-ink) and .dpx-card/.dpx-tabs
+   from dev-portal.css; this is only what's specific to this page. */
+.dds-toolbar{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.dds-f{display:flex;flex-direction:column;gap:6px}
+.dds-f label{font:600 9.5px var(--sans);letter-spacing:.6px;text-transform:uppercase;color:var(--ink-mute)}
+.dds-f select,.dds-f input{height:34px;padding:0 11px;font:500 12px var(--sans);background:var(--surface);border:1px solid var(--hairline);border-radius:9px;color:var(--ink);outline:0;min-width:240px}
+.dds-btn{height:34px;padding:0 15px;border:0;border-radius:999px;font:600 11.5px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:var(--shadow-card);background:var(--surface-2);color:var(--ink)}
+.dds-btn:hover{filter:brightness(0.98)}
+.dds-btn:disabled{opacity:.4;cursor:not-allowed}
+.dds-btn-primary{background:var(--grad-ink);color:#fafaf6}
+.dds-btn-danger{background:#fde8ec;color:#c4302b}
+.dds-btn-warn{background:#fff3e0;color:#9a5a00}
+.dds-empty{padding:40px;text-align:center;color:var(--ink-mute);font-size:12px}
+.dds-meta{display:flex;flex-wrap:wrap;gap:20px;font-size:11.5px;color:var(--ink-4)}
+.dds-meta b{color:var(--ink);font-weight:600}
+.dds-doctypes-list{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.dds-doctypes-list .row{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-4);padding:6px 0;border-bottom:1px dashed var(--hairline)}
+.dds-doctypes-list .row:last-child{border-bottom:0}
+.dds-doctypes-list .nm{font:600 12px var(--mono);color:var(--ink);min-width:160px}
+
+.dds-label{display:inline-block;padding:2px 9px;font:600 10px var(--sans);border-radius:999px}
+.dds-label-default{background:rgba(10,10,10,.05);color:var(--ink-4)}
+.dds-label-info{background:rgba(0,133,115,.12);color:#008573}
+.dds-label-good{background:#e6f9ee;color:#1a8a3a}
+.dds-label-bad{background:#fde8ec;color:#c4302b}
+.dds-label-warn{background:#fff3e0;color:#9a5a00}
+
+.dds-overall{margin:4px 0 18px}
+.dds-bar{height:8px;border-radius:999px;background:rgba(10,10,10,.06);overflow:hidden}
+.dds-bar-fill{height:100%;background:var(--grad-ink);transition:width .3s ease}
+.dds-overall-nums{display:flex;justify-content:space-between;margin-top:7px;font:600 11px var(--sans);color:var(--ink-4)}
+
+.dds-dt-card{border:1px solid var(--hairline);border-radius:14px;padding:13px 16px;margin-bottom:9px;cursor:pointer}
+.dds-dt-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dds-dt-hd .nm{font:700 13px var(--mono);color:var(--ink)}
+.dds-dt-hd .nums{margin-left:auto;font:600 11.5px var(--sans);color:var(--ink-4)}
+.dds-dt-bar{height:5px;border-radius:999px;background:rgba(10,10,10,.06);overflow:hidden;margin-top:9px}
+.dds-dt-bar-fill{height:100%;background:#008573;transition:width .3s ease}
+.dds-dt-detail{display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--hairline)}
+.dds-dt-detail.show{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;font-size:11px}
+.dds-dt-detail .kv .k{color:var(--ink-mute);font:600 9px var(--sans);text-transform:uppercase;letter-spacing:.5px}
+.dds-dt-detail .kv .v{color:var(--ink);font:600 12px var(--mono);margin-top:2px}
+.dds-dt-error{margin-top:10px;background:var(--ink);color:#fafaf6;padding:9px 12px;border-radius:10px;font:500 11px var(--mono);white-space:pre-wrap}
+
+.dds-log{font-family:var(--mono);font-size:11px;max-height:280px;overflow-y:auto;border-radius:10px;background:var(--bg,#f4f3ef);padding:4px 0}
+.dds-log-row{display:flex;gap:10px;padding:4px 12px}
+.dds-log-row .ts{color:var(--ink-faint);flex:0 0 auto;width:150px}
+.dds-log-row .dt{color:#008573;flex:0 0 auto;width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dds-log-row .msg{color:var(--ink-3);flex:1;white-space:pre-wrap}
+.dds-log-row.lvl-error .msg{color:#c4302b}
+.dds-log-row.lvl-warning .msg{color:#9a5a00}
+
+@media (max-width:760px){
+  .dds-f select,.dds-f input{min-width:0;width:100%}
+  .dds-toolbar{flex-direction:column;align-items:stretch}
+}
+</style>
+
+<div class="dds-toolbar">
+  <div class="dds-f">
+    <label>Seed Job</label>
+    <select id="ddsJobSelect"><option value="">Loading…</option></select>
+  </div>
+  <button class="dds-btn" onclick="window.open('/app/seed-job/new', '_blank')">+ New Seed Job</button>
+  <button class="dds-btn" id="ddsTestBtn" onclick="ddsTestConnection()" disabled>Test Connection</button>
+  <button class="dds-btn" id="ddsDryRunBtn" onclick="ddsDryRun()" disabled>Dry Run</button>
+  <button class="dds-btn dds-btn-primary" id="ddsStartBtn" onclick="ddsStart()" disabled>Start</button>
+  <button class="dds-btn dds-btn-warn" id="ddsPauseBtn" onclick="ddsPause()" disabled style="display:none">Pause</button>
+  <button class="dds-btn" id="ddsResumeBtn" onclick="ddsResume()" disabled style="display:none">Resume</button>
+  <button class="dds-btn dds-btn-danger" id="ddsCancelBtn" onclick="ddsCancel()" disabled style="display:none">Cancel</button>
+  <button class="dds-btn" onclick="window.open('/app/seed-job/' + ddsCurrentJob, '_blank')" id="ddsOpenDeskBtn" disabled>Edit in Desk</button>
+</div>
+
+<div id="ddsSummaryCard" class="dpx-card" style="display:none">
+  <div class="dpx-card-hd"><span class="ttl">Configuration</span></div>
+  <div class="dpx-card-body">
+    <div class="dds-meta" id="ddsMeta"></div>
+    <div class="dds-doctypes-list" id="ddsDoctypesList"></div>
+  </div>
+</div>
+
+<div id="ddsProgressCard" class="dpx-card" style="display:none">
+  <div class="dpx-card-hd"><span class="ttl">Progress</span></div>
+  <div class="dpx-card-body">
+    <div class="dds-overall">
+      <div class="dds-bar"><div class="dds-bar-fill" id="ddsOverallFill" style="width:0%"></div></div>
+      <div class="dds-overall-nums">
+        <span id="ddsOverallStatus">—</span>
+        <span id="ddsOverallNums">0 / 0 rows</span>
+      </div>
+    </div>
+    <div id="ddsDoctypeCards"></div>
+  </div>
+</div>
+
+<div id="ddsLogCard" class="dpx-card" style="display:none">
+  <div class="dpx-card-hd"><span class="ttl">Recent Log</span></div>
+  <div class="dpx-card-body" style="padding-top:12px">
+    <div class="dds-log" id="ddsLog"></div>
+  </div>
+</div>
+
+<div id="ddsEmpty" class="dds-empty">No Seed Jobs yet. Click "+ New Seed Job" to configure your first one in the Desk form, then come back here to run and watch it.</div>
+
+<script>
+let ddsCurrentJob = "";
+let ddsPollTimer = null;
+const ddsExpanded = new Set();
+
+function ddsCall(method, args, cb){
+    frappe.call({ method: "upande_dev_tools.api.seeder." + method, args: args || {}, callback: r => cb(r.message || {}), error: () => cb({success:false, error:"Request failed"}) });
+}
+function ddsEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function ddsLoadJobList(selectAfter){
+    frappe.call({
+        method: "frappe.client.get_list",
+        args: { doctype: "Seed Job", fields: ["name", "source_url", "status"], order_by: "modified desc", limit_page_length: 100 },
+        callback: r => {
+            const jobs = r.message || [];
+            const sel = document.getElementById("ddsJobSelect");
+            if(!jobs.length){
+                sel.innerHTML = '<option value="">No Seed Jobs</option>';
+                document.getElementById("ddsEmpty").style.display = "block";
+                return;
+            }
+            document.getElementById("ddsEmpty").style.display = "none";
+            sel.innerHTML = jobs.map(j => `<option value="${ddsEsc(j.name)}">${ddsEsc(j.name)} — ${ddsEsc(j.source_url)} (${ddsEsc(j.status)})</option>`).join("");
+            const toSelect = selectAfter && jobs.some(j => j.name === selectAfter) ? selectAfter : jobs[0].name;
+            sel.value = toSelect;
+            ddsSelectJob(toSelect);
+        }
+    });
+}
+
+function ddsSelectJob(name){
+    ddsCurrentJob = name;
+    ddsExpanded.clear();
+    const has = !!name;
+    for(const id of ["ddsTestBtn","ddsDryRunBtn","ddsOpenDeskBtn"]) document.getElementById(id).disabled = !has;
+    if(!has) return;
+    ddsLoadConfig();
+    ddsRefreshProgress();
+    ddsSchedulePoll();
+}
+
+function ddsLoadConfig(){
+    frappe.call({
+        method: "frappe.client.get",
+        args: { doctype: "Seed Job", name: ddsCurrentJob },
+        callback: r => {
+            const job = r.message;
+            if(!job) return;
+            document.getElementById("ddsSummaryCard").style.display = "block";
+            document.getElementById("ddsMeta").innerHTML = `
+              <span>Source: <b>${ddsEsc(job.source_url)}</b></span>
+              <span>Auth: <b>${ddsEsc(job.auth_type)}</b></span>
+              <span>Page size: <b>${ddsEsc(job.page_size)}</b></span>
+              <span>DocTypes: <b>${(job.doctypes||[]).length}</b></span>`;
+            document.getElementById("ddsDoctypesList").innerHTML = (job.doctypes || []).map(d => `
+              <div class="row"><span class="nm">${ddsEsc(d.doctype_name)}</span><span>${ddsEsc(d.filters||"[]")}</span></div>
+            `).join("") || '<div class="row">No DocTypes configured yet — add rows on the Desk form.</div>';
+            const startable = job.status !== "Running";
+            document.getElementById("ddsStartBtn").disabled = !startable;
+            document.getElementById("ddsStartBtn").textContent = job.status === "Paused" ? "Resume" : (job.status === "Failed" ? "Retry" : "Start");
+            document.getElementById("ddsStartBtn").onclick = job.status === "Paused" ? ddsResume : ddsStart;
+        }
+    });
+}
+
+function ddsTestConnection(){
+    const btn = document.getElementById("ddsTestBtn");
+    btn.disabled = true; btn.textContent = "Testing…";
+    ddsCall("test_connection", { name: ddsCurrentJob }, r => {
+        btn.disabled = false; btn.textContent = "Test Connection";
+        frappe.show_alert({ message: r.success ? `Connected as ${r.user}` : (r.error || "Failed"), indicator: r.success ? "green" : "red" });
+    });
+}
+
+function ddsDryRun(){
+    const btn = document.getElementById("ddsDryRunBtn");
+    btn.disabled = true; btn.textContent = "Counting…";
+    ddsCall("dry_run", { name: ddsCurrentJob }, r => {
+        btn.disabled = false; btn.textContent = "Dry Run";
+        if(r.success){
+            frappe.show_alert({ message: `${r.total_rows_expected.toLocaleString()} rows expected`, indicator: "blue" });
+            ddsRefreshProgress();
+        } else {
+            frappe.show_alert({ message: r.error || "Dry run failed", indicator: "red" });
+        }
+    });
+}
+
+function ddsStart(){
+    ddsCall("start_seed_job", { name: ddsCurrentJob }, r => {
+        if(!r.success){ frappe.show_alert({ message: r.error || "Could not start", indicator: "red" }); return; }
+        ddsRefreshProgress(); ddsSchedulePoll();
+    });
+}
+function ddsResume(){ ddsCall("resume_seed_job", { name: ddsCurrentJob }, () => { ddsRefreshProgress(); ddsSchedulePoll(); }); }
+function ddsPause(){ ddsCall("pause_seed_job", { name: ddsCurrentJob }, () => ddsRefreshProgress()); }
+function ddsCancel(){ ddsCall("cancel_seed_job", { name: ddsCurrentJob }, () => ddsRefreshProgress()); }
+function ddsRetryDoctype(rowName){ ddsCall("retry_doctype", { name: ddsCurrentJob, row_name: rowName }, () => { ddsRefreshProgress(); ddsSchedulePoll(); }); }
+
+function ddsToggleDt(idx){
+    if(ddsExpanded.has(idx)) ddsExpanded.delete(idx); else ddsExpanded.add(idx);
+    ddsRenderProgress(ddsLastProgress);
+}
+
+let ddsLastProgress = null;
+
+function ddsRefreshProgress(){
+    if(!ddsCurrentJob) return;
+    ddsCall("get_progress", { name: ddsCurrentJob }, r => {
+        ddsLastProgress = r;
+        ddsRenderProgress(r);
+    });
+}
+
+function ddsRenderProgress(r){
+    if(!r || !r.job) return;
+    const job = r.job;
+    document.getElementById("ddsProgressCard").style.display = "block";
+    document.getElementById("ddsLogCard").style.display = "block";
+
+    const statusCls = { Running: "dds-label-info", Completed: "dds-label-good", Failed: "dds-label-bad", Paused: "dds-label-warn", Cancelled: "dds-label-default", Queued: "dds-label-warn", Draft: "dds-label-default" }[job.status] || "dds-label-default";
+    document.getElementById("ddsOverallStatus").innerHTML = `<span class="dds-label ${statusCls}">${ddsEsc(job.status)}</span>`;
+    const expected = job.total_rows_expected || 0, imported = job.total_rows_imported || 0;
+    const pct = expected > 0 ? Math.min(100, Math.round((imported / expected) * 100)) : 0;
+    document.getElementById("ddsOverallFill").style.width = pct + "%";
+    document.getElementById("ddsOverallNums").textContent = `${imported.toLocaleString()} / ${expected.toLocaleString()} rows (${pct}%)`;
+
+    document.getElementById("ddsDoctypeCards").innerHTML = (r.doctypes || []).map((d, i) => {
+        const dpct = d.rows_expected > 0 ? Math.min(100, Math.round((d.rows_imported / d.rows_expected) * 100)) : (d.status === "Completed" ? 100 : 0);
+        const dCls = { Running: "dds-label-info", Completed: "dds-label-good", Failed: "dds-label-bad", Paused: "dds-label-warn", Pending: "dds-label-default" }[d.status] || "dds-label-default";
+        const open = ddsExpanded.has(i);
+        const errorHtml = d.last_error ? `<div class="dds-dt-error">${ddsEsc(d.last_error)}</div><button class="dds-btn" style="margin-top:8px" onclick="event.stopPropagation();ddsRetryDoctype('${ddsEsc(d.name)}')">Retry this DocType</button>` : "";
+        return `
+        <div class="dds-dt-card" onclick="ddsToggleDt(${i})">
+          <div class="dds-dt-hd">
+            <span class="dds-label ${dCls}">${ddsEsc(d.status)}</span>
+            <span class="nm">${ddsEsc(d.doctype_name)}</span>
+            <span class="nums">${(d.rows_imported||0).toLocaleString()} / ${(d.rows_expected||0).toLocaleString()}</span>
+          </div>
+          <div class="dds-dt-bar"><div class="dds-dt-bar-fill" style="width:${dpct}%"></div></div>
+          <div class="dds-dt-detail${open ? " show" : ""}">
+            <div class="kv"><div class="k">Rows/sec</div><div class="v">${d.rows_per_sec || 0}</div></div>
+            <div class="kv"><div class="k">Page</div><div class="v">${d.current_page || 0} / ${d.total_pages || "?"}</div></div>
+            <div class="kv"><div class="k">Cursor</div><div class="v">${ddsEsc(d.last_cursor || "—")}</div></div>
+            <div class="kv"><div class="k">Last page</div><div class="v">${d.last_page_at ? ddsEsc(d.last_page_at) : "—"}</div></div>
+            <div class="kv"><div class="k">Errors</div><div class="v">${d.error_count || 0}</div></div>
+          </div>
+          ${open ? errorHtml : ""}
+        </div>`;
+    }).join("") || '<div class="dds-empty">No DocTypes configured.</div>';
+
+    document.getElementById("ddsLog").innerHTML = (r.logs || []).map(l => `
+      <div class="dds-log-row lvl-${(l.level||"info").toLowerCase()}">
+        <span class="ts">${ddsEsc(l.creation)}</span>
+        <span class="dt">${ddsEsc(l.doctype_name || "")}</span>
+        <span class="msg">${ddsEsc(l.message)}</span>
+      </div>`).join("") || '<div class="dds-log-row"><span class="msg">No log entries yet.</span></div>';
+
+    const running = job.status === "Running" || job.status === "Queued";
+    document.getElementById("ddsPauseBtn").style.display = running ? "inline-flex" : "none";
+    document.getElementById("ddsPauseBtn").disabled = !running;
+    document.getElementById("ddsResumeBtn").style.display = job.status === "Paused" ? "inline-flex" : "none";
+    document.getElementById("ddsResumeBtn").disabled = job.status !== "Paused";
+    document.getElementById("ddsCancelBtn").style.display = running ? "inline-flex" : "none";
+    document.getElementById("ddsCancelBtn").disabled = !running;
+    document.getElementById("ddsStartBtn").style.display = running ? "none" : "inline-flex";
+
+    if(!running && ddsPollTimer){ clearInterval(ddsPollTimer); ddsPollTimer = null; }
+}
+
+function ddsSchedulePoll(){
+    if(ddsPollTimer) clearInterval(ddsPollTimer);
+    ddsPollTimer = setInterval(ddsRefreshProgress, 3000);
+}
+
+frappe.ready(function(){
+    document.getElementById("ddsJobSelect").addEventListener("change", e => ddsSelectJob(e.target.value));
+    ddsLoadJobList();
+});
+</script>
+{% endraw %}
+{% endcall %}
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "templates/web.html" %}
+{% block title %}Backlog Board · Dev Tools{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-backlog-board.css?v={{ css_v }}">
+
+<div id="bb2"
+  data-board-role="{{ 1 if is_board_role else 0 }}"
+  data-can-create="{{ 1 if can_create_task else 0 }}"
+  data-manager="{{ 1 if is_manager else 0 }}"
+  data-user="{{ ph_user }}">
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Developer</div>
+    <h1 class="ph-head__title">Backlog Board</h1>
+    <p class="ph-head__sub" id="sub">Tasks, issues and requests in one place</p>
+  </div>
+  <div class="ph-head__tools">
+    <button class="ph-btn" id="export" type="button" disabled>Export CSV</button>
+    <button class="ph-btn ph-btn--primary" id="new" type="button"></button>
+  </div>
+</header>
+
+<div class="bb2-bar">
+  <nav class="ph-tabs bb2-tabs" id="tabs" role="tablist" aria-label="View">
+    <button class="ph-tab" data-view="board" role="tab" title="Board (1)">Board</button>
+    <button class="ph-tab" data-view="list" role="tab" title="List (2)">List</button>
+    <button class="ph-tab" data-view="timeline" role="tab" title="Timeline (3)">Timeline</button>
+    <button class="ph-tab" data-view="sheet" role="tab" title="Sheet (4)">Sheet</button>
+  </nav>
+  <div class="bb2-bar__tools">
+    <button class="ph-btn ph-btn--ghost ph-btn--sm bb2-ftoggle" id="f-toggle" type="button" aria-controls="filters" aria-expanded="false">Filters</button>
+    <label class="bb2-lbl">Group by
+      <select class="ph-select" id="f-group" aria-label="Group by">
+        <option value="stage">Stage</option><option value="assignee">Assignee</option><option value="module">Product area</option>
+        <option value="priority">Priority</option><option value="project">Project</option>
+      </select>
+    </label>
+    <label class="bb2-lbl" id="zoom-wrap" hidden>Zoom
+      <select class="ph-select" id="f-zoom" aria-label="Timeline zoom"></select>
+    </label>
+    <span id="view-tools" class="bb2-tools"></span>
+  </div>
+</div>
+
+<div class="ph-filters bb2-filters" id="filters">
+  <select class="ph-select" id="f-project" aria-label="Project" hidden><option value="">All dev projects</option></select>
+  <select class="ph-select" id="f-kind" aria-label="Type">
+    <option value="">All types</option><option value="Task">Tasks</option><option value="Issue">Issues</option><option value="Request">Requests</option>
+  </select>
+  <select class="ph-select" id="f-stage" aria-label="Stage">
+    <option value="">All stages</option><option value="open">Open work (not done)</option>
+    <option>Triage</option><option>Todo</option><option>In Progress</option><option>In Review</option><option>Blocked</option><option>Done</option><option>Dropped</option>
+  </select>
+  <select class="ph-select" id="f-priority" aria-label="Priority"><option value="">Any priority</option></select>
+  <select class="ph-select" id="f-module" aria-label="Product area"><option value="">All product areas</option></select>
+  <select class="ph-select" id="f-assignee" aria-label="Assignee"><option value="">Anyone</option></select>
+  <select class="ph-select" id="f-tag" aria-label="Tag"><option value="">All tags</option></select>
+  <select class="ph-select" id="f-due" aria-label="Due date">
+    <option value="">Any due date</option><option value="overdue">Overdue</option><option value="today">Due today</option>
+    <option value="week">Due in the next 7 days</option><option value="month">Due in the next 30 days</option><option value="none">No due date</option>
+  </select>
+  <label class="ph-search"><span id="s-ic"></span><input type="search" id="f-q" placeholder="Search title or ID  ( / )" aria-label="Search"></label>
+  <div class="ph-filters__spacer"></div>
+  <label class="ph-daterange" title="Due date range (requests have no due date)">
+    <input type="date" id="f-from" aria-label="Due from"><span class="ph-daterange__sep">→</span><input type="date" id="f-to" aria-label="Due to">
+  </label>
+  <label class="ph-check" title="A request that already has a task is normally counted once, as the task"><input type="checkbox" id="f-linked"> Also list requests that became tasks</label>
+  <button class="ph-btn ph-btn--ghost ph-btn--sm" id="f-clear" type="button" hidden>Clear filters</button>
+</div>
+
+<section class="ph-kpis" id="kpis"></section>
+<div class="bb2-notes" id="notes"></div>
+
+<div id="stage" class="bb2-stage" aria-live="polite"></div>
+<div class="bb2-foot"><span id="foot-hint" class="ph-muted"></span><span class="bb2-keys" id="kb-hint"></span></div>
+
+</div>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-backlog-board.js?v={{ page_v }}"></script>
+{% endblock %}
