@@ -1,0 +1,12 @@
+/* Code Snapshots v2 - page-local styles (cs- prefix). */
+.cs-notes{display:flex;flex-direction:column;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.cs-pad{padding:var(--sp-2) var(--sp-5) var(--sp-5)}
+.cs-bar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px var(--sp-3);align-items:center;padding:8px var(--sp-5);border-top:1px solid var(--hairline);font-size:13px}
+.cs-bar:first-child{border-top:0}
+.cs-bar>b{text-align:right;font-variant-numeric:tabular-nums}
+.cs-bar>.ph-progress{grid-column:1/-1}.cs-bar>span:nth-child(3){text-align:right;color:var(--ink-mute);font-variant-numeric:tabular-nums}
+.cs-pager{display:flex;align-items:center;gap:var(--sp-3);justify-content:flex-end;padding:var(--sp-3) var(--sp-5);font-size:13px;color:var(--ink-mute)}
+.cs-sort{display:flex;align-items:center;gap:var(--sp-2)}
+.cs-diff{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
+.cs-chip{font:500 12px var(--mono);padding:2px 8px;border-radius:var(--r-pill);background:var(--tint)}
+.cs-sec{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-mute);margin:var(--sp-4) 0 var(--sp-2)}

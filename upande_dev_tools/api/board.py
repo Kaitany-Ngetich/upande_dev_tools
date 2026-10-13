@@ -115,6 +115,7 @@ def _validate_tags(tags: list[str]) -> None:
 # higher-priority/more-recent Tasks.
 BOARD_LIMIT = 10000
 
+
 TASK_STAGE = {
 	"Open": "Todo",
 	"Template": "Todo",

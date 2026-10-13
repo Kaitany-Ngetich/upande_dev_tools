@@ -1,0 +1,56 @@
+/* My Backlog v2 - page-specific styles on top of dev-v2.css tokens. */
+.mb2-notes{display:grid;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.mb2-notes:empty{display:none}
+.mb2-notes .ph-notice{margin-bottom:0;align-items:center}
+.mb2-notes button{margin-left:auto}
+.mb2-bars{padding:var(--sp-2) var(--sp-5) var(--sp-4)}
+.mb2-bar{display:grid;grid-template-columns:minmax(0,1.3fr) 48px minmax(60px,1fr);gap:var(--sp-3);align-items:center;padding:9px 0;border-top:1px solid var(--hairline);font-size:13px}
+.mb2-bar:first-child{border-top:0}
+.mb2-bar.is-link{cursor:pointer}
+.mb2-bar.is-link:hover b{text-decoration:underline}
+.mb2-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mb2-bar b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.mb2-meet{display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:var(--sp-3);align-items:center;padding:12px var(--sp-5);border-top:1px solid var(--hairline);font-size:13px;cursor:pointer}
+.mb2-meet:first-child{border-top:0}
+.mb2-meet small,.mb2-sub{display:block;color:var(--ink-mute);font-size:12px}
+.mb2-day{padding:10px var(--sp-5) 4px;font-size:12px;font-weight:600;color:var(--ink-mute);text-transform:uppercase;letter-spacing:.04em}
+.mb2-late{color:var(--warn);font-weight:600}
+.mb2-status{height:32px;min-width:128px;font-size:12px}
+.mb2-tasks-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;padding:0 var(--sp-5) var(--sp-4)}
+
+/* What's expected of you */
+.mb2-tl{padding:0 var(--sp-5) var(--sp-4)}
+.mb2-tl__group{padding:var(--sp-3) 0;border-top:1px solid var(--hairline)}
+.mb2-tl__group:first-child{border-top:0}
+.mb2-tl__hd{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-mute);display:flex;gap:var(--sp-2);align-items:center}
+.mb2-tl__group.is-bad .mb2-tl__hd{color:var(--warn)}
+.mb2-tl__item{display:flex;justify-content:space-between;gap:var(--sp-3);padding:8px 0 0;font-size:13px;cursor:pointer}
+.mb2-tl__item:hover .mb2-tl__t{text-decoration:underline}
+.mb2-tl__t{font-weight:500;min-width:0}
+.mb2-tl__none,.mb2-tl__more{padding:8px 0 0;font-size:13px;color:var(--ink-mute)}
+.mb2-tl__more a{cursor:pointer}
+
+/* Board */
+.mb2-cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-3);padding:0 var(--sp-5) var(--sp-5)}
+.mb2-col{background:var(--tint-2);border:1px solid var(--hairline);border-radius:var(--r-md);min-width:0;display:flex;flex-direction:column}
+.mb2-col__hd{display:flex;justify-content:space-between;padding:12px 14px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-4)}
+.mb2-col.is-bad .mb2-col__hd{color:var(--warn)}
+.mb2-col__body{display:grid;gap:var(--sp-2);padding:0 10px 10px;align-content:start;min-height:80px;border-radius:var(--r-md)}
+.mb2-col__body.is-over{background:var(--signal-soft)}
+.mb2-col__blank{font-size:12px;color:var(--ink-mute);padding:10px 4px}
+.mb2-card{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:10px 12px;display:grid;gap:6px;font-size:13px;cursor:pointer;min-width:0}
+.mb2-card:hover,.mb2-card:focus-visible{border-color:var(--hairline-3);box-shadow:var(--shadow-card)}
+.mb2-card[draggable=true]{cursor:grab}
+.mb2-card.is-dragging{opacity:.45}
+.mb2-card.is-busy{opacity:.6;pointer-events:none}
+.mb2-card__t{font-weight:500;overflow-wrap:anywhere}
+.mb2-card__m{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--ink-mute)}
+@media (max-width:1100px){.mb2-cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1100px){.ph-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}}
+@media (max-width:640px){
+  .mb2-cols{grid-template-columns:minmax(0,1fr)}
+  .mb2-bar{grid-template-columns:minmax(0,1fr) 40px}
+  .mb2-bar .ph-progress{display:none}
+  .mb2-meet{grid-template-columns:70px minmax(0,1fr)}
+  .mb2-meet .ph-btn{grid-column:1 / -1}
+}

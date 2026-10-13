@@ -1,0 +1,14 @@
+.al-notes{display:grid;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.al-notes:empty{display:none}
+.al-bars{padding:var(--sp-2) var(--sp-5) var(--sp-4)}
+.al-bar{display:grid;grid-template-columns:minmax(0,1.3fr) 56px minmax(40px,1fr);gap:var(--sp-3);align-items:center;padding:9px 0;border-top:1px solid var(--hairline);font-size:13px;cursor:pointer}
+.al-bar:first-child{border-top:0}
+.al-bar:hover b{text-decoration:underline}
+.al-bar.is-on span{font-weight:600}
+.al-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al-bar b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.al-pre{white-space:pre-wrap;word-break:break-word;margin:0;padding:var(--sp-3);background:var(--surface-2, var(--bg));border-radius:var(--radius-sm, 8px);font-size:13px;max-height:260px;overflow:auto}
+.al-ba{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
+.al-ba h4{margin:0 0 var(--sp-2);font-size:13px}
+.al-sortrow{display:flex;gap:var(--sp-3);align-items:center}
+@media (max-width:640px){.al-bar{grid-template-columns:minmax(0,1fr) 48px}.al-bar .ph-progress{display:none}.al-ba{grid-template-columns:1fr}}

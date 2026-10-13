@@ -9,7 +9,14 @@
   "instance_name",
   "environment_type",
   "site_url",
-  "notes"
+  "notes",
+  "section_break_seeder",
+  "seeder_auth_type",
+  "seeder_api_key",
+  "seeder_api_secret",
+  "column_break_seeder",
+  "seeder_user",
+  "seeder_password"
  ],
  "fields": [
   {
@@ -37,6 +44,42 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "section_break_seeder",
+   "fieldtype": "Section Break",
+   "label": "Data Seeder sign-in",
+   "description": "Used by the Data Seeder when this site is the source. Read access only is enough."
+  },
+  {
+   "fieldname": "seeder_auth_type",
+   "fieldtype": "Select",
+   "label": "Sign in with",
+   "options": "\nAPI Key\nPassword"
+  },
+  {
+   "fieldname": "seeder_api_key",
+   "fieldtype": "Data",
+   "label": "API Key"
+  },
+  {
+   "fieldname": "seeder_api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret"
+  },
+  {
+   "fieldname": "column_break_seeder",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "seeder_user",
+   "fieldtype": "Data",
+   "label": "User"
+  },
+  {
+   "fieldname": "seeder_password",
+   "fieldtype": "Password",
+   "label": "Password"
   }
  ],
  "index_web_pages_for_search": 1,

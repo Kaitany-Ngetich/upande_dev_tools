@@ -1,0 +1,43 @@
+/* Requests v2 (www/requests-v2.html): cards, raise form, tag chips, timeline. Tokens come from dev-v2.css. */
+
+/* ---- request cards ---- */
+.rq-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--sp-4)}
+.rq-card{display:flex;flex-direction:column;gap:var(--sp-3);background:var(--surface-2);border-radius:var(--r-lg);box-shadow:var(--shadow-card);padding:var(--sp-5);min-width:0;cursor:pointer;outline:none;transition:box-shadow .2s,transform .15s}
+.rq-card:hover{box-shadow:var(--shadow-pop)}
+.rq-card:focus-visible{box-shadow:0 0 0 2px var(--ink),var(--shadow-card)}
+.rq-card__top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3)}
+.rq-card__title{margin:0;font:600 14px/1.4 var(--sans);color:var(--ink);word-break:break-word}
+.rq-card__top .ph-badge{flex:0 0 auto}
+.rq-card__meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--sp-3);font-size:12px;color:var(--ink-mute)}
+.rq-card__acts{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:auto;padding-top:var(--sp-2)}
+.rq-more{display:flex;justify-content:center;margin-top:var(--sp-5)}
+
+/* ---- tags ---- */
+.rq-tags{display:flex;flex-wrap:wrap;gap:6px}
+.rq-tag{border:0;background:var(--tint);color:var(--ink-3);font:500 12px var(--sans);height:28px;padding:0 12px;border-radius:var(--r-pill);cursor:pointer;transition:background .15s,color .15s}
+.rq-tag:hover{color:var(--ink)}
+.rq-tag[aria-pressed="true"]{background:var(--ink);color:#fafaf6}
+.rq-tag:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.rq-tag--static{cursor:default;height:22px;padding:0 10px;font-size:11px}
+
+/* ---- raise / edit form ---- */
+.rq-note{margin:0;font-size:12px;color:var(--ink-mute)}
+.rq-req{color:var(--bad)}
+
+/* ---- detail ---- */
+.rq-tl{list-style:none;margin:0;padding:0}
+.rq-tl li{display:grid;grid-template-columns:14px minmax(0,1fr);gap:var(--sp-3);padding:0 0 var(--sp-4);position:relative}
+.rq-tl li::before{content:"";position:absolute;left:6px;top:14px;bottom:0;width:1px;background:var(--hairline)}
+.rq-tl li:last-child::before{display:none}
+.rq-tl i{width:9px;height:9px;border-radius:50%;background:var(--ink);margin:5px 0 0 2px}
+.rq-tl li.is-comment i{background:var(--signal)}
+.rq-tl li.is-raised i{background:var(--ink-mute)}
+.rq-tl__when{font-size:12px;color:var(--ink-mute)}
+.rq-tl__text{font-size:13px;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.rq-sec{margin:var(--sp-5) 0 var(--sp-3);font:600 11px var(--sans);text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-mute)}
+.rq-desc{font-size:13px;color:var(--ink-3);white-space:pre-wrap;word-break:break-word;margin:0}
+.rq-dups li{margin:0 0 6px}
+
+@media (max-width:720px){
+  .rq-cards{grid-template-columns:1fr}
+}

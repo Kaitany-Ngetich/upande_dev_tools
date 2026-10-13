@@ -1,0 +1,104 @@
+{% extends "templates/web.html" %}
+{% block title %}Version Check · Dev Tools{% endblock %}
+{% block head_include %}
+{{ super() }}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-version-check.css?v={{ css_v }}">
+{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Developer</div>
+    <h1 class="ph-head__title">Version Check</h1>
+    <p class="ph-head__sub" id="sub">The version of each app on this site, and how its code compares with the remote</p>
+  </div>
+  <div class="ph-head__tools">
+    <button class="ph-btn" id="scan-installed" type="button" hidden>Scan installed apps</button>
+    <button class="ph-btn" id="new" type="button" hidden>New record</button>
+    <button class="ph-btn ph-btn--primary" id="scan-bench" type="button">Scan bench</button>
+    <button class="ph-btn" id="export" type="button" disabled>Export CSV</button>
+  </div>
+</header>
+
+<div class="ph-filters">
+  <select class="ph-select" id="f-app" aria-label="App"><option value="">All apps</option></select>
+  <select class="ph-select" id="f-status" aria-label="Code state"><option value="">Any code state</option></select>
+  <select class="ph-select" id="f-version" aria-label="Version">
+    <option value="">Any version result</option>
+    <option value="same">Versions match</option>
+    <option value="differs">Versions differ</option>
+    <option value="code_newer">Code is newer than recorded</option>
+    <option value="code_older">Code is older than recorded</option>
+    <option value="unknown">Can't compare versions</option>
+  </select>
+  <select class="ph-select" id="f-recorded" aria-label="Recorded status"><option value="">Any recorded status</option></select>
+  <select class="ph-select" id="f-risk" aria-label="Risk"><option value="">Any risk</option></select>
+  <select class="ph-select" id="f-safe" aria-label="Safe to deploy">
+    <option value="">Safe to deploy: any</option>
+    <option value="yes">Safe to deploy</option>
+    <option value="no">Not safe to deploy</option>
+  </select>
+  <label class="ph-search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="f-q" placeholder="Search app, branch, repository, version" aria-label="Search"></label>
+  <div class="ph-filters__spacer"></div>
+  <div class="ph-pills" id="f-preset">
+    <button data-value="7d">7 days</button><button data-value="30d">30 days</button><button data-value="mtd">This month</button><button data-value="all">Any time</button>
+  </div>
+  <label class="ph-daterange" title="Date the stored check was last run">
+    <input type="date" id="f-from" aria-label="Checked from"><span class="ph-daterange__sep">→</span><input type="date" id="f-to" aria-label="Checked to">
+  </label>
+</div>
+
+<section class="ph-kpis" id="kpis"></section>
+<div class="vc-notes" id="notes"></div>
+
+<nav class="ph-tabs" id="tabs" role="tablist">
+  <button class="ph-tab" data-view="apps" role="tab">Apps <span class="ph-tab__count" id="tc-apps">—</span></button>
+  <button class="ph-tab" data-view="overview" role="tab">Overview</button>
+  <button class="ph-tab" data-view="checks" role="tab">Data checks <span class="ph-tab__count" id="tc-checks">—</span></button>
+</nav>
+
+<div id="view-apps" hidden>
+  <div class="vc-selbar" id="selbar" hidden>
+    <span id="sel-count"></span>
+    <button class="ph-btn ph-btn--sm" id="sel-all" type="button">Select all shown</button>
+    <button class="ph-btn ph-btn--sm" id="sel-none" type="button">Clear</button>
+    <button class="ph-btn ph-btn--sm ph-btn--danger" id="sel-delete" type="button">Delete selected</button>
+  </div>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Apps on this site</h2><div class="ph-card__meta">Version on record is what the site stored at its last update; version in code is read from the app now. Click a row for the full record.</div></div>
+      <div class="ph-card__tools"><button class="ph-btn ph-btn--sm" id="export2" type="button" disabled>Export CSV</button></div>
+    </div>
+    <div id="t-apps"></div>
+  </section>
+</div>
+
+<div id="view-overview" hidden>
+  <div class="ph-row ph-row--2">
+    <section class="ph-card">
+      <div class="ph-card__head"><h2 class="ph-card__title">Where the apps stand</h2><span class="ph-card__meta">click a slice to filter</span></div>
+      <div class="ph-chart" id="c-states"></div>
+    </section>
+    <section class="ph-card ph-card--flush">
+      <div class="ph-card__head"><h2 class="ph-card__title">Furthest behind the remote</h2><span class="ph-card__meta">commits, top 15</span></div>
+      <div class="vc-bars" id="behind-bars"></div>
+    </section>
+  </div>
+  <section class="ph-card">
+    <div class="ph-card__head"><h2 class="ph-card__title">How many differ over time</h2></div>
+    <div id="history"></div>
+  </section>
+</div>
+
+<div id="view-checks" hidden>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head"><div><h2 class="ph-card__title">Data checks</h2><div class="ph-card__meta">About the stored records themselves, across all apps (filters do not apply here). Click an app to open it.</div></div></div>
+    <div id="checks"></div>
+  </section>
+</div>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-version-check.js?v={{ page_v }}"></script>
+{% endblock %}

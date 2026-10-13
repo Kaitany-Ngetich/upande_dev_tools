@@ -1,0 +1,247 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:SJ-{#####}",
+ "creation": "2026-10-06 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status",
+  "column_break_status",
+  "started_at",
+  "completed_at",
+  "last_heartbeat",
+  "section_break_source",
+  "instance",
+  "source_url",
+  "auth_type",
+  "column_break_auth",
+  "api_key",
+  "api_secret",
+  "source_user",
+  "source_password",
+  "section_break_settings",
+  "page_size",
+  "column_break_settings",
+  "ignore_permissions",
+  "ignore_links",
+  "ignore_mandatory",
+  "section_break_anon",
+  "anonymise_fields",
+  "section_break_doctypes",
+  "doctypes",
+  "section_break_progress",
+  "total_rows_expected",
+  "total_rows_imported",
+  "column_break_progress",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nQueued\nRunning\nPaused\nCompleted\nFailed\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Started At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Completed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_heartbeat",
+   "fieldtype": "Datetime",
+   "label": "Last Heartbeat",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_source",
+   "fieldtype": "Section Break",
+   "label": "Source Site"
+  },
+  {
+   "description": "e.g. https://kaitet-group.upande.com",
+   "fieldname": "source_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Source Site URL",
+   "reqd": 1
+  },
+  {
+   "default": "API Key",
+   "fieldname": "auth_type",
+   "fieldtype": "Select",
+   "label": "Auth Type",
+   "options": "API Key\nPassword",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_auth",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='API Key'",
+   "fieldname": "api_key",
+   "fieldtype": "Data",
+   "label": "API Key",
+   "mandatory_depends_on": "eval:doc.auth_type=='API Key'"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='API Key'",
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret",
+   "mandatory_depends_on": "eval:doc.auth_type=='API Key'"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='Password'",
+   "fieldname": "source_user",
+   "fieldtype": "Data",
+   "label": "Source Username",
+   "mandatory_depends_on": "eval:doc.auth_type=='Password'"
+  },
+  {
+   "depends_on": "eval:doc.auth_type=='Password'",
+   "fieldname": "source_password",
+   "fieldtype": "Password",
+   "label": "Source Password",
+   "mandatory_depends_on": "eval:doc.auth_type=='Password'"
+  },
+  {
+   "fieldname": "section_break_settings",
+   "fieldtype": "Section Break",
+   "label": "Settings"
+  },
+  {
+   "default": "500",
+   "description": "Rows fetched per page. Auto-halved on a slow page, see Seed Job DocType.",
+   "fieldname": "page_size",
+   "fieldtype": "Int",
+   "label": "Page Size"
+  },
+  {
+   "fieldname": "column_break_settings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "ignore_permissions",
+   "fieldtype": "Check",
+   "label": "Ignore Permissions"
+  },
+  {
+   "default": "1",
+   "fieldname": "ignore_links",
+   "fieldtype": "Check",
+   "label": "Ignore Link Validation"
+  },
+  {
+   "default": "1",
+   "fieldname": "ignore_mandatory",
+   "fieldtype": "Check",
+   "label": "Ignore Mandatory"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_anon",
+   "fieldtype": "Section Break",
+   "label": "Anonymisation"
+  },
+  {
+   "default": "{}",
+   "description": "{\"Email\": \"***\", \"Mobile No\": \"***\"} -- fieldname (not doctype) keyed; applied wherever that fieldname appears, across every doctype being seeded.",
+   "fieldname": "anonymise_fields",
+   "fieldtype": "Code",
+   "label": "Anonymise Fields (JSON)",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "section_break_doctypes",
+   "fieldtype": "Section Break",
+   "label": "DocTypes to Seed"
+  },
+  {
+   "description": "Run top-to-bottom. Put masters (Item, Customer) above transactions (Sales Order) that link to them.",
+   "fieldname": "doctypes",
+   "fieldtype": "Table",
+   "label": "DocTypes",
+   "options": "Seed Job DocType"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_progress",
+   "fieldtype": "Section Break",
+   "label": "Progress"
+  },
+  {
+   "fieldname": "total_rows_expected",
+   "fieldtype": "Int",
+   "label": "Total Rows Expected",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_rows_imported",
+   "fieldtype": "Int",
+   "label": "Total Rows Imported",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_progress",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "instance",
+   "fieldtype": "Link",
+   "label": "Site",
+   "options": "Deployment Instance",
+   "description": "The saved site this job copies from."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "Seed Job",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "source_url"
+}

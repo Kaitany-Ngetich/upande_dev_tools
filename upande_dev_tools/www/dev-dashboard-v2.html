@@ -1,0 +1,123 @@
+{% extends "templates/web.html" %}
+{% block title %}Dev Dashboard · Dev Tools{% endblock %}
+{% block head_include %}
+{{ super() }}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-dev-dashboard.css?v={{ css_v }}">
+{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Developer</div>
+    <h1 class="ph-head__title">Dev Dashboard</h1>
+    <p class="ph-head__sub" id="sub">Bench health and git state: what is installed, what has drifted, what changed</p>
+  </div>
+  <div class="ph-head__tools">
+    <button class="ph-btn" id="scan" type="button" hidden title="Read each installed app's git state and store it as the last scan">Scan bench</button>
+    <button class="ph-btn ph-btn--primary" id="new-deploy" type="button" hidden>New deployment request</button>
+    <button class="ph-btn" id="export" type="button" disabled>Export CSV</button>
+  </div>
+</header>
+
+<div class="ph-filters">
+  <label class="ph-search"><svg class="ph-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="f-q" type="search" placeholder="Search app, branch, instance"></label>
+  <select class="ph-select" id="f-state" aria-label="App state">
+    <option value="">All apps</option>
+    <option value="attention">Needs attention</option>
+    <option value="clean">Up to date</option>
+    <option value="behind">Behind remote</option>
+    <option value="diverged">Behind and not pushed</option>
+    <option value="ahead">Not pushed</option>
+    <option value="uncommitted">Uncommitted changes</option>
+    <option value="no_upstream">No remote to compare with</option>
+  </select>
+  <select class="ph-select" id="f-dstate" aria-label="Deployment state" hidden>
+    <option value="">All deployment states</option>
+  </select>
+  <select class="ph-select" id="f-astatus" aria-label="Activity status" hidden>
+    <option value="">All outcomes</option>
+    <option value="Error">Errors</option>
+    <option value="Warning">Warnings</option>
+    <option value="Success">Success</option>
+    <option value="Info">Info</option>
+  </select>
+  <div class="ph-filters__spacer"></div>
+  <div class="ph-pills" id="f-preset">
+    <button data-value="today">Today</button><button data-value="7d">7 days</button><button data-value="14d">14 days</button><button data-value="30d">30 days</button><button data-value="mtd">This month</button>
+  </div>
+  <label class="ph-daterange" title="Applies to Deployments (date raised), Activity and backup snapshots. App state is always live.">
+    <input type="date" id="f-from" aria-label="From"><span class="ph-daterange__sep">→</span><input type="date" id="f-to" aria-label="To">
+  </label>
+</div>
+
+
+<section class="ph-kpis" id="kpis"></section>
+<div class="dd-notes" id="notes"></div>
+
+<nav class="ph-tabs" id="tabs" role="tablist">
+  <button class="ph-tab" data-view="apps" role="tab">Apps <span class="ph-tab__count" id="tc-apps">—</span></button>
+  <button class="ph-tab" data-view="drift" role="tab">Schema differences <span class="ph-tab__count" id="tc-drift">—</span></button>
+  <button class="ph-tab" data-view="deployments" role="tab">Deployments <span class="ph-tab__count" id="tc-deployments">—</span></button>
+  <button class="ph-tab" data-view="activity" role="tab">Activity <span class="ph-tab__count" id="tc-activity">—</span></button>
+</nav>
+
+<div id="view-apps" hidden>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Installed apps</h2><div class="ph-card__meta" id="apps-meta">Click an app for its details</div></div>
+      <div class="ph-card__tools"><button class="ph-btn ph-btn--sm" data-csv="apps" type="button">Export CSV</button></div>
+    </div>
+    <div id="t-apps"></div>
+  </section>
+  <section class="ph-card ph-card--flush" id="recorded-card" hidden>
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">In the last scan, not installed on this site</h2><div class="ph-card__meta">Kept from an earlier "Scan bench"; they are not counted above</div></div>
+    </div>
+    <div id="t-recorded"></div>
+  </section>
+</div>
+
+<div id="view-drift" hidden>
+  <div class="ph-kpis" id="drift-kpis"></div>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Field differences between this bench and the live site</h2><div class="ph-card__meta">Differences marked Ignored are left out</div></div>
+      <div class="ph-card__tools"><button class="ph-btn ph-btn--sm" data-csv="drift" type="button">Export CSV</button></div>
+    </div>
+    <div id="t-drift"></div>
+  </section>
+</div>
+
+<div id="view-deployments" hidden>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Deployment requests</h2><div class="ph-card__meta" id="dep-meta">Raised in the date range. Open one to see or act on it.</div></div>
+      <div class="ph-card__tools"><button class="ph-btn ph-btn--sm" data-csv="deployments" type="button">Export CSV</button> <a class="ph-btn ph-btn--sm" href="/app/deployment-request" target="_blank" rel="noopener">Open in Desk</a></div>
+    </div>
+    <div id="t-deployments"></div>
+  </section>
+</div>
+
+<div id="view-activity" hidden>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head"><div><h2 class="ph-card__title">Recent errors</h2><div class="ph-card__meta">The latest logged errors, whatever the date range</div></div></div>
+    <div id="t-errors"></div>
+  </section>
+  <section class="ph-card">
+    <div class="ph-card__head"><h2 class="ph-card__title">Code backups</h2><span class="ph-card__meta">Code Backup Snapshot</span></div>
+    <dl class="ph-kv" id="snap-kv"></dl>
+  </section>
+  <section class="ph-card ph-card--flush">
+    <div class="ph-card__head">
+      <div><h2 class="ph-card__title">Developer activity</h2><div class="ph-card__meta" id="act-meta">Click a row for its details</div></div>
+      <div class="ph-card__tools"><button class="ph-btn ph-btn--sm" data-csv="activity" type="button">Export CSV</button></div>
+    </div>
+    <div id="t-activity"></div>
+  </section>
+</div>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-dev-dashboard.js?v={{ page_v }}"></script>
+{% endblock %}

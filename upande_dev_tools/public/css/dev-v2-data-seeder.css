@@ -1,0 +1,58 @@
+/* Data Seeder v2 - page-local styles (ds- prefix). */
+.ds-title{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap;margin:var(--sp-3) 0 var(--sp-4)}
+.ds-name{font:600 22px var(--sans);margin:0}
+.ds-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.ds-notes{display:flex;flex-direction:column;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.ds-side{display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
+.ds-checks{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2);font-size:13px}
+.ds-checks li{display:flex;gap:var(--sp-2);align-items:flex-start}
+.ds-checks .ph-dot{margin-top:5px;flex:none}
+.ds-bar{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-3);margin-top:var(--sp-2)}
+.ds-detail{display:grid;gap:var(--sp-3);font-size:13px}
+.ds-detail pre{white-space:pre-wrap;word-break:break-word;background:var(--tint);border-radius:var(--r-md);padding:10px 12px;margin:0;font:400 12px var(--mono)}
+.ds-log{font:400 12px var(--mono);max-height:360px;overflow:auto;padding:var(--sp-2) var(--sp-5) var(--sp-4)}
+.ds-log-row{display:grid;grid-template-columns:140px 96px 64px minmax(0,1fr);gap:var(--sp-3);padding:4px 0;border-top:1px solid var(--hairline)}
+.ds-log-row:first-child{border-top:0}
+.ds-log-row.lvl-error .ds-msg{color:var(--bad,#c4302b)}
+.ds-log-row.lvl-warning .ds-msg{color:var(--warn)}
+.ds-msg{white-space:pre-wrap;word-break:break-word}
+.ds-confirm{display:grid;gap:var(--sp-3);font-size:13px}
+.ds-confirm ol{margin:0;padding-left:20px}
+.ds-logfilters{padding:0 var(--sp-5) var(--sp-3)}
+@media (max-width:760px){.ds-log-row{grid-template-columns:1fr}.ds-actions .ph-btn{flex:1}}
+
+.ds-form{display:grid;gap:var(--sp-4)}
+.ds-checkrow{display:flex;gap:var(--sp-5);flex-wrap:wrap}
+.ds-code{font:400 12px var(--mono);resize:vertical}
+.ds-rows-head{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap}
+.ds-h3{font:600 15px var(--sans);margin:0}
+.ds-rowedit{border:1px solid var(--hairline);border-radius:var(--r-md);padding:var(--sp-3);display:grid;gap:var(--sp-3);margin-bottom:var(--sp-3)}
+.ds-rowedit__head{display:flex;gap:var(--sp-2);align-items:center}
+.ds-rowedit__head .ph-input{flex:1;min-width:0}
+.ds-rowedit__grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
+@media (max-width:760px){.ds-rowedit__grid{grid-template-columns:1fr}}
+
+.ds-rowedit__body{display:grid;grid-template-columns:3fr 2fr;gap:var(--sp-4)}
+.ds-fl{display:grid;gap:var(--sp-2);margin-bottom:var(--sp-2)}
+.ds-f{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,2fr) auto;gap:var(--sp-2);align-items:center}
+.ds-f__val{display:flex;gap:var(--sp-2);align-items:center;min-width:0}
+.ds-f__val .ds-fv{flex:1;min-width:0}
+.ds-fsel{width:100%;margin-top:var(--sp-2)}
+.ph-input.is-bad{border-color:var(--bad,#c4302b)}
+@media (max-width:760px){.ds-rowedit__body{grid-template-columns:1fr}.ds-f{grid-template-columns:1fr 1fr}.ds-f__val{grid-column:1/-1}}
+
+.ds-sug{display:grid;max-height:180px;overflow:auto;border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface-2)}
+.ds-sug button{all:unset;box-sizing:border-box;padding:7px 12px;font-size:13px;cursor:pointer}
+.ds-sug button:hover,.ds-sug button.is-on{background:var(--tint)}
+.ds-sug .ph-muted{padding:7px 12px}
+
+.ds-signin{display:grid;gap:2px;font-size:13px;margin-bottom:var(--sp-2)}
+[hidden]{display:none!important}
+
+.ds-combo{position:relative;min-width:0}
+.ds-combo__list{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 2px);max-height:240px;overflow:auto;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--shadow-pop)}
+.ds-combo__list button{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;gap:var(--sp-3);width:100%;padding:7px 12px;font-size:13px;cursor:pointer}
+.ds-combo__list button small{color:var(--ink-mute);font-size:11px;white-space:nowrap}
+.ds-combo__list button:hover,.ds-combo__list button.is-on{background:var(--tint)}
+.ds-combo__list .ph-muted{padding:7px 12px}
+.ds-fsearch{margin-top:var(--sp-2)}

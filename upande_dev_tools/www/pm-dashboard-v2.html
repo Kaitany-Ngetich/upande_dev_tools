@@ -1,0 +1,38 @@
+{% extends "templates/web.html" %}
+{% block title %}PM Dashboard · Dev Tools{% endblock %}
+{% block page_content %}
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_start.html" %}
+<link rel="stylesheet" href="/assets/upande_dev_tools/css/dev-v2-pm-dashboard.css?v={{ page_css_v }}">
+
+<header class="ph-head">
+  <div>
+    <div class="ph-head__eyebrow">Dev Tools · Management</div>
+    <h1 class="ph-head__title">PM Dashboard</h1>
+    <p class="ph-head__sub" id="sub">Decide, chase and reassign. Every number opens a list, every row has an action.</p>
+  </div>
+  <div class="ph-head__tools">
+    <div class="pm-spark" id="spark" aria-live="polite"></div>
+    <button class="ph-btn" id="refresh" type="button" title="Refresh (r)">Refresh</button>
+  </div>
+</header>
+
+<div class="ph-filters">
+  <label class="ph-search"><svg class="ph-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="f-q" type="search" placeholder="Search this list ( / )" aria-label="Search this list"></label>
+  <select class="ph-select" id="f-project" aria-label="Project"><option value="">All projects</option></select>
+  <select class="ph-select" id="f-area" aria-label="Product area"><option value="">All product areas</option></select>
+  <select class="ph-select" id="f-priority" aria-label="Priority"><option value="">Any priority</option></select>
+  <select class="ph-select" id="f-assignee" aria-label="Assignee"><option value="">Everyone</option></select>
+  <button class="ph-btn ph-btn--ghost ph-btn--sm" id="f-clear" type="button" hidden>Clear filters</button>
+</div>
+
+<section class="pm-strip" id="strip" aria-label="What needs you"></section>
+
+<nav class="ph-tabs" id="tabs" role="tablist" aria-label="Work lists"></nav>
+<div class="pm-bulk" id="bulk" hidden></div>
+<section class="ph-card ph-card--flush pm-body" id="body" aria-live="polite"></section>
+<p class="pm-foot" id="foot"></p>
+
+{% include "upande_dev_tools/templates/includes/dev_v2/shell_end.html" %}
+<script src="/assets/upande_dev_tools/js/dev-v2-keys.js?v={{ page_v }}"></script>
+<script src="/assets/upande_dev_tools/js/dev-v2-pm-dashboard.js?v={{ page_v }}"></script>
+{% endblock %}
