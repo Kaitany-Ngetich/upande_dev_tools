@@ -196,7 +196,19 @@ after_migrate = "upande_dev_tools.setup.run_setup"
 
 # before_tests = "upande_dev_tools.install.before_tests"
 
-scheduler_events = {"cron": {"*/5 * * * *": ["upande_dev_tools.backup.scheduler.run_code_backup"]}}
+scheduler_events = {
+	"hourly": ["upande_dev_tools.api.notifications.send_due_reminders"],
+	"cron": {
+		"*/5 * * * *": ["upande_dev_tools.backup.scheduler.run_code_backup"],
+		"0 8 * * 1-5": ["upande_dev_tools.api.notifications.send_morning_digest"],
+	},
+}
+
+doc_events = {
+	"ToDo": {"after_insert": "upande_dev_tools.api.notifications.on_todo_insert"},
+	"Request": {"on_update": "upande_dev_tools.api.notifications.on_request_update"},
+	"Deployment Request": {"on_update": "upande_dev_tools.api.notifications.on_deployment_update"},
+}
 # Extend DocType Class
 # ------------------------------
 #
