@@ -144,6 +144,13 @@ def get_achievements() -> dict:
 		"deploy_day": deployed > 0,
 		"capture_champion": captured >= CAPTURE_BADGE_COUNT,
 	}
+	progress = {
+		"first_close": (min(len(mine), 1), 1),
+		"streak_5": (min(best_streak, STREAK_BADGE_DAYS), STREAK_BADGE_DAYS),
+		"overdue_slayer": (min(overdue_closed, OVERDUE_BADGE_COUNT), OVERDUE_BADGE_COUNT),
+		"deploy_day": (min(deployed, 1), 1),
+		"capture_champion": (min(captured, CAPTURE_BADGE_COUNT), CAPTURE_BADGE_COUNT),
+	}
 	return {
 		"points_today": points_today,
 		"points_week": points_week,
@@ -153,7 +160,14 @@ def get_achievements() -> dict:
 		"closed_today": closed_today,
 		"closed_week": closed_week,
 		"badges": [
-			{"key": key, "label": label, "description": desc, "earned": earned[key]} for key, label, desc in BADGES
+			{
+				"key": key,
+				"label": label,
+				"description": desc,
+				"earned": earned[key],
+				"progress": {"current": progress[key][0], "target": progress[key][1]},
+			}
+			for key, label, desc in BADGES
 		],
 		"leaderboard": _leaderboard(week_start),
 	}
