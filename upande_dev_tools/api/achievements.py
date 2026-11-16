@@ -159,6 +159,7 @@ def get_achievements() -> dict:
 		"best_streak": best_streak,
 		"closed_today": closed_today,
 		"closed_week": closed_week,
+		"week_days": sorted(d.isoformat() for d in close_dates if d >= week_start),
 		"badges": [
 			{
 				"key": key,
