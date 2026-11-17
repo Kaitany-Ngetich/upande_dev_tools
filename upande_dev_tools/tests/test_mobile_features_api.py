@@ -237,21 +237,36 @@ class IntegrationTestNotifications(IntegrationTestCase):
 
 	def test_request_state_change_dedupes_on_name_and_state(self) -> None:
 		before = frappe._dict(workflow_state="Under Review")
-		request = self._doc(before, name="REQ-1", workflow_state="Approved", raised_by_user="a@example.test", title="More reports")
+		request = self._doc(
+			before,
+			name="REQ-1",
+			workflow_state="Approved",
+			raised_by_user="a@example.test",
+			title="More reports",
+			modified="2026-11-18 10:00:00.000001",
+		)
 		with patch.object(notifications, "notify") as notify:
 			notifications.on_request_update(request)
 		self.assertEqual(notify.call_args.args[0], ["a@example.test"])
 		self.assertEqual(notify.call_args.args[3:], ("/request/REQ-1", "event"))
-		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "request:REQ-1:Approved"})
+		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "request:REQ-1:Approved:2026-11-18 10:00:00.000001"})
 
 	def test_deployment_notifies_the_requester_plus_the_extra_recipients_hook(self) -> None:
 		self.assertEqual(notifications.DEPLOYMENT_EXTRA_RECIPIENTS(frappe._dict()), [])
 		before = frappe._dict(workflow_state="Requested")
-		deployment = self._doc(before, name="DEP-1", workflow_state="Deployed", requested_by_user="a@example.test", app="farm", instance="prod")
+		deployment = self._doc(
+			before,
+			name="DEP-1",
+			workflow_state="Deployed",
+			requested_by_user="a@example.test",
+			app="farm",
+			instance="prod",
+			modified="2026-11-18 10:00:00.000001",
+		)
 		with patch.object(notifications, "notify") as notify:
 			notifications.on_deployment_update(deployment)
 		self.assertEqual(notify.call_args.args, (["a@example.test"], "Deployment Deployed", "farm -> prod", "/deployments", "deployment"))
-		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "deployment:DEP-1:Deployed"})
+		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "deployment:DEP-1:Deployed:2026-11-18 10:00:00.000001"})
 
 		with (
 			patch.object(notifications, "DEPLOYMENT_EXTRA_RECIPIENTS", return_value=["pm@example.test", None]),
@@ -267,6 +282,92 @@ class IntegrationTestNotifications(IntegrationTestCase):
 		):
 			notifications.on_deployment_update(deployment)
 		self.assertEqual(notify.call_args.args[0], ["a@example.test"])
+
+	def _real_rows(self, run) -> list:
+		"""Run `run` with the real upande_mobile outbox (push mocked off the network); return the rows it wrote."""
+		if "upande_mobile" not in frappe.get_installed_apps():
+			self.skipTest("upande_mobile is not installed")
+		from upande_mobile import push
+
+		user = frappe.get_all(
+			"User",
+			filters={"enabled": 1, "name": ["not in", ["Guest", "Administrator", frappe.session.user]]},
+			pluck="name",
+			limit_page_length=1,
+		)[0]
+		name = f"TEST-{frappe.generate_hash(length=8)}"
+		try:
+			with patch.object(push, "enabled", return_value=True), patch.object(push, "http_post"):
+				run(name, user)
+			return frappe.get_all(
+				"Mobile Notification",
+				filters={"dedupe_key": ["like", f"%:{name}:%"]},
+				fields=["title", "dedupe_key"],
+				order_by="creation asc",
+			)
+		finally:
+			frappe.db.delete("Mobile Notification", {"dedupe_key": ["like", f"%:{name}:%"]})
+
+	def test_a_double_fired_hook_for_one_save_notifies_once(self) -> None:
+		def run(name: str, user: str) -> None:
+			deployment = self._doc(
+				frappe._dict(workflow_state="In Progress"),
+				name=name,
+				workflow_state="Failed",
+				requested_by_user=user,
+				modified="2026-11-18 10:00:00.000001",
+			)
+			notifications.on_deployment_update(deployment)
+			notifications.on_deployment_update(deployment)
+			request = self._doc(
+				frappe._dict(workflow_state="Under Review"),
+				name=name,
+				workflow_state="Approved",
+				raised_by_user=user,
+				modified="2026-11-18 10:00:00.000001",
+			)
+			notifications.on_request_update(request)
+			notifications.on_request_update(request)
+
+		rows = self._real_rows(run)
+		self.assertEqual(sorted(r.dedupe_key.split(":")[0] for r in rows), ["deployment", "request"])
+
+	def test_reaching_the_same_state_again_notifies_again(self) -> None:
+		def run(name: str, user: str) -> None:
+			# Failed, then Retry (back to Requested), then Failed again: two different saves.
+			for before, state, modified in (
+				("In Progress", "Failed", "2026-11-18 10:00:00.000001"),
+				("Failed", "Requested", "2026-11-18 10:05:00.000001"),
+				("In Progress", "Failed", "2026-11-18 10:10:00.000001"),
+			):
+				notifications.on_deployment_update(
+					self._doc(
+						frappe._dict(workflow_state=before),
+						name=name,
+						workflow_state=state,
+						requested_by_user=user,
+						modified=modified,
+					)
+				)
+			# Approved, reopened, Approved again.
+			for before, state, modified in (
+				("Under Review", "Approved", "2026-11-18 11:00:00.000001"),
+				("Under Review", "Approved", "2026-11-18 11:30:00.000001"),
+			):
+				notifications.on_request_update(
+					self._doc(
+						frappe._dict(workflow_state=before),
+						name=name,
+						workflow_state=state,
+						raised_by_user=user,
+						modified=modified,
+					)
+				)
+
+		rows = self._real_rows(run)
+		self.assertEqual([r.title for r in rows if r.dedupe_key.startswith("deployment:")].count("Deployment Failed"), 2)
+		self.assertEqual(len([r for r in rows if r.dedupe_key.startswith("deployment:")]), 3)
+		self.assertEqual(len([r for r in rows if r.dedupe_key.startswith("request:")]), 2)
 
 	def test_unchanged_state_does_not_notify(self) -> None:
 		same = frappe._dict(workflow_state="Deployed")

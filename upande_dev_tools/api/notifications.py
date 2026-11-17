@@ -194,6 +194,10 @@ def on_todo_insert(doc, method: str | None = None) -> None:
 		frappe.log_error(title="Dev Tools push: task assignment")
 
 
+# Request and deployment dedupe keys name one transition (state + the save's `modified`), not one state: a hook
+# fired twice for the same save is deduped, but reaching the same state again later notifies again.
+
+
 def on_request_update(doc, method: str | None = None) -> None:
 	try:
 		state = doc.workflow_state
@@ -210,7 +214,7 @@ def on_request_update(doc, method: str | None = None) -> None:
 			doc.title or doc.name,
 			f"/request/{doc.name}",
 			"event",
-			dedupe_key=f"request:{doc.name}:{state}",
+			dedupe_key=f"request:{doc.name}:{state}:{doc.modified}",
 		)
 	except Exception:
 		frappe.log_error(title="Dev Tools push: request state")
@@ -236,7 +240,7 @@ def on_deployment_update(doc, method: str | None = None) -> None:
 			f"{doc.app or ''} -> {doc.instance or ''}".strip(),
 			"/deployments",
 			"deployment",
-			dedupe_key=f"deployment:{doc.name}:{doc.workflow_state or ''}",
+			dedupe_key=f"deployment:{doc.name}:{doc.workflow_state or ''}:{doc.modified}",
 		)
 	except Exception:
 		frappe.log_error(title="Dev Tools push: deployment state")
