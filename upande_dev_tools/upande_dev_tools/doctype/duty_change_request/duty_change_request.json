@@ -1,0 +1,188 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "request_type",
+  "status",
+  "duty_type",
+  "column_break_slots",
+  "slot",
+  "swap_slot",
+  "section_people",
+  "from_user",
+  "to_user",
+  "reason",
+  "section_decision",
+  "requested_by",
+  "decided_by",
+  "column_break_decision",
+  "decided_at",
+  "decision_note"
+ ],
+ "fields": [
+  {
+   "fieldname": "request_type",
+   "fieldtype": "Select",
+   "label": "Request Type",
+   "options": "Swap\nReplace",
+   "default": "Swap",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nApproved\nRejected\nCancelled",
+   "default": "Pending",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "duty_type",
+   "fieldtype": "Link",
+   "label": "Duty Type",
+   "options": "Duty Type",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_slots",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "slot",
+   "fieldtype": "Link",
+   "label": "Slot",
+   "options": "Duty Rota Slot",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "swap_slot",
+   "fieldtype": "Link",
+   "label": "Swap Slot",
+   "options": "Duty Rota Slot",
+   "depends_on": "eval:doc.request_type=='Swap'",
+   "description": "For a swap: the slot the other person is on (same duty type)."
+  },
+  {
+   "fieldname": "section_people",
+   "fieldtype": "Section Break",
+   "label": "People"
+  },
+  {
+   "fieldname": "from_user",
+   "fieldtype": "Link",
+   "label": "From User",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Who leaves the slot."
+  },
+  {
+   "fieldname": "to_user",
+   "fieldtype": "Link",
+   "label": "To User",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Who comes in."
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "section_decision",
+   "fieldtype": "Section Break",
+   "label": "Decision"
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "decided_by",
+   "fieldtype": "Link",
+   "label": "Decided By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_decision",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "decided_at",
+   "fieldtype": "Datetime",
+   "label": "Decided At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "decision_note",
+   "fieldtype": "Small Text",
+   "label": "Decision Note",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Dev Tools",
+ "name": "Duty Change Request",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 0,
+   "email": 0,
+   "share": 0,
+   "create": 1,
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "role": "Projects Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 0,
+   "email": 0,
+   "share": 0,
+   "create": 1,
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "role": "Dev Team",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 0,
+   "email": 0,
+   "share": 0
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "DUTY-REQ-.#####",
+ "naming_rule": "Expression (old style)",
+ "in_create": 1
+}

@@ -106,18 +106,47 @@ class IntegrationTestNotifications(IntegrationTestCase):
 	def test_notify_is_a_no_op_without_upande_mobile(self) -> None:
 		with (
 			patch.object(notifications, "_push_available", return_value=False),
-			patch.object(notifications.frappe, "enqueue") as enqueue,
+			patch("upande_mobile.push.notify_user") as send,
 		):
-			notifications.notify(["a@example.test"], "t", "b", "/task/T-1", "event")
-		enqueue.assert_not_called()
+			self.assertEqual(notifications.notify(["a@example.test"], "t", "b", "/task/T-1", "event"), 0)
+		send.assert_not_called()
 
-	def test_notify_enqueues_once_for_unique_recipients(self) -> None:
+	def test_notify_queues_directly_once_per_unique_recipient(self) -> None:
 		with (
 			patch.object(notifications, "_push_available", return_value=True),
+			patch("upande_mobile.push.notify_user", return_value=1) as send,
 			patch.object(notifications.frappe, "enqueue") as enqueue,
 		):
-			notifications.notify(["a@example.test", "a@example.test", ""], "t", "b", "/task/T-1", "event")
-		self.assertEqual(enqueue.call_args.kwargs["users"], ["a@example.test"])
+			queued = notifications.notify(
+				["a@example.test", "a@example.test", "", "Administrator", "Guest"],
+				"t",
+				"b",
+				"/task/T-1",
+				"task_due",
+				dedupe_key="task_due:T-1:2026-11-18",
+			)
+		self.assertEqual(queued, 1)
+		enqueue.assert_not_called()
+		send.assert_called_once()
+		self.assertEqual(send.call_args.args[:5], (notifications.APP_NAME, "a@example.test", "t", "b", {"kind": "task_due"}))
+		self.assertEqual(
+			send.call_args.kwargs,
+			{
+				"route": "/task/T-1",
+				"channel": "reminders",
+				"kind": "task_due",
+				"dedupe_key": "task_due:T-1:2026-11-18",
+			},
+		)
+
+	def test_notify_never_raises(self) -> None:
+		with (
+			patch.object(notifications, "_push_available", return_value=True),
+			patch("upande_mobile.push.notify_user", side_effect=RuntimeError("boom")),
+			patch.object(notifications.frappe, "log_error") as log,
+		):
+			self.assertEqual(notifications.notify(["a@example.test", "b@example.test"], "t", "b", "/", "event"), 0)
+		self.assertEqual(log.call_count, 2)
 
 	def test_send_push_calls_upande_mobile_with_route(self) -> None:
 		with (
@@ -128,6 +157,36 @@ class IntegrationTestNotifications(IntegrationTestCase):
 		self.assertEqual(reached, 1)
 		self.assertEqual(send.call_args.args[:2], (notifications.APP_NAME, "a@example.test"))
 		self.assertEqual(send.call_args.kwargs["route"], "/deployments")
+
+	def test_notify_writes_one_inbox_row_per_event_through_upande_mobile(self) -> None:
+		if "upande_mobile" not in frappe.get_installed_apps():
+			self.skipTest("upande_mobile is not installed")
+		from upande_mobile import push
+
+		user = frappe.get_all(
+			"User",
+			filters={"enabled": 1, "name": ["not in", ["Guest", "Administrator"]]},
+			pluck="name",
+			limit_page_length=1,
+		)[0]
+		key = f"deployment:TEST-{frappe.generate_hash(length=8)}:Deployed"
+		try:
+			with patch.object(push, "enabled", return_value=True), patch.object(push, "http_post") as post:
+				self.assertEqual(notifications.notify([user], "Deployment Deployed", "a -> b", "/deployments", "deployment", dedupe_key=key), 1)
+				self.assertEqual(notifications.notify([user], "Deployment Deployed", "a -> b", "/deployments", "deployment", dedupe_key=key), 0)
+			post.assert_not_called()
+			rows = frappe.get_all(
+				"Mobile Notification",
+				filters={"dedupe_key": key},
+				fields=["app", "user", "kind", "route", "channel", "status"],
+			)
+			self.assertEqual(len(rows), 1)
+			self.assertEqual(
+				(rows[0].app, rows[0].user, rows[0].kind, rows[0].route, rows[0].channel, rows[0].status),
+				(notifications.APP_NAME, user, "deployment", "/deployments", "events", "Queued"),
+			)
+		finally:
+			frappe.db.delete("Mobile Notification", {"dedupe_key": key})
 
 	def test_reminders_are_sent_once_per_task_user_and_day(self) -> None:
 		task = frappe._dict(name="TASK-1", subject="Fix", exp_end_date="2020-01-01", _assign='["a@example.test"]')
@@ -144,6 +203,178 @@ class IntegrationTestNotifications(IntegrationTestCase):
 			notifications.send_due_reminders()
 		self.assertEqual(notify.call_count, 1)
 		self.assertEqual(notify.call_args.args[3:], ("/task/TASK-1", "task_due"))
+		self.assertEqual(notify.call_args.kwargs["dedupe_key"], f"task_due:TASK-1:{frappe.utils.today()}")
+
+	def test_digest_is_deduped_per_day(self) -> None:
+		task = frappe._dict(custom_planned_for=frappe.utils.today(), exp_end_date=None, _assign='["a@example.test"]')
+
+		def get_all(doctype, *args, **kwargs):
+			return {"Has Role": ["a@example.test"], "User": ["a@example.test"], "Task": [task]}[doctype]
+
+		with (
+			patch.object(notifications, "_push_available", return_value=True),
+			patch.object(notifications.frappe, "get_all", side_effect=get_all),
+			patch.object(notifications, "notify") as notify,
+		):
+			notifications.send_morning_digest()
+		self.assertEqual(notify.call_args.args[4], "digest")
+		self.assertEqual(notify.call_args.kwargs["dedupe_key"], f"digest:{frappe.utils.today()}")
+
+	def _doc(self, before=None, **values):
+		doc = frappe._dict(values)
+		doc.get_doc_before_save = lambda: before
+		return doc
+
+	def test_task_assignment_uses_the_todo_as_dedupe_key(self) -> None:
+		todo = self._doc(name="TODO-1", reference_type="Task", reference_name="TASK-1", status="Open", allocated_to="a@example.test")
+		with (
+			patch.object(notifications.frappe.db, "get_value", return_value="Fix it"),
+			patch.object(notifications, "notify") as notify,
+		):
+			notifications.on_todo_insert(todo)
+		self.assertEqual(notify.call_args.args, (["a@example.test"], "Task assigned to you", "Fix it", "/task/TASK-1", "task"))
+		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "todo:TODO-1"})
+
+	def test_request_state_change_dedupes_on_name_and_state(self) -> None:
+		before = frappe._dict(workflow_state="Under Review")
+		request = self._doc(
+			before,
+			name="REQ-1",
+			workflow_state="Approved",
+			raised_by_user="a@example.test",
+			title="More reports",
+			modified="2026-11-18 10:00:00.000001",
+		)
+		with patch.object(notifications, "notify") as notify:
+			notifications.on_request_update(request)
+		self.assertEqual(notify.call_args.args[0], ["a@example.test"])
+		self.assertEqual(notify.call_args.args[3:], ("/request/REQ-1", "event"))
+		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "request:REQ-1:Approved:2026-11-18 10:00:00.000001"})
+
+	def test_deployment_notifies_the_requester_plus_the_extra_recipients_hook(self) -> None:
+		self.assertEqual(notifications.DEPLOYMENT_EXTRA_RECIPIENTS(frappe._dict()), [])
+		before = frappe._dict(workflow_state="Requested")
+		deployment = self._doc(
+			before,
+			name="DEP-1",
+			workflow_state="Deployed",
+			requested_by_user="a@example.test",
+			app="farm",
+			instance="prod",
+			modified="2026-11-18 10:00:00.000001",
+		)
+		with patch.object(notifications, "notify") as notify:
+			notifications.on_deployment_update(deployment)
+		self.assertEqual(notify.call_args.args, (["a@example.test"], "Deployment Deployed", "farm -> prod", "/deployments", "deployment"))
+		self.assertEqual(notify.call_args.kwargs, {"dedupe_key": "deployment:DEP-1:Deployed:2026-11-18 10:00:00.000001"})
+
+		with (
+			patch.object(notifications, "DEPLOYMENT_EXTRA_RECIPIENTS", return_value=["pm@example.test", None]),
+			patch.object(notifications, "notify") as notify,
+		):
+			notifications.on_deployment_update(deployment)
+		self.assertEqual(notify.call_args.args[0], ["a@example.test", "pm@example.test"])
+
+		with (
+			patch.object(notifications, "DEPLOYMENT_EXTRA_RECIPIENTS", side_effect=RuntimeError("bad hook")),
+			patch.object(notifications.frappe, "log_error"),
+			patch.object(notifications, "notify") as notify,
+		):
+			notifications.on_deployment_update(deployment)
+		self.assertEqual(notify.call_args.args[0], ["a@example.test"])
+
+	def _real_rows(self, run) -> list:
+		"""Run `run` with the real upande_mobile outbox (push mocked off the network); return the rows it wrote."""
+		if "upande_mobile" not in frappe.get_installed_apps():
+			self.skipTest("upande_mobile is not installed")
+		from upande_mobile import push
+
+		user = frappe.get_all(
+			"User",
+			filters={"enabled": 1, "name": ["not in", ["Guest", "Administrator", frappe.session.user]]},
+			pluck="name",
+			limit_page_length=1,
+		)[0]
+		name = f"TEST-{frappe.generate_hash(length=8)}"
+		try:
+			with patch.object(push, "enabled", return_value=True), patch.object(push, "http_post"):
+				run(name, user)
+			return frappe.get_all(
+				"Mobile Notification",
+				filters={"dedupe_key": ["like", f"%:{name}:%"]},
+				fields=["title", "dedupe_key"],
+				order_by="creation asc",
+			)
+		finally:
+			frappe.db.delete("Mobile Notification", {"dedupe_key": ["like", f"%:{name}:%"]})
+
+	def test_a_double_fired_hook_for_one_save_notifies_once(self) -> None:
+		def run(name: str, user: str) -> None:
+			deployment = self._doc(
+				frappe._dict(workflow_state="In Progress"),
+				name=name,
+				workflow_state="Failed",
+				requested_by_user=user,
+				modified="2026-11-18 10:00:00.000001",
+			)
+			notifications.on_deployment_update(deployment)
+			notifications.on_deployment_update(deployment)
+			request = self._doc(
+				frappe._dict(workflow_state="Under Review"),
+				name=name,
+				workflow_state="Approved",
+				raised_by_user=user,
+				modified="2026-11-18 10:00:00.000001",
+			)
+			notifications.on_request_update(request)
+			notifications.on_request_update(request)
+
+		rows = self._real_rows(run)
+		self.assertEqual(sorted(r.dedupe_key.split(":")[0] for r in rows), ["deployment", "request"])
+
+	def test_reaching_the_same_state_again_notifies_again(self) -> None:
+		def run(name: str, user: str) -> None:
+			# Failed, then Retry (back to Requested), then Failed again: two different saves.
+			for before, state, modified in (
+				("In Progress", "Failed", "2026-11-18 10:00:00.000001"),
+				("Failed", "Requested", "2026-11-18 10:05:00.000001"),
+				("In Progress", "Failed", "2026-11-18 10:10:00.000001"),
+			):
+				notifications.on_deployment_update(
+					self._doc(
+						frappe._dict(workflow_state=before),
+						name=name,
+						workflow_state=state,
+						requested_by_user=user,
+						modified=modified,
+					)
+				)
+			# Approved, reopened, Approved again.
+			for before, state, modified in (
+				("Under Review", "Approved", "2026-11-18 11:00:00.000001"),
+				("Under Review", "Approved", "2026-11-18 11:30:00.000001"),
+			):
+				notifications.on_request_update(
+					self._doc(
+						frappe._dict(workflow_state=before),
+						name=name,
+						workflow_state=state,
+						raised_by_user=user,
+						modified=modified,
+					)
+				)
+
+		rows = self._real_rows(run)
+		self.assertEqual([r.title for r in rows if r.dedupe_key.startswith("deployment:")].count("Deployment Failed"), 2)
+		self.assertEqual(len([r for r in rows if r.dedupe_key.startswith("deployment:")]), 3)
+		self.assertEqual(len([r for r in rows if r.dedupe_key.startswith("request:")]), 2)
+
+	def test_unchanged_state_does_not_notify(self) -> None:
+		same = frappe._dict(workflow_state="Deployed")
+		with patch.object(notifications, "notify") as notify:
+			notifications.on_deployment_update(self._doc(same, name="DEP-1", workflow_state="Deployed", requested_by_user="a@example.test"))
+			notifications.on_request_update(self._doc(frappe._dict(workflow_state="Approved"), name="R", workflow_state="Approved", raised_by_user="a@example.test"))
+		notify.assert_not_called()
 
 	def test_handlers_never_raise(self) -> None:
 		with patch.object(notifications.frappe, "log_error"):

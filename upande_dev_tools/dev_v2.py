@@ -51,6 +51,7 @@ NAV = [
 			("review-queue", "Review Queue", "/review-queue-v2", "review-queue", "clipboard"),
 			("requests", "Requests", "/requests-v2", "requests-portal", "layers"),
 			("deployments", "Deployments", "/deployments-v2", "deployments", "truck"),
+			("duty-rota", "Duty Rota", "/duty-rota", "duty-rota", "user-plus"),
 		],
 	),
 	(

@@ -1,8 +1,9 @@
 # Copyright (c) 2026, Upande LTD and contributors
 # For license information, please see license.txt
 #
-# Push notifications to the Dev Tools mobile app, through upande_mobile (when it is installed on the site).
-# Everything here is best effort: a failed or impossible push never breaks the save or job that asked for it.
+# Notifications to the Dev Tools mobile app, through upande_mobile's outbox (when it is installed on the site):
+# each one is written in the caller's transaction, pushed with retries by upande_mobile's scheduler, and kept in the
+# person's in-app inbox. Everything here is best effort: it never breaks the save or job that asked for it.
 
 import json
 
@@ -21,44 +22,63 @@ def _push_available() -> bool:
 	return "upande_mobile" in frappe.get_installed_apps()
 
 
-def notify(users: list[str], title: str, body: str, route: str, kind: str) -> None:
-	"""Queue a push to each of `users`. A no-op when upande_mobile is not installed."""
+def notify(
+	users: list[str],
+	title: str,
+	body: str,
+	route: str,
+	kind: str,
+	dedupe_key: str | None = None,
+	data: dict | None = None,
+) -> int:
+	"""Queue a notification for each of `users` through upande_mobile's outbox, in the caller's transaction (it is
+	sent by upande_mobile's scheduler, with retries, and kept in each person's in-app inbox). `dedupe_key` makes a
+	repeat of the same event for the same person a no-op. Never raises. Returns how many were queued; a no-op when
+	upande_mobile is not installed."""
 	try:
 		recipients = sorted({u for u in (users or []) if u and u not in ("Administrator", "Guest")})
 		if not recipients or not _push_available():
-			return
-		frappe.enqueue(
-			"upande_dev_tools.api.notifications.send_push",
-			queue="short",
-			enqueue_after_commit=True,
-			users=recipients,
-			title=title,
-			body=body,
-			route=route,
-			kind=kind,
-		)
+			return 0
+		from upande_mobile.push import notify_user
+
+		payload = dict(data or {}, kind=kind)
+		queued = 0
+		for user in recipients:
+			try:
+				queued += cint(
+					notify_user(
+						APP_NAME,
+						user,
+						title,
+						body,
+						dict(payload),
+						route=route,
+						channel=_channel(kind),
+						kind=kind,
+						dedupe_key=dedupe_key,
+					)
+				)
+			except Exception:
+				frappe.log_error(title="Dev Tools push: could not queue")
+		return queued
 	except Exception:
 		frappe.log_error(title="Dev Tools push: could not queue")
+		return 0
 
 
 def send_push(users: list[str], title: str, body: str, route: str, kind: str) -> int:
-	"""Background job: deliver the push to every device of every user. Returns the number of devices reached."""
-	if not _push_available():
-		return 0
-	reached = 0
-	try:
-		from upande_mobile.push import notify_user
+	"""Kept for background jobs queued before the outbox existed: they now just queue through `notify`."""
+	return notify(users, title, body, route, kind)
 
-		for user in users:
-			try:
-				reached += cint(
-					notify_user(APP_NAME, user, title, body, {"kind": kind}, route=route, channel=_channel(kind))
-				)
-			except Exception:
-				frappe.log_error(title="Dev Tools push: send failed")
-	except Exception:
-		frappe.log_error(title="Dev Tools push: send failed")
-	return reached
+
+def deployment_extra_recipients(doc) -> list[str]:
+	"""Who else hears about a Deployment Request's state change, besides `requested_by_user`. Nobody for now;
+	return user ids here (for example the app's owners or the on-call reviewer) to widen it."""
+	return []
+
+
+# The hook the deployment handler calls for extra recipients (see `deployment_extra_recipients`).
+DEPLOYMENT_EXTRA_RECIPIENTS = deployment_extra_recipients
 
 
 def _channel(kind: str) -> str:
@@ -101,7 +121,14 @@ def send_due_reminders() -> None:
 				if _already_reminded(task.name, user, day):
 					continue
 				title = _("Task overdue") if overdue else _("Task due today")
-				notify([user], title, task.subject or task.name, f"/task/{task.name}", "task_due")
+				notify(
+					[user],
+					title,
+					task.subject or task.name,
+					f"/task/{task.name}",
+					"task_due",
+					dedupe_key=f"task_due:{task.name}:{day}",
+				)
 	except Exception:
 		frappe.log_error(title="Dev Tools push: due reminders failed")
 
@@ -140,7 +167,7 @@ def send_morning_digest() -> None:
 			if not (planned or overdue):
 				continue
 			body = _("{0} planned for today, {1} overdue").format(planned, overdue)
-			notify([user], _("Your day"), body, "/", "digest")
+			notify([user], _("Your day"), body, "/", "digest", dedupe_key=f"digest:{day}")
 	except Exception:
 		frappe.log_error(title="Dev Tools push: morning digest failed")
 
@@ -155,9 +182,20 @@ def on_todo_insert(doc, method: str | None = None) -> None:
 		if doc.allocated_to == frappe.session.user:
 			return
 		subject = frappe.db.get_value("Task", doc.reference_name, "subject") or doc.reference_name
-		notify([doc.allocated_to], _("Task assigned to you"), subject, f"/task/{doc.reference_name}", "event")
+		notify(
+			[doc.allocated_to],
+			_("Task assigned to you"),
+			subject,
+			f"/task/{doc.reference_name}",
+			"task",
+			dedupe_key=f"todo:{doc.name}",
+		)
 	except Exception:
 		frappe.log_error(title="Dev Tools push: task assignment")
+
+
+# Request and deployment dedupe keys name one transition (state + the save's `modified`), not one state: a hook
+# fired twice for the same save is deduped, but reaching the same state again later notifies again.
 
 
 def on_request_update(doc, method: str | None = None) -> None:
@@ -176,6 +214,7 @@ def on_request_update(doc, method: str | None = None) -> None:
 			doc.title or doc.name,
 			f"/request/{doc.name}",
 			"event",
+			dedupe_key=f"request:{doc.name}:{state}:{doc.modified}",
 		)
 	except Exception:
 		frappe.log_error(title="Dev Tools push: request state")
@@ -190,12 +229,18 @@ def on_deployment_update(doc, method: str | None = None) -> None:
 			return
 		if not before and not doc.workflow_state:
 			return
+		recipients = [doc.requested_by_user]
+		try:
+			recipients += [u for u in (DEPLOYMENT_EXTRA_RECIPIENTS(doc) or []) if isinstance(u, str)]
+		except Exception:
+			frappe.log_error(title="Dev Tools push: deployment extra recipients")
 		notify(
-			[doc.requested_by_user],
+			recipients,
 			_("Deployment {0}").format(_(doc.workflow_state or "")),
 			f"{doc.app or ''} -> {doc.instance or ''}".strip(),
 			"/deployments",
-			"event",
+			"deployment",
+			dedupe_key=f"deployment:{doc.name}:{doc.workflow_state or ''}:{doc.modified}",
 		)
 	except Exception:
 		frappe.log_error(title="Dev Tools push: deployment state")

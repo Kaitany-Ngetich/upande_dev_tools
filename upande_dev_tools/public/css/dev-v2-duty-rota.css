@@ -1,0 +1,70 @@
+/* Duty Rota page: only what the shared dev-v2.css does not already have. */
+.dr-people{display:flex;flex-wrap:wrap;gap:6px}
+.dr-person{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:#efede7;color:var(--ink-2);font:500 12px var(--sans)}
+.dr-person.is-me{background:var(--ink);color:#fff}
+.dr-when{white-space:nowrap}
+.dr-when small{display:block;color:var(--ink-mute);font-size:11px}
+.dr-row--current td{background:rgba(0,0,0,.03)}
+.dr-row--past td{opacity:.6}
+.dr-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.dr-picklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:260px;overflow:auto;padding:4px 0}
+.dr-reason{color:var(--ink-mute);font-size:12px;margin-top:2px}
+
+/* ── Calendar (month view, weeks start Monday) ── */
+.dr-tools{display:flex;align-items:center;gap:var(--sp-3,12px);flex-wrap:wrap}
+.dr-calnav{display:flex;align-items:center;gap:6px}
+#cal-prev,#cal-next{font:400 20px/1 var(--sans);width:32px;height:32px}
+.dr-calnav__title{font:600 15px var(--sans);color:var(--ink);min-width:132px;text-align:center;letter-spacing:-.2px}
+.dr-cal{border-top:1px solid var(--hairline);user-select:none}
+.dr-cal__dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--hairline)}
+.dr-cal__dow div{padding:10px 12px;font:600 10px var(--sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--ink-mute)}
+.dr-cal__week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+  grid-template-rows:30px repeat(var(--lanes,0),auto) 1fr;min-height:118px;padding-bottom:6px;row-gap:3px;border-bottom:1px solid var(--hairline)}
+.dr-cal__week:last-child{border-bottom:0}
+.dr-cal__day{grid-row:1/-1;border-right:1px solid var(--hairline);padding:6px 8px 4px;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;min-width:0}
+.dr-cal__day:nth-child(7){border-right:0}
+.dr-cal__day.is-weekend{background:rgba(10,10,10,.018)}
+.dr-cal__day.is-out .dr-cal__num{color:var(--ink-faint)}
+.dr-cal__day.is-editable{cursor:pointer}
+.dr-cal__day.is-editable:hover{background:var(--signal-soft,rgba(34,136,131,.08))}
+.dr-cal__num{font:500 12px var(--sans);color:var(--ink-3);width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%}
+.dr-cal__day.is-today .dr-cal__num{background:var(--ink);color:#fff;font-weight:600}
+.dr-cal__more{border:0;background:none;font:600 11px var(--sans);color:var(--ink-4);cursor:pointer;padding:0;align-self:flex-start}
+.dr-cal__more:hover{color:var(--ink);text-decoration:underline}
+
+/* Events: soft "holiday" bars spanning days, first names inside */
+.dr-ev{position:relative;z-index:1;display:flex;align-items:center;gap:6px;min-width:0;min-height:24px;margin:0 3px;padding:0 9px;border:0;border-radius:6px;
+  font:500 12px/24px var(--sans);text-align:left;cursor:pointer;box-shadow:inset 3px 0 0 var(--ev-edge);background:var(--ev-bg);color:var(--ev-ink);transition:filter .15s,transform .15s}
+.dr-ev:hover{filter:brightness(.96);transform:translateY(-1px)}
+.dr-ev:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.dr-ev:not(.is-head){border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;box-shadow:none}
+.dr-ev:not(.is-tail){border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0}
+.dr-ev__text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dr-ev__text b{font-weight:600}
+.dr-ev--day{align-items:flex-start;padding:5px 9px;line-height:17px}
+.dr-ev--day .dr-ev__text{white-space:normal}
+.dr-ev--day .dr-ev__dot{margin-top:5px}
+.dr-ev.is-me{background:var(--ink);color:#fff;box-shadow:inset 3px 0 0 var(--ev-edge)}
+.dr-ev.is-past{opacity:.55}
+.dr-ev__dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#e8a317;box-shadow:0 0 0 2px rgba(255,255,255,.8);display:inline-block}
+.dr-ev--teal{--ev-bg:#e3f2f1;--ev-edge:#228883;--ev-ink:#0f4f4c}
+.dr-ev--amber{--ev-bg:#fbf0dc;--ev-edge:#c98a10;--ev-ink:#6b4500}
+.dr-ev--violet{--ev-bg:#ece8f8;--ev-edge:#6e56cf;--ev-ink:#3b2a85}
+.dr-ev--rose{--ev-bg:#f9e6ea;--ev-edge:#c94a64;--ev-ink:#7a1f33}
+.dr-ev--sky{--ev-bg:#e3eefa;--ev-edge:#3b7dd8;--ev-ink:#1c4580}
+.dr-ev--lime{--ev-bg:#e8f3df;--ev-edge:#4f8a2a;--ev-ink:#2c4f14}
+.dr-ev--swatch{display:inline-block;width:14px;height:14px;padding:0;margin:0 8px 0 0;border-radius:4px;vertical-align:middle}
+.dr-cal__legend{display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-top:1px solid var(--hairline);font:500 12px var(--sans);color:var(--ink-4)}
+.dr-cal__legend span{display:inline-flex;align-items:center;gap:8px}
+.dr-cal__legend .dr-ev{display:inline-block;width:22px;height:12px;padding:0;margin:0;cursor:default}
+.dr-daylist{display:flex;align-items:center;width:100%;border:0;background:none;text-align:left;padding:10px 4px;cursor:pointer}
+.dr-daylist:hover{background:var(--tint,rgba(0,0,0,.03))}
+
+@media (max-width:720px){
+  .dr-cal__week{grid-template-rows:26px repeat(var(--lanes,0),auto) 1fr;min-height:96px}
+  .dr-ev{font-size:11px;min-height:20px;line-height:20px;padding:0 5px;margin:0 1px}
+  .dr-ev--day{line-height:14px;padding:3px 4px}
+  .dr-cal__dow div{padding:8px 4px;letter-spacing:.6px}
+  #cal-prev,#cal-next{font:400 20px/1 var(--sans);width:32px;height:32px}
+.dr-calnav__title{min-width:100px}
+}
