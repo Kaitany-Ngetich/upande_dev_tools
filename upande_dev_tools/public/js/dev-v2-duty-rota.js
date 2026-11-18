@@ -6,7 +6,10 @@
   const caps = PH.$("#dr-caps").dataset;
   const CAN_MANAGE = caps.canManage === "1";
   const ME = caps.me;
-  const st = PH.state({ view: "rota", type: "", past: "", mine: "", status: "" });
+  const st = PH.state({ view: "rota", type: "", past: "", mine: "", status: "", layout: "calendar", month: "" });
+  const MAX_LANES = 4;
+  // Soft fills that read like holidays on a wall calendar; a slot keeps its colour (hash of its name).
+  const TONES = ["teal", "amber", "violet", "rose", "sky", "lime"];
   const STATUS_BADGE = { Pending: "warn", Approved: "good", Rejected: "bad", Cancelled: "outline" };
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -58,9 +61,36 @@
   if (CAN_MANAGE) PH.$("#new-slot").onclick = () => editSlot(null);
 
   st.on((state, changed) => {
-    if (changed.includes("type")) return load();
+    if (changed.includes("type") || changed.includes("month")) return load();
     paint();
   });
+  PH.pills("#f-layout", st, "layout");
+  PH.$("#cal-prev").onclick = () => st.set({ month: shiftMonth(month(), -1) });
+  PH.$("#cal-next").onclick = () => st.set({ month: shiftMonth(month(), 1) });
+  PH.$("#cal-today").onclick = () => st.set({ month: PH.date.today().slice(0, 7) });
+
+  /* ── Month maths (weeks start on Monday) ── */
+  const month = () => (/^\d{4}-\d{2}$/.test(st.get().month) ? st.get().month : PH.date.today().slice(0, 7));
+  function shiftMonth(m, n) {
+    const [y, mo] = m.split("-").map(Number);
+    const d = new Date(y, mo - 1 + n, 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function grid(m) {
+    const first = m + "-01";
+    const dow = (PH.date.parse(first).getDay() + 6) % 7; // 0 = Monday
+    const start = PH.date.add(first, -dow);
+    const last = PH.date.add(shiftMonth(m, 1) + "-01", -1);
+    const weeks = Math.ceil((dow + PH.date.diff(first, last) + 1) / 7);
+    return { start, end: PH.date.add(start, weeks * 7 - 1), weeks };
+  }
+  const shortDate = (d) => +d.slice(8) + " " + MONTHS[+d.slice(5, 7) - 1];
+  const firstName = (a) => String(a.full_name || a.user).trim().split(/\s+/)[0];
+  function tone(name) {
+    let h = 0;
+    for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return TONES[h % TONES.length];
+  }
 
   /* ── Loading ── */
   async function boot() {
@@ -82,13 +112,20 @@
     load();
   }
 
+  /** The calendar's month plus the list's usual window (4 weeks back, 26 ahead), in one call. */
+  function window_(type) {
+    const g = grid(month()), t = PH.date.today();
+    const back = PH.date.add(t, -28), ahead = PH.date.add(t, 182);
+    return { duty_type: type, start: g.start < back ? g.start : back, end: g.end > ahead ? g.end : ahead };
+  }
+
   async function load() {
     const my = ++seq;
     const type = st.get().type;
     PH.skeleton("#rota", "rows", 6);
     try {
       const [r, q] = await Promise.all([
-        PH.call(API + "rota", { duty_type: type }, { type: "GET" }),
+        PH.call(API + "rota", window_(type), { type: "GET" }),
         PH.call(API + "change_requests", { duty_type: type }, { type: "GET" }),
       ]);
       if (my !== seq) return;
@@ -113,8 +150,12 @@
     const next = rota.slots.find((x) => x.end_date >= t && isOn(x, ME));
     const now = rota.slots.filter((x) => when(x, t) === "current");
     PH.kpis("#kpis", [
-      { label: "Your next duty", value: next ? title(next) : "None planned", unit: next ? range(next.start_date, next.end_date) : "" },
-      { label: "On duty now", value: now.length ? now.flatMap((x) => x.assignees.map((a) => a.full_name)).filter((v, i, a) => a.indexOf(v) === i).join(", ") : "Nobody" },
+      // Short values: the KPI figure is large type; the detail goes underneath.
+      { label: "Your next duty", value: next ? shortDate(next.start_date) : "None", unit: next ? title(next) + (next.start_date !== next.end_date ? " · until " + shortDate(next.end_date) : "") : "Nothing planned for you", onClick: next ? () => st.set({ view: "rota", layout: "calendar", month: next.start_date.slice(0, 7) }) : null },
+      (() => {
+        const names = now.flatMap((x) => x.assignees.map(firstName)).filter((v, i, a) => a.indexOf(v) === i);
+        return { label: "On duty now", value: names.length, unit: names.length ? names.join(", ") : "Nobody today" };
+      })(),
       { label: "Slots ahead", value: rota.slots.filter((x) => x.start_date > t).length },
       { label: "Pending requests", value: pending.length, onClick: () => st.set({ view: "requests", status: "Pending" }) },
     ]);
@@ -124,6 +165,11 @@
   }
 
   function paintRota(s, t, pending) {
+    const cal = s.layout !== "list";
+    PH.$("#cal-nav").hidden = !cal;
+    PH.$("#f-past").closest("label").hidden = cal;
+    PH.$("#rota-meta").textContent = cal ? "Click a slot for details and actions" + (CAN_MANAGE ? ", or an empty day to add one" : "") : "4 weeks back to 26 weeks ahead";
+    if (cal) return paintCalendar(s, t, pending);
     let slots = rota.slots;
     if (!s.past) slots = slots.filter((x) => x.end_date >= t);
     if (s.mine) slots = slots.filter((x) => isOn(x, ME));
@@ -158,6 +204,125 @@
       const slot = rota.slots.find((x) => x.name === b.closest("tr").dataset.slot);
       b.onclick = () => ({ request: requestChange, edit: editSlot, delete: deleteSlot })[b.dataset.act](slot);
     });
+  }
+
+  /* ── Calendar ── */
+  function paintCalendar(s, t, pending) {
+    const m = month(), g = grid(m);
+    const [y, mo] = m.split("-").map(Number);
+    PH.text("#cal-title", MONTHS[mo - 1] + " " + y);
+    const busy = new Set(pending.flatMap((r) => [r.slot, r.swap_slot]).filter(Boolean));
+    let slots = rota.slots.filter((x) => x.end_date >= g.start && x.start_date <= g.end);
+    if (s.mine) slots = slots.filter((x) => isOn(x, ME));
+    PH.text("#tc-rota", slots.length);
+    let html = '<div class="dr-cal" role="grid"><div class="dr-cal__dow">' + ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => "<div>" + d + "</div>").join("") + "</div>";
+    for (let w = 0; w < g.weeks; w++) {
+      const ws = PH.date.add(g.start, w * 7), we = PH.date.add(ws, 6);
+      // Segments of every slot touching this week, longest first, packed into lanes.
+      const segs = slots
+        .filter((x) => x.end_date >= ws && x.start_date <= we)
+        .map((x) => {
+          const a = x.start_date > ws ? x.start_date : ws, b = x.end_date < we ? x.end_date : we;
+          return { x, c0: PH.date.diff(ws, a), c1: PH.date.diff(ws, b), head: x.start_date >= ws, tail: x.end_date <= we };
+        })
+        .sort((p, q) => q.c1 - q.c0 - (p.c1 - p.c0) || p.c0 - q.c0);
+      const lanes = [];
+      segs.forEach((sg) => {
+        let i = lanes.findIndex((l) => l.every((o) => o.c1 < sg.c0 || o.c0 > sg.c1));
+        if (i === -1) i = lanes.push([]) - 1;
+        lanes[i].push(sg);
+        sg.lane = i;
+      });
+      html += '<div class="dr-cal__week" style="--lanes:' + Math.min(lanes.length, MAX_LANES) + '">';
+      for (let d = 0; d < 7; d++) {
+        const day = PH.date.add(ws, d);
+        const hidden = segs.filter((sg) => sg.lane >= MAX_LANES && sg.c0 <= d && sg.c1 >= d).length;
+        html +=
+          '<div class="dr-cal__day' + (day.slice(0, 7) !== m ? " is-out" : "") + (day === t ? " is-today" : "") + (d > 4 ? " is-weekend" : "") +
+          '" style="grid-column:' + (d + 1) + '" data-day="' + day + '"><span class="dr-cal__num">' + +day.slice(8) + "</span>" +
+          (hidden ? '<button class="dr-cal__more" data-more="' + day + '">+' + hidden + " more</button>" : "") + "</div>";
+      }
+      segs
+        .filter((sg) => sg.lane < MAX_LANES)
+        .forEach((sg) => {
+          const x = sg.x;
+          // One-day pieces list the people one per line (like names on a holiday calendar); longer bars stay on one line.
+          const oneDay = sg.c0 === sg.c1;
+          const names = x.assignees.length
+            ? x.assignees.map((a) => PH.esc(firstName(a))).join(oneDay ? "<br>" : " · ")
+            : "Nobody yet";
+          const label = x.label ? "<b>" + PH.esc(x.label) + "</b>" + (oneDay ? "<br>" : " ") : "";
+          html +=
+            '<button class="dr-ev dr-ev--' + tone(x.name) + (isOn(x, ME) ? " is-me" : "") + (x.end_date < t ? " is-past" : "") +
+            (sg.head ? " is-head" : "") + (sg.tail ? " is-tail" : "") + (oneDay ? " dr-ev--day" : "") + '" data-slot="' + PH.esc(x.name) +
+            '" style="grid-column:' + (sg.c0 + 1) + " / " + (sg.c1 + 2) + ";grid-row:" + (sg.lane + 2) +
+            '" title="' + PH.esc(title(x) + " · " + range(x.start_date, x.end_date) + "\n" + x.assignees.map((a) => a.full_name).join(", ")) + '">' +
+            (busy.has(x.name) ? '<i class="dr-ev__dot" aria-label="Change pending"></i>' : "") +
+            '<span class="dr-ev__text">' + label + names + "</span></button>";
+        });
+      html += "</div>";
+    }
+    html += "</div>";
+    html += '<div class="dr-cal__legend"><span><i class="dr-ev dr-ev--teal is-me"></i> You are on it</span><span><i class="dr-ev__dot"></i> Change pending</span>' +
+      (slots.length ? "" : '<span class="ph-muted">No slots this month</span>') + "</div>";
+    PH.set("#rota", html);
+    PH.$$("#rota .dr-ev[data-slot]").forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      slotDetails(rota.slots.find((x) => x.name === b.dataset.slot), busy);
+    }));
+    PH.$$("#rota [data-more]").forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      dayList(b.dataset.more, slots, busy);
+    }));
+    if (CAN_MANAGE)
+      PH.$$("#rota .dr-cal__day").forEach((c) => {
+        c.classList.add("is-editable");
+        c.onclick = () => newSlotOn(c.dataset.day);
+      });
+  }
+
+  function newSlotOn(day) {
+    const type = types.find((x) => x.name === st.get().type) || {};
+    // A weekly duty starts as the week from that day; anything else as that one day. Both can be changed.
+    editSlot(null, { start_date: day, end_date: type.default_cadence === "Weekly" ? PH.date.add(day, 6) : day });
+  }
+
+  function slotDetails(slot, busy) {
+    const t = PH.date.today();
+    const people = slot.assignees.length
+      ? '<div class="dr-people">' + slot.assignees.map((a) => '<span class="dr-person' + (a.user === ME ? " is-me" : "") + '">' + PH.esc(a.full_name) + "</span>").join("") + "</div>"
+      : '<span class="ph-muted">Nobody yet</span>';
+    const pend = requests.filter((r) => r.status === "Pending" && (r.slot === slot.name || r.swap_slot === slot.name));
+    const actions = [{ label: "Close" }];
+    if (CAN_MANAGE) actions.unshift({ label: "Delete", danger: true, onClick: () => { deleteSlot(slot); } });
+    if (CAN_MANAGE) actions.push({ label: "Edit", onClick: () => { editSlot(slot); } });
+    if (slot.end_date >= t && slot.assignees.length && (isOn(slot, ME) || CAN_MANAGE))
+      actions.push({ label: "Request change", primary: true, onClick: () => { requestChange(slot); } });
+    PH.modal({
+      title: title(slot),
+      sub: range(slot.start_date, slot.end_date) + (slot.start_date === slot.end_date ? " · " + weekday(slot.start_date) : "") + " · " + slot.duty_type,
+      body:
+        '<div class="ph-stack"><div><div class="ph-label">On duty</div>' + people + "</div>" +
+        (slot.notes ? '<div><div class="ph-label">Notes</div><div>' + PH.esc(slot.notes) + "</div></div>" : "") +
+        (pend.length ? '<div class="ph-notice ph-notice--warn">' + pend.map((r) => PH.esc(summary(r))).join("<br>") + "</div>" : "") +
+        "</div>",
+      actions,
+    });
+  }
+
+  function dayList(day, slots, busy) {
+    const list = slots.filter((x) => x.start_date <= day && x.end_date >= day);
+    const m = PH.modal({
+      title: range(day, day) + " · " + weekday(day),
+      body: '<div class="ph-list">' + list.map((x) =>
+        '<button class="dr-daylist ph-list__row" data-slot="' + PH.esc(x.name) + '"><span class="dr-ev dr-ev--' + tone(x.name) + ' dr-ev--swatch"></span><span><b>' +
+        PH.esc(title(x)) + "</b><br><small>" + PH.esc(x.assignees.map((a) => a.full_name).join(", ") || "Nobody yet") + "</small></span></button>").join("") + "</div>",
+      actions: [{ label: "Close" }],
+    });
+    PH.$$("[data-slot]", m.body).forEach((b) => (b.onclick = () => {
+      m.close();
+      slotDetails(rota.slots.find((x) => x.name === b.dataset.slot), busy);
+    }));
   }
 
   function summary(r) {
@@ -242,9 +407,9 @@
     return list.map((p) => '<option value="' + PH.esc(p.user) + '"' + (p.user === selected ? " selected" : "") + ">" + PH.esc(p.full_name) + "</option>").join("");
   }
 
-  function editSlot(slot) {
+  function editSlot(slot, preset) {
     const t = PH.date.today();
-    const s = slot || { duty_type: st.get().type, label: "", start_date: t, end_date: t, notes: "", assignees: [] };
+    const s = slot || Object.assign({ duty_type: st.get().type, label: "", start_date: t, end_date: t, notes: "", assignees: [] }, preset || {});
     const on = new Set(s.assignees.map((a) => a.user));
     const pool = (people || []).slice();
     s.assignees.forEach((a) => !pool.some((p) => p.user === a.user) && pool.push({ user: a.user, full_name: a.full_name }));

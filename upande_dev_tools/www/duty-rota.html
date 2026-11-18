@@ -36,7 +36,18 @@
 </nav>
 
 <section class="ph-card ph-card--flush" id="view-rota" hidden>
-  <div class="ph-card__head"><div><h2 class="ph-card__title">Slots</h2><div class="ph-card__meta" id="rota-meta">4 weeks back to 26 weeks ahead</div></div></div>
+  <div class="ph-card__head">
+    <div><h2 class="ph-card__title">Slots</h2><div class="ph-card__meta" id="rota-meta"></div></div>
+    <div class="ph-card__tools dr-tools">
+      <div class="dr-calnav" id="cal-nav">
+        <button class="ph-iconbtn ph-iconbtn--sm" id="cal-prev" type="button" aria-label="Previous month">‹</button>
+        <strong class="dr-calnav__title" id="cal-title"></strong>
+        <button class="ph-iconbtn ph-iconbtn--sm" id="cal-next" type="button" aria-label="Next month">›</button>
+        <button class="ph-btn ph-btn--sm ph-btn--ghost" id="cal-today" type="button">Today</button>
+      </div>
+      <div class="ph-pills" id="f-layout"><button data-value="calendar">Calendar</button><button data-value="list">List</button></div>
+    </div>
+  </div>
   <div id="rota"></div>
 </section>
 
