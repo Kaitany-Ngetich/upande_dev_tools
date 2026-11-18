@@ -411,6 +411,14 @@ def register_dev_portal_pages() -> None:
 		roles=["All"],
 	)
 	register_dev_portal_page(
+		route="duty-rota",
+		title="Duty Rota",
+		icon="calendar",
+		nav_group="Management",
+		sort_order=27,
+		roles=["Dev Team", "Projects Manager", "System Manager"],
+	)
+	register_dev_portal_page(
 		route="master-data",
 		title="Master Data",
 		icon="database",
@@ -598,6 +606,13 @@ def rename_legacy_workspace() -> None:
 	)
 
 
+def seed_duty_rota() -> None:
+	"""The Support duty type and the owner's PDF rota; never touches a rota that already has slots."""
+	from upande_dev_tools.duty_seed import seed_support_rota
+
+	seed_support_rota()
+
+
 def run_setup() -> None:
 	create_task_custom_fields()
 	create_issue_custom_fields()
@@ -612,6 +627,7 @@ def run_setup() -> None:
 	fix_requests_page_nav_group()
 	fix_master_data_page_roles()
 	register_installed_apps_as_deployment_apps()
+	seed_duty_rota()
 	# Before the resync, or the shipped JSON inserts a second Workspace beside the old one.
 	rename_legacy_workspace()
 	# Nav last: the shipped records must exist before the duplicates around them are pruned.

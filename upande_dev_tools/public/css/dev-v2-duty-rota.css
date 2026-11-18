@@ -1,0 +1,11 @@
+/* Duty Rota page: only what the shared dev-v2.css does not already have. */
+.dr-people{display:flex;flex-wrap:wrap;gap:6px}
+.dr-person{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:var(--surface-2,#f2f0ec);font:500 12px var(--sans)}
+.dr-person.is-me{background:var(--ink);color:#fff}
+.dr-when{white-space:nowrap}
+.dr-when small{display:block;color:var(--ink-mute);font-size:11px}
+.dr-row--current td{background:rgba(0,0,0,.03)}
+.dr-row--past td{opacity:.6}
+.dr-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.dr-picklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:260px;overflow:auto;padding:4px 0}
+.dr-reason{color:var(--ink-mute);font-size:12px;margin-top:2px}

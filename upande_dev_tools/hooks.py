@@ -201,6 +201,8 @@ scheduler_events = {
 	"cron": {
 		"*/5 * * * *": ["upande_dev_tools.backup.scheduler.run_code_backup"],
 		"0 8 * * 1-5": ["upande_dev_tools.api.notifications.send_morning_digest"],
+		# The day before a duty slot starts, remind the people on it.
+		"0 7 * * *": ["upande_dev_tools.api.duty.send_start_reminders"],
 	},
 }
 

@@ -13,4 +13,5 @@ def get_context(context):
 	context = page_context(context, "master-data", "Master Data")
 	context.page_v = portal.asset_version("js/dev-v2-master-data.js")
 	context.page_css_v = portal.asset_version("css/dev-v2-master-data.css")
+	context.duty_types_v = portal.asset_version("js/dev-v2-duty-types.js")
 	return context
